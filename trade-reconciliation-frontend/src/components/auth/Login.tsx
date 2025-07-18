@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
-import { signIn } from 'aws-amplify/auth';
-import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../App';
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -15,19 +14,8 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      // For development, we'll just simulate authentication
-      // In production, uncomment the line below:
-      // await signIn({ username, password });
-      
-      // Simulate successful login after a short delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For demo purposes, accept any non-empty username/password
-      if (username && password) {
-        navigate('/');
-      } else {
-        throw new Error('Please enter both username and password');
-      }
+      await login(username, password);
+      // The AuthProvider will handle the redirect automatically
     } catch (err: any) {
       setError(err.message || 'An error occurred during sign in');
     } finally {

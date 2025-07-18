@@ -10,6 +10,7 @@ import {
   DocumentDuplicateIcon,
   DocumentChartBarIcon,
   Cog6ToothIcon,
+  CpuChipIcon,
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -20,8 +21,9 @@ interface SidebarProps {
 const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Document Upload', href: '/upload', icon: DocumentArrowUpIcon },
+  { name: 'Agent Monitor', href: '/agent-monitor', icon: CpuChipIcon },
   { name: 'Trade Explorer', href: '/trades', icon: MagnifyingGlassIcon },
-  { name: 'Match Review', href: '/matches', icon: LinkIcon },
+  { name: 'Match Review', href: '/match-review', icon: LinkIcon },
   { name: 'Reconciliation Detail', href: '/reconciliation', icon: DocumentDuplicateIcon },
   { name: 'Reports', href: '/reports', icon: DocumentChartBarIcon },
   { name: 'Admin Settings', href: '/admin', icon: Cog6ToothIcon },
