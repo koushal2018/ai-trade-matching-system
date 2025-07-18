@@ -26,28 +26,25 @@
 
 ### Data Storage
 - **Amazon DynamoDB**
-  - **BankTradeData**: Stores trade data from bank sources
-  - **CounterpartyTradeData**: Stores trade data from counterparty sources
-  - **TradeMatches**: Stores match data between bank and counterparty trades
+  - **BankTradeData**: Stores trade data from bank sources - arn:aws:dynamodb:us-east-1:401552979575:table/BankTradeData
+  - **CounterpartyTradeData**: Stores trade data from counterparty sources - arn:aws:dynamodb:us-east-1:401552979575:table/CounterpartyTradeData
+  - **TradeMatches**: Stores match data between bank and counterparty trades - arn:aws:dynamodb:us-east-1:401552979575:table/TradeMatches
   - On-demand capacity for cost optimization
 
 - **Amazon S3**
   - Single bucket: **fab-otc-reconciliation-deployment**
-  - **BANK/** folder: Stores uploaded bank trade documents
-  - **COUNTERPARTY/** folder: Stores uploaded counterparty trade documents
-  - Lifecycle policies for cost optimization
+  - **BANK/** folder: Stores uploaded bank trade documents - s3://fab-otc-reconciliation-deployment/BANK/
+  - **COUNTERPARTY/** folder: Stores uploaded counterparty trade documents - s3://fab-otc-reconciliation-deployment/COUNTERPARTY/
+  - Lifecycle policies for cost optimization 
 
 ### AI Document Processing
-- **AWS Lambda (Document Processor)**
+- **AWS Lambda (Document Processor)** - arn:aws:lambda:us-east-1:401552979575:function:trade-pdf-processor
   - Triggered when documents are uploaded to S3
   - Calls AI vision services for document processing
   - Extracts structured data from documents
   - Stores extracted data in appropriate DynamoDB tables
 
-- **Amazon Textract/Rekognition**
-  - Extracts text and data from documents
-  - Identifies key trade attributes
-  - Provides structured data for processing
+
 
 ### Monitoring and Logging
 - **Amazon CloudWatch**
