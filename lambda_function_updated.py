@@ -164,6 +164,8 @@ def get_dashboard_data():
 
 def create_upload_url(body):
     """Generate pre-signed URL for document upload"""
+    print(f"Creating upload URL with body: {json.dumps(body)}")
+    
     if not body or 'fileName' not in body or 'source' not in body:
         return response(400, {"message": "Missing required parameters: fileName and source"})
     
@@ -197,7 +199,7 @@ def create_upload_url(body):
             ExpiresIn=3600  # URL expires in 1 hour
         )
         
-        print(f"Generated pre-signed URL for {key}")
+        print(f"Generated pre-signed URL for {key}: {presigned_url[:100]}...")
         
         return response(200, {
             "uploadUrl": presigned_url,

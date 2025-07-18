@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import axios from 'axios';
 import { API_CONFIG } from '../../config';
 
 // API endpoint
@@ -79,7 +78,7 @@ const DocumentUpload: React.FC = () => {
           
           // Log detailed information about the response
           console.log('Response status:', response.status);
-          console.log('Response headers:', [...response.headers.entries()]);
+          console.log('Response headers:', Object.fromEntries(response.headers.entries()));
           
           console.log('Pre-signed URL response status:', response.status);
           
