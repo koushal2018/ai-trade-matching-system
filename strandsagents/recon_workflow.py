@@ -1,10 +1,10 @@
 from strands import Agent
-from strands_tools import workflow
 import json
 import logging
 import boto3
 from decimal import Decimal
 from datetime import datetime
+from typing import Dict, List, Any, Optional
 from models import MatcherConfig, ReconcilerConfig, ReportConfig
 
 # Import all tools from agents.py
@@ -17,11 +17,13 @@ from agents import (
 )
 
 # Configure logging
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-# Create an agent with workflow capability
-agent = Agent(tools=[workflow])
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 def create_trade_reconciliation_workflow():
     """Create the trade reconciliation workflow with the three agents."""

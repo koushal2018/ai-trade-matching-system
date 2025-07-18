@@ -2,20 +2,74 @@ import json
 import uuid
 import boto3
 import logging
+import os
 from decimal import Decimal
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from difflib import SequenceMatcher
+from botocore.exceptions import ClientError, NoCredentialsError
 
 from strands import Agent, tool
 from models import (
     Trade, TradeMatch, FieldComparisonResult, ReconciliationResult,
-    MatcherConfig, ReconcilerConfig, ReportConfig
+    MatcherConfig, ReconcilerConfig, ReportConfig, TableConfig
 )
 
 # Configure logging
-logger = logging.getLogger()
+logger = logging.getLogger("trade-reconciliation")
 logger.setLevel(logging.INFO)
+
+# AWS Configuration
+AWS_REGION = os.getenv('AWS_REGION', os.getenv('AWS_DEFAULT_REGION', 'us-east-1'))
+logger.info(f"Using AWS region: {AWS_REGION}")
+
+# Global table configuration - can be overridden by environment variables
+TABLE_CONFIG = TableConfig.from_environment()
+logger.info(f"Using table configuration: {TABLE_CONFIG}")
+
+def get_dynamodb_resource():
+    """Get DynamoDB resource with proper configuration."""
+    try:
+        dynamodb = boto3.resource('dynamodb', region_name=AWS_REGION)
+        # Test the connection
+        list(dynamodb.tables.all())
+        return dynamodb
+    except NoCredentialsError:
+        logger.error("AWS credentials not found. Please configure AWS credentials.")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to connect to DynamoDB: {e}")
+        raise
+
+def get_dynamodb_client():
+    """Get DynamoDB client with proper configuration."""
+    try:
+        return boto3.client('dynamodb', region_name=AWS_REGION)
+    except NoCredentialsError:
+        logger.error("AWS credentials not found. Please configure AWS credentials.")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create DynamoDB client: {e}")
+        raise
+
+def validate_table_exists(table_name: str) -> bool:
+    """Validate that a DynamoDB table exists and is accessible."""
+    try:
+        dynamodb = get_dynamodb_resource()
+        table = dynamodb.Table(table_name)
+        table.load()
+        logger.info(f"Successfully connected to table: {table_name}")
+        return True
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        if error_code == 'ResourceNotFoundException':
+            logger.error(f"Table {table_name} does not exist")
+        else:
+            logger.error(f"Error accessing table {table_name}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error validating table {table_name}: {e}")
+        return False
 
 # Helper for DynamoDB JSON serialization
 class DecimalEncoder(json.JSONEncoder):
@@ -37,18 +91,29 @@ def fetch_unmatched_trades(source: str, limit: int = 100) -> List[Dict[str, Any]
     Returns:
         List[Dict[str, Any]]: List of unmatched trade records
     """
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('BankTradeData' if source == 'BANK' else 'CounterpartyTradeData')
-    
-    response = table.scan(
-        FilterExpression="matched_status = :status",
-        ExpressionAttributeValues={":status": "PENDING"},
-        Limit=limit
-    )
-    
-    trades = response.get('Items', [])
-    logger.info(f"Fetched {len(trades)} unmatched trades from {source}")
-    return trades
+    try:
+        dynamodb = get_dynamodb_resource()
+        table_name = TABLE_CONFIG.bank_trades_table if source == 'BANK' else TABLE_CONFIG.counterparty_trades_table
+        
+        # Validate table exists before querying
+        if not validate_table_exists(table_name):
+            raise Exception(f"Table {table_name} is not accessible")
+        
+        table = dynamodb.Table(table_name)
+        
+        response = table.scan(
+            FilterExpression="matched_status = :status",
+            ExpressionAttributeValues={":status": "PENDING"},
+            Limit=limit
+        )
+        
+        trades = response.get('Items', [])
+        logger.info(f"Fetched {len(trades)} unmatched trades from {source} (table: {table_name})")
+        return trades
+        
+    except Exception as e:
+        logger.error(f"Error fetching unmatched trades from {source}: {e}")
+        raise
 
 
 @tool
@@ -63,57 +128,68 @@ def find_potential_matches(trade: Dict[str, Any], opposite_source: str) -> List[
     Returns:
         List[Dict[str, Any]]: List of potential matching trades
     """
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('BankTradeData' if opposite_source == 'BANK' else 'CounterpartyTradeData')
-    
-    # Generate composite key components for filtering
-    composite_key_components = []
-    if trade.get('trade_date'):
-        composite_key_components.append(trade['trade_date'])
-    if trade.get('currency'):
-        composite_key_components.append(trade['currency'])
-    if trade.get('total_notional_quantity'):
-        # Bucket notional into ranges for fuzzy matching
-        notional = float(trade['total_notional_quantity'])
-        notional_bucket = f"N{int(notional / 1000)}K"
-        composite_key_components.append(notional_bucket)
-    if trade.get('commodity_type'):
-        composite_key_components.append(trade['commodity_type'])
-    
-    composite_key = "#".join(composite_key_components) if composite_key_components else "UNKNOWN"
-    
-    # Use composite key for efficient filtering if available
-    if composite_key != "UNKNOWN":
-        # Query by composite key components for more flexible matching
-        components = composite_key.split('#')
-        filter_expressions = []
-        expression_values = {}
+    try:
+        dynamodb = get_dynamodb_resource()
+        table_name = TABLE_CONFIG.bank_trades_table if opposite_source == 'BANK' else TABLE_CONFIG.counterparty_trades_table
         
-        for i, component in enumerate(components):
-            if component:
-                attr_name = f":val{i}"
-                # For each component, check if it's contained in the composite key
-                filter_expressions.append(f"contains(composite_key, {attr_name})")
-                expression_values[attr_name] = component
+        # Validate table exists before querying
+        if not validate_table_exists(table_name):
+            raise Exception(f"Table {table_name} is not accessible")
         
-        filter_expression = " AND ".join(filter_expressions)
+        table = dynamodb.Table(table_name)
         
-        response = table.scan(
-            FilterExpression=filter_expression,
-            ExpressionAttributeValues=expression_values,
-            Limit=20  # Limit potential matches for performance
-        )
-    else:
-        # Fallback to scanning for unmatched trades
-        response = table.scan(
-            FilterExpression="matched_status = :status",
-            ExpressionAttributeValues={":status": "PENDING"},
-            Limit=50
-        )
-    
-    potential_matches = response.get('Items', [])
-    logger.info(f"Found {len(potential_matches)} potential matches for trade {trade.get('trade_id')}")
-    return potential_matches
+        # Generate composite key components for filtering
+        composite_key_components = []
+        if trade.get('trade_date'):
+            composite_key_components.append(trade['trade_date'])
+        if trade.get('currency'):
+            composite_key_components.append(trade['currency'])
+        if trade.get('total_notional_quantity'):
+            # Bucket notional into ranges for fuzzy matching
+            notional = float(trade['total_notional_quantity'])
+            notional_bucket = f"N{int(notional / 1000)}K"
+            composite_key_components.append(notional_bucket)
+        if trade.get('commodity_type'):
+            composite_key_components.append(trade['commodity_type'])
+        
+        composite_key = "#".join(composite_key_components) if composite_key_components else "UNKNOWN"
+        
+        # Use composite key for efficient filtering if available
+        if composite_key != "UNKNOWN":
+            # Query by composite key components for more flexible matching
+            components = composite_key.split('#')
+            filter_expressions = []
+            expression_values = {}
+            
+            for i, component in enumerate(components):
+                if component:
+                    attr_name = f":val{i}"
+                    # For each component, check if it's contained in the composite key
+                    filter_expressions.append(f"contains(composite_key, {attr_name})")
+                    expression_values[attr_name] = component
+            
+            filter_expression = " AND ".join(filter_expressions)
+            
+            response = table.scan(
+                FilterExpression=filter_expression,
+                ExpressionAttributeValues=expression_values,
+                Limit=20  # Limit potential matches for performance
+            )
+        else:
+            # Fallback to scanning for unmatched trades
+            response = table.scan(
+                FilterExpression="matched_status = :status",
+                ExpressionAttributeValues={":status": "PENDING"},
+                Limit=50
+            )
+        
+        potential_matches = response.get('Items', [])
+        logger.info(f"Found {len(potential_matches)} potential matches for trade {trade.get('trade_id')}")
+        return potential_matches
+        
+    except Exception as e:
+        logger.error(f"Error finding potential matches for trade {trade.get('trade_id')}: {e}")
+        raise
 
 
 @tool
@@ -193,57 +269,62 @@ def update_match_status(bank_trade: Dict[str, Any], counterparty_trade: Dict[str
     Returns:
         str: The match ID
     """
-    dynamodb = boto3.resource('dynamodb')
-    bank_table = dynamodb.Table('BankTradeData')
-    counterparty_table = dynamodb.Table('CounterpartyTradeData')
-    matches_table = dynamodb.Table('TradeMatches')
-    
-    match_id = str(uuid.uuid4())
-    timestamp = datetime.now().isoformat()
-    
-    # Update both trades with match information - using correct composite keys
-    # Bank table has composite key of trade_id and internal_reference
-    bank_table.update_item(
-        Key={
-            "trade_id": bank_trade["trade_id"],
-            "internal_reference": bank_trade["internal_reference"]
-        },
-        UpdateExpression="SET matched_status = :status, match_id = :match_id, last_updated = :timestamp",
-        ExpressionAttributeValues={
-            ":status": "MATCHED",
-            ":match_id": match_id,
-            ":timestamp": timestamp
-        }
-    )
-    
-    # Counterparty table has the same schema
-    counterparty_table.update_item(
-        Key={
-            "trade_id": counterparty_trade["trade_id"],
-            "internal_reference": counterparty_trade["internal_reference"]
-        },
-        UpdateExpression="SET matched_status = :status, match_id = :match_id, last_updated = :timestamp",
-        ExpressionAttributeValues={
-            ":status": "MATCHED",
-            ":match_id": match_id,
-            ":timestamp": timestamp
-        }
-    )
-    
-    # Create match record in TradeMatches table
-    matches_table.put_item(
-        Item={
-            "match_id": match_id,
-            "bank_trade_id": bank_trade["trade_id"],
-            "counterparty_trade_id": counterparty_trade["trade_id"],
-            "similarity_score": Decimal(str(score)),
-            "reconciliation_status": "PENDING",
-            "last_updated": timestamp
-        }
-    )
-    
-    logger.info(f"Created match {match_id} between bank trade {bank_trade['trade_id']} and counterparty trade {counterparty_trade['trade_id']} with score {score}")
-    return match_id
+    try:
+        dynamodb = get_dynamodb_resource()
+        bank_table = dynamodb.Table(TABLE_CONFIG.bank_trades_table)
+        counterparty_table = dynamodb.Table(TABLE_CONFIG.counterparty_trades_table)
+        matches_table = dynamodb.Table(TABLE_CONFIG.trade_matches_table)
+        
+        match_id = str(uuid.uuid4())
+        timestamp = datetime.now().isoformat()
+        
+        # Update both trades with match information - using correct composite keys
+        # Bank table has composite key of trade_id and internal_reference
+        bank_table.update_item(
+            Key={
+                "trade_id": bank_trade["trade_id"],
+                "internal_reference": bank_trade["internal_reference"]
+            },
+            UpdateExpression="SET matched_status = :status, match_id = :match_id, last_updated = :timestamp",
+            ExpressionAttributeValues={
+                ":status": "MATCHED",
+                ":match_id": match_id,
+                ":timestamp": timestamp
+            }
+        )
+        
+        # Counterparty table has the same schema
+        counterparty_table.update_item(
+            Key={
+                "trade_id": counterparty_trade["trade_id"],
+                "internal_reference": counterparty_trade["internal_reference"]
+            },
+            UpdateExpression="SET matched_status = :status, match_id = :match_id, last_updated = :timestamp",
+            ExpressionAttributeValues={
+                ":status": "MATCHED",
+                ":match_id": match_id,
+                ":timestamp": timestamp
+            }
+        )
+        
+        # Create match record in TradeMatches table
+        matches_table.put_item(
+            Item={
+                "match_id": match_id,
+                "bank_trade_id": bank_trade["trade_id"],
+                "counterparty_trade_id": counterparty_trade["trade_id"],
+                "similarity_score": Decimal(str(score)),
+                "reconciliation_status": "PENDING",
+                "last_updated": timestamp
+            }
+        )
+        
+        logger.info(f"Created match {match_id} between bank trade {bank_trade['trade_id']} and counterparty trade {counterparty_trade['trade_id']} with score {score}")
+        return match_id
+        
+    except Exception as e:
+        logger.error(f"Error updating match status: {e}")
+        raise
 
 
 @tool
@@ -257,22 +338,30 @@ def mark_as_unmatched(trade: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: The update result
     """
-    dynamodb = boto3.resource('dynamodb')
-    table_name = 'BankTradeData' if trade['source'] == 'BANK' else 'CounterpartyTradeData'
-    table = dynamodb.Table(table_name)
-    
-    response = table.update_item(
-        Key={"trade_id": trade["trade_id"]},
-        UpdateExpression="SET matched_status = :status, last_updated = :timestamp",
-        ExpressionAttributeValues={
-            ":status": "UNMATCHED",
-            ":timestamp": datetime.now().isoformat()
-        },
-        ReturnValues="ALL_NEW"
-    )
-    
-    logger.info(f"Marked trade {trade['trade_id']} as UNMATCHED")
-    return response.get('Attributes', {})
+    try:
+        dynamodb = get_dynamodb_resource()
+        table_name = TABLE_CONFIG.bank_trades_table if trade['source'] == 'BANK' else TABLE_CONFIG.counterparty_trades_table
+        table = dynamodb.Table(table_name)
+        
+        response = table.update_item(
+            Key={
+                "trade_id": trade["trade_id"],
+                "internal_reference": trade["internal_reference"]
+            },
+            UpdateExpression="SET matched_status = :status, last_updated = :timestamp",
+            ExpressionAttributeValues={
+                ":status": "UNMATCHED",
+                ":timestamp": datetime.now().isoformat()
+            },
+            ReturnValues="ALL_NEW"
+        )
+        
+        logger.info(f"Marked trade {trade['trade_id']} as UNMATCHED")
+        return response.get('Attributes', {})
+        
+    except Exception as e:
+        logger.error(f"Error marking trade {trade.get('trade_id')} as unmatched: {e}")
+        raise
 
 
 @tool
@@ -286,18 +375,23 @@ def fetch_matched_trades(limit: int = 100) -> List[Dict[str, Any]]:
     Returns:
         List[Dict[str, Any]]: List of matched trade records
     """
-    dynamodb = boto3.resource('dynamodb')
-    matches_table = dynamodb.Table('TradeMatches')
-    
-    response = matches_table.scan(
-        FilterExpression="reconciliation_status = :status",
-        ExpressionAttributeValues={":status": "PENDING"},
-        Limit=limit
-    )
-    
-    matches = response.get('Items', [])
-    logger.info(f"Fetched {len(matches)} matched trades for reconciliation")
-    return matches
+    try:
+        dynamodb = get_dynamodb_resource()
+        matches_table = dynamodb.Table(TABLE_CONFIG.trade_matches_table)
+        
+        response = matches_table.scan(
+            FilterExpression="reconciliation_status = :status",
+            ExpressionAttributeValues={":status": "PENDING"},
+            Limit=limit
+        )
+        
+        matches = response.get('Items', [])
+        logger.info(f"Fetched {len(matches)} matched trades for reconciliation")
+        return matches
+        
+    except Exception as e:
+        logger.error(f"Error fetching matched trades: {e}")
+        raise
 
 
 @tool
@@ -311,22 +405,36 @@ def get_trade_pair(match: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     Returns:
         Dict[str, Dict[str, Any]]: Dictionary with bank_trade and counterparty_trade
     """
-    dynamodb = boto3.resource('dynamodb')
-    bank_table = dynamodb.Table('BankTradeData')
-    counterparty_table = dynamodb.Table('CounterpartyTradeData')
-    
-    bank_trade = bank_table.get_item(
-        Key={"trade_id": match["bank_trade_id"]}
-    ).get('Item', {})
-    
-    counterparty_trade = counterparty_table.get_item(
-        Key={"trade_id": match["counterparty_trade_id"]}
-    ).get('Item', {})
-    
-    return {
-        "bank_trade": bank_trade,
-        "counterparty_trade": counterparty_trade
-    }
+    try:
+        dynamodb = get_dynamodb_resource()
+        bank_table = dynamodb.Table(TABLE_CONFIG.bank_trades_table)
+        counterparty_table = dynamodb.Table(TABLE_CONFIG.counterparty_trades_table)
+        
+        # Note: We need the internal_reference as part of the composite key
+        # For now, we'll scan for the trade_id and get the first match
+        # This could be optimized with a GSI on trade_id
+        bank_response = bank_table.scan(
+            FilterExpression="trade_id = :trade_id",
+            ExpressionAttributeValues={":trade_id": match["bank_trade_id"]},
+            Limit=1
+        )
+        bank_trade = bank_response.get('Items', [{}])[0] if bank_response.get('Items') else {}
+        
+        counterparty_response = counterparty_table.scan(
+            FilterExpression="trade_id = :trade_id",
+            ExpressionAttributeValues={":trade_id": match["counterparty_trade_id"]},
+            Limit=1
+        )
+        counterparty_trade = counterparty_response.get('Items', [{}])[0] if counterparty_response.get('Items') else {}
+        
+        return {
+            "bank_trade": bank_trade,
+            "counterparty_trade": counterparty_trade
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching trade pair for match {match.get('match_id')}: {e}")
+        raise
 
 
 @tool
@@ -488,23 +596,28 @@ def update_reconciliation_status(match_id: str, field_results: Dict[str, Dict[st
     Returns:
         Dict[str, Any]: The update result
     """
-    dynamodb = boto3.resource('dynamodb')
-    matches_table = dynamodb.Table('TradeMatches')
-    
-    # Update the match record
-    response = matches_table.update_item(
-        Key={"match_id": match_id},
-        UpdateExpression="SET reconciliation_status = :status, field_results = :results, last_updated = :timestamp",
-        ExpressionAttributeValues={
-            ":status": overall_status,
-            ":results": field_results,
-            ":timestamp": datetime.now().isoformat()
-        },
-        ReturnValues="ALL_NEW"
-    )
-    
-    logger.info(f"Updated reconciliation status for match {match_id} to {overall_status}")
-    return response.get('Attributes', {})
+    try:
+        dynamodb = get_dynamodb_resource()
+        matches_table = dynamodb.Table(TABLE_CONFIG.trade_matches_table)
+        
+        # Update the match record
+        response = matches_table.update_item(
+            Key={"match_id": match_id},
+            UpdateExpression="SET reconciliation_status = :status, field_results = :results, last_updated = :timestamp",
+            ExpressionAttributeValues={
+                ":status": overall_status,
+                ":results": field_results,
+                ":timestamp": datetime.now().isoformat()
+            },
+            ReturnValues="ALL_NEW"
+        )
+        
+        logger.info(f"Updated reconciliation status for match {match_id} to {overall_status}")
+        return response.get('Attributes', {})
+        
+    except Exception as e:
+        logger.error(f"Error updating reconciliation status for match {match_id}: {e}")
+        raise
 
 
 @tool
@@ -607,22 +720,27 @@ def fetch_reconciliation_results(status: Optional[str] = None, limit: int = 100)
     Returns:
         List[Dict[str, Any]]: List of reconciliation results
     """
-    dynamodb = boto3.resource('dynamodb')
-    matches_table = dynamodb.Table('TradeMatches')
-    
-    filter_expression = "reconciliation_status <> :pending"
-    expression_values = {":pending": "PENDING"}
-    
-    if status:
-        filter_expression += " AND reconciliation_status = :status"
-        expression_values[":status"] = status
-    
-    response = matches_table.scan(
-        FilterExpression=filter_expression,
-        ExpressionAttributeValues=expression_values,
-        Limit=limit
-    )
-    
-    results = response.get('Items', [])
-    logger.info(f"Fetched {len(results)} reconciliation results")
-    return results
+    try:
+        dynamodb = get_dynamodb_resource()
+        matches_table = dynamodb.Table(TABLE_CONFIG.trade_matches_table)
+        
+        filter_expression = "reconciliation_status <> :pending"
+        expression_values = {":pending": "PENDING"}
+        
+        if status:
+            filter_expression += " AND reconciliation_status = :status"
+            expression_values[":status"] = status
+        
+        response = matches_table.scan(
+            FilterExpression=filter_expression,
+            ExpressionAttributeValues=expression_values,
+            Limit=limit
+        )
+        
+        results = response.get('Items', [])
+        logger.info(f"Fetched {len(results)} reconciliation results")
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error fetching reconciliation results: {e}")
+        raise

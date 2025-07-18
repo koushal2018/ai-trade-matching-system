@@ -109,6 +109,24 @@ class ReconcilerConfig:
 
 
 @dataclass
+class TableConfig:
+    """Configuration for DynamoDB table names."""
+    bank_trades_table: str = "BankTradeData"
+    counterparty_trades_table: str = "CounterpartyTradeData" 
+    trade_matches_table: str = "TradeMatches"
+    
+    @classmethod
+    def from_environment(cls):
+        """Create configuration from environment variables."""
+        import os
+        return cls(
+            bank_trades_table=os.getenv('BANK_TRADES_TABLE', 'BankTradeData'),
+            counterparty_trades_table=os.getenv('COUNTERPARTY_TRADES_TABLE', 'CounterpartyTradeData'),
+            trade_matches_table=os.getenv('TRADE_MATCHES_TABLE', 'TradeMatches')
+        )
+
+
+@dataclass
 class ReportConfig:
     """Configuration for the report generator."""
     report_bucket: str = "trade-reconciliation-reports"
