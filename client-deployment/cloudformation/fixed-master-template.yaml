@@ -8,8 +8,8 @@ Parameters:
     
   TemplateS3Path:
     Type: String
-    Default: trade-reconciliation
-    Description: Path prefix in the S3 bucket where templates are stored
+    Default: ''
+    Description: Path prefix in the S3 bucket where templates are stored (leave empty if templates are in the bucket root)
     
   EnvironmentName:
     Type: String
@@ -52,8 +52,8 @@ Resources:
     Properties:
       TemplateURL: !If
         - HasPath
-        - !Sub https://s3.${AWS::Region}.amazonaws.com/${TemplateS3Bucket}/${TemplateS3Path}/core-infrastructure.yaml
-        - !Sub https://s3.${AWS::Region}.amazonaws.com/${TemplateS3Bucket}/core-infrastructure.yaml
+        - !Sub https://${TemplateS3Bucket}.s3.${AWS::Region}.amazonaws.com/${TemplateS3Path}/core-infrastructure.yaml
+        - !Sub https://${TemplateS3Bucket}.s3.${AWS::Region}.amazonaws.com/core-infrastructure.yaml
       Parameters:
         EnvironmentName: !Ref EnvironmentName
       Tags:
@@ -67,7 +67,10 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Condition: EnableAuthCondition
     Properties:
-      TemplateURL: !Sub https://s3.${AWS::Region}.amazonaws.com/${TemplateS3Bucket}/${TemplateS3Path}/authentication.yaml
+      TemplateURL: !If
+        - HasPath
+        - !Sub https://${TemplateS3Bucket}.s3.${AWS::Region}.amazonaws.com/${TemplateS3Path}/authentication.yaml
+        - !Sub https://${TemplateS3Bucket}.s3.${AWS::Region}.amazonaws.com/authentication.yaml
       Parameters:
         EnvironmentName: !Ref EnvironmentName
         AdminEmail: !If [HasAdminEmail, !Ref AdminEmail, 'admin@example.com']
@@ -82,7 +85,10 @@ Resources:
     Type: AWS::CloudFormation::Stack
     DependsOn: CoreInfrastructureStack
     Properties:
-      TemplateURL: !Sub https://s3.${AWS::Region}.amazonaws.com/${TemplateS3Bucket}/${TemplateS3Path}/api-lambda.yaml
+      TemplateURL: !If
+        - HasPath
+        - !Sub https://${TemplateS3Bucket}.s3.${AWS::Region}.amazonaws.com/${TemplateS3Path}/api-lambda.yaml
+        - !Sub https://${TemplateS3Bucket}.s3.${AWS::Region}.amazonaws.com/api-lambda.yaml
       Parameters:
         EnvironmentName: !Ref EnvironmentName
         ApiStageName: !Ref ApiStageName
@@ -104,7 +110,10 @@ Resources:
       - ApiLambdaStack
       - AuthenticationStack
     Properties:
-      TemplateURL: !Sub https://s3.${AWS::Region}.amazonaws.com/${TemplateS3Bucket}/${TemplateS3Path}/frontend-amplify.yaml
+      TemplateURL: !If
+        - HasPath
+        - !Sub https://${TemplateS3Bucket}.s3.${AWS::Region}.amazonaws.com/${TemplateS3Path}/frontend-amplify.yaml
+        - !Sub https://${TemplateS3Bucket}.s3.${AWS::Region}.amazonaws.com/frontend-amplify.yaml
       Parameters:
         EnvironmentName: !Ref EnvironmentName
         ApiEndpoint: !GetAtt ApiLambdaStack.Outputs.ApiEndpoint
@@ -122,7 +131,10 @@ Resources:
     DependsOn:
       - ApiLambdaStack
     Properties:
-      TemplateURL: !Sub https://s3.${AWS::Region}.amazonaws.com/${TemplateS3Bucket}/${TemplateS3Path}/monitoring.yaml
+      TemplateURL: !If
+        - HasPath
+        - !Sub https://${TemplateS3Bucket}.s3.${AWS::Region}.amazonaws.com/${TemplateS3Path}/monitoring.yaml
+        - !Sub https://${TemplateS3Bucket}.s3.${AWS::Region}.amazonaws.com/monitoring.yaml
       Parameters:
         EnvironmentName: !Ref EnvironmentName
         ApiGatewayId: !GetAtt ApiLambdaStack.Outputs.ApiId
@@ -142,7 +154,10 @@ Resources:
     DependsOn:
       - CoreInfrastructureStack
     Properties:
-      TemplateURL: !Sub https://s3.${AWS::Region}.amazonaws.com/${TemplateS3Bucket}/${TemplateS3Path}/backup-dr.yaml
+      TemplateURL: !If
+        - HasPath
+        - !Sub https://${TemplateS3Bucket}.s3.${AWS::Region}.amazonaws.com/${TemplateS3Path}/backup-dr.yaml
+        - !Sub https://${TemplateS3Bucket}.s3.${AWS::Region}.amazonaws.com/backup-dr.yaml
       Parameters:
         EnvironmentName: !Ref EnvironmentName
         BackupRetentionDays: 30

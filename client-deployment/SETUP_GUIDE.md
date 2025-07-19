@@ -1,229 +1,198 @@
-# Trade Reconciliation System - Step-by-Step Setup Guide
+# Trade Reconciliation System - Setup Guide
 
-This guide provides detailed instructions for deploying the Trade Reconciliation System in your AWS environment, even if you're not familiar with CloudFormation or AWS deployments.
+This guide provides instructions for setting up the Trade Reconciliation System after deployment.
 
 ## Prerequisites
 
-Before beginning the deployment, ensure you have:
+Ensure that you have successfully deployed:
+1. Core Infrastructure (DynamoDB tables and S3 buckets)
+2. API Layer (Lambda functions and API Gateway)
+3. Frontend (S3 static website)
 
-1. **AWS Account** with administrator access
-2. **AWS Management Console** access
-3. **AWS CLI** installed and configured ([Installation Guide](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html))
-4. **Git Repository** (optional) for frontend code deployment
+## Initial Configuration
 
-## Deployment Steps
+### 1. Configure API Endpoint in Frontend
 
-### Step 1: Prepare Your Environment
+After deploying the frontend, you need to configure it to use your API endpoint:
 
-1. **Create a deployment S3 bucket** to store your CloudFormation templates:
-   
+1. Locate the configuration file in your frontend code:
+   ```
+   trade-reconciliation-frontend/src/config.js
+   ```
+
+2. Update the API endpoint URL:
+   ```javascript
+   export const API_ENDPOINT = 'https://your-api-endpoint.execute-api.us-west-2.amazonaws.com/v1';
+   ```
+
+3. Rebuild and redeploy the frontend:
    ```bash
-   aws s3 mb s3://your-company-deployment-bucket --region us-east-1
+   cd trade-reconciliation-frontend
+   npm run build
+   aws s3 sync ./build/ s3://your-frontend-bucket --acl public-read
    ```
-   
-   Replace `your-company-deployment-bucket` with a globally unique bucket name and `us-east-1` with your preferred region.
 
-2. **Upload the CloudFormation templates** to your S3 bucket:
+### 2. Set Up Sample Data
 
+To test the system with sample data:
+
+1. Create a sample bank trade file (`bank_trades.csv`):
+   ```csv
+   tradeId,amount,currency,valueDate,counterparty
+   T001,10000,USD,2025-07-20,ACME Corp
+   T002,15000,EUR,2025-07-21,XYZ Ltd
+   T003,5000,GBP,2025-07-22,ABC Inc
+   ```
+
+2. Create a sample counterparty trade file (`counterparty_trades.csv`):
+   ```csv
+   tradeId,amount,currency,valueDate,counterparty
+   T001,10000,USD,2025-07-20,ACME Corp
+   T002,15000,EUR,2025-07-21,XYZ Ltd
+   T004,7500,JPY,2025-07-23,DEF Co
+   ```
+
+3. Upload the sample files to the document bucket:
    ```bash
-   aws s3 cp ./client-deployment/infrastructure/cloudformation/ s3://your-company-deployment-bucket/trade-reconciliation/ --recursive
+   aws s3 cp bank_trades.csv s3://your-document-bucket/bank/
+   aws s3 cp counterparty_trades.csv s3://your-document-bucket/counterparty/
    ```
 
-### Step 2: Deploy via AWS Management Console (Easiest Method)
+## User Setup
 
-1. **Sign in to the AWS Management Console** and navigate to the CloudFormation service.
+### 1. Create Admin User
 
-2. **Click "Create stack"** and select "With new resources (standard)".
+For production environments, it's recommended to set up proper user authentication. This can be done using Amazon Cognito:
 
-3. In the "Specify template" section, select **"Amazon S3 URL"** and enter:
+1. Create a user pool:
+   ```bash
+   aws cognito-idp create-user-pool \
+     --pool-name TradeReconciliationUserPool \
+     --auto-verify-attributes email \
+     --schema Name=email,Required=true,Mutable=true \
+     --region us-west-2
    ```
-   https://your-company-deployment-bucket.s3.amazonaws.com/trade-reconciliation/master-template.yaml
+
+2. Create a user pool client:
+   ```bash
+   aws cognito-idp create-user-pool-client \
+     --user-pool-id YOUR_USER_POOL_ID \
+     --client-name TradeReconciliationClient \
+     --no-generate-secret \
+     --region us-west-2
    ```
 
-4. Click **"Next"** to proceed to stack details.
+3. Create an admin user:
+   ```bash
+   aws cognito-idp admin-create-user \
+     --user-pool-id YOUR_USER_POOL_ID \
+     --username admin@example.com \
+     --user-attributes Name=email,Value=admin@example.com \
+     --region us-west-2
+   ```
 
-5. **Enter stack details**:
-   - **Stack name**: `trade-reconciliation-system`
-   - **Environment**: Choose from `dev`, `test`, or `prod`
-   - **BucketNamePrefix**: Enter a unique prefix for your S3 buckets (e.g., `your-company-trade-recon`)
-   - **RepositoryUrl**: (Optional) URL to your Git repository with frontend code
-   - **RepositoryBranch**: (Optional) Branch to deploy, default is `main`
-   - **DomainName**: (Optional) Custom domain if you want to use one
-   - **RegionName**: The AWS region you're deploying to (e.g., `us-east-1`)
+### 2. Configure Access Permissions
 
-6. Click **"Next"** to configure stack options.
+Set up appropriate IAM policies for users:
 
-7. Keep the default settings or adjust as needed, then click **"Next"**.
+1. Create a policy for read-only users:
+   ```bash
+   aws iam create-policy \
+     --policy-name TradeReconciliationReadOnly \
+     --policy-document '{
+       "Version": "2012-10-17",
+       "Statement": [
+         {
+           "Effect": "Allow",
+           "Action": [
+             "dynamodb:GetItem",
+             "dynamodb:Query",
+             "dynamodb:Scan",
+             "s3:GetObject",
+             "s3:ListBucket"
+           ],
+           "Resource": [
+             "arn:aws:dynamodb:us-west-2:*:table/trade-reconciliation-*",
+             "arn:aws:s3:::your-document-bucket/*",
+             "arn:aws:s3:::your-report-bucket/*"
+           ]
+         }
+       ]
+     }' \
+     --region us-west-2
+   ```
 
-8. On the review page, **check the acknowledgment** that CloudFormation might create IAM resources, then click **"Create stack"**.
+2. Create a policy for admin users:
+   ```bash
+   aws iam create-policy \
+     --policy-name TradeReconciliationAdmin \
+     --policy-document '{
+       "Version": "2012-10-17",
+       "Statement": [
+         {
+           "Effect": "Allow",
+           "Action": [
+             "dynamodb:*",
+             "s3:*",
+             "lambda:InvokeFunction"
+           ],
+           "Resource": [
+             "arn:aws:dynamodb:us-west-2:*:table/trade-reconciliation-*",
+             "arn:aws:s3:::your-document-bucket/*",
+             "arn:aws:s3:::your-report-bucket/*",
+             "arn:aws:lambda:us-west-2:*:function:trade-reconciliation-*"
+           ]
+         }
+       ]
+     }' \
+     --region us-west-2
+   ```
 
-9. **Monitor the stack creation process** in the CloudFormation console. This may take 15-20 minutes to complete.
+## System Verification
 
-### Step 3: Deploy Using AWS CLI (Alternative Method)
+### 1. Verify API Connectivity
 
-If you prefer using the command line:
+Test the API endpoint:
 
 ```bash
-aws cloudformation create-stack \
-  --stack-name trade-reconciliation-system \
-  --template-url https://your-company-deployment-bucket.s3.amazonaws.com/trade-reconciliation/master-template.yaml \
-  --parameters \
-      ParameterKey=Environment,ParameterValue=dev \
-      ParameterKey=BucketNamePrefix,ParameterValue=your-company-trade-recon \
-      ParameterKey=RepositoryUrl,ParameterValue=https://your-git-repo-url.git \
-      ParameterKey=RepositoryBranch,ParameterValue=main \
-      ParameterKey=RegionName,ParameterValue=us-east-1 \
-  --capabilities CAPABILITY_IAM \
-  --region us-east-1
+curl -s https://your-api-endpoint.execute-api.us-west-2.amazonaws.com/v1 | jq
 ```
 
-Replace the parameter values with your own configuration.
+You should see a response with the API information.
 
-### Step 4: Verify Your Deployment
+### 2. Verify Frontend Access
 
-Once the stack is successfully created, verify the deployment:
+Open the frontend URL in a web browser:
 
-1. **Navigate to the CloudFormation console** and select the `trade-reconciliation-system` stack.
+```
+http://your-frontend-bucket.s3-website-us-west-2.amazonaws.com
+```
 
-2. Go to the **"Outputs"** tab to find:
-   - API Gateway endpoint URL
-   - Amplify application URL
-   - S3 bucket names
-   - DynamoDB table names
+Or if using CloudFront:
 
-3. **Test the API endpoint** by accessing it in a browser or using curl:
-   ```bash
-   curl https://your-api-gateway-id.execute-api.your-region.amazonaws.com/
-   ```
+```
+https://your-cloudfront-distribution.cloudfront.net
+```
 
-4. **Access the frontend application** using the Amplify URL provided in the outputs.
+### 3. Verify Data Processing
 
-### Step 5: Configure Frontend Repository (If Using Amplify)
-
-If you're deploying the frontend with AWS Amplify:
-
-1. **Navigate to the AWS Amplify console** and locate your application.
-
-2. If you didn't provide a repository URL during deployment, click on **"Connect repository"** to connect your Git repository.
-
-3. Follow the Amplify wizard to authorize access to your repository and configure build settings.
-
-4. Once connected, Amplify will automatically build and deploy your frontend application.
-
-## Testing the System
-
-After successful deployment, follow these steps to test the system functionality:
-
-### 1. Upload Sample Trade Documents
-
-1. **Access the frontend application** using the Amplify URL.
-
-2. **Log in** using the credentials you created during deployment.
-
-3. **Navigate to "Document Upload"** section.
-
-4. Upload sample bank document and counterparty document PDFs.
-   - For testing, create simple PDFs with trade data including:
-     - Trade ID
-     - Trade date
-     - Notional amount
-     - Currency
-     - Product type
-
-### 2. Verify Document Processing
-
-1. **Wait a few moments** for document processing to complete.
-
-2. **Navigate to "Trades"** section to verify that the trades were extracted from the documents.
-
-3. **Check the DynamoDB tables** directly in the AWS Console to confirm the data was stored correctly:
-   - Go to DynamoDB console
-   - Select the Bank Trade Data table
-   - Verify your trade data appears
-
-### 3. Run Trade Reconciliation
-
-1. **Navigate to "Dashboard"** section.
-
-2. **Click "Run Reconciliation"** to trigger the reconciliation process.
-
-3. **Wait for the process to complete**.
-
-### 4. View Reconciliation Reports
-
-1. **Navigate to "Reports"** section.
-
-2. **Select the generated report** to view the reconciliation results.
-
-3. Verify that the report correctly identifies matches, mismatches, and unmatched trades.
-
-## Troubleshooting
-
-### Common Deployment Issues
-
-1. **Stack Creation Failure**:
-   - Check the "Events" tab in CloudFormation for specific error messages
-   - Most common issues are related to permissions or naming conflicts
-   - If S3 bucket creation fails, try a different bucket name prefix
-
-2. **API Gateway Issues**:
-   - If the API returns 403 or 500 errors, check Lambda permissions
-   - Verify the API is deployed correctly in the API Gateway console
-
-3. **Lambda Function Errors**:
-   - Check CloudWatch Logs for specific error messages
-   - Common issues include misconfigured environment variables or permission issues
-
-4. **Amplify Build Failures**:
-   - Check the build logs in the Amplify console
-   - Ensure your repository contains valid frontend code
-   - Verify that environment variables are correctly configured
-
-### Viewing Logs
-
-To view logs for troubleshooting:
-
-1. **Navigate to CloudWatch console**.
-
-2. **Select "Log Groups"**.
-
-3. **Find the log group** for the specific Lambda function:
-   - `/aws/lambda/trade-reconciliation-api-handler-dev`
-   - `/aws/lambda/trade-reconciliation-document-processor-dev`
-   - `/aws/lambda/trade-reconciliation-engine-dev`
-
-4. **Review the log streams** for error messages and stack traces.
-
-## Security Best Practices
-
-1. **Regularly rotate IAM credentials**.
-
-2. **Enable CloudTrail** to monitor API activity.
-
-3. **Review S3 bucket policies** to ensure they're not publicly accessible.
-
-4. **Set up CloudWatch alarms** for suspicious activity.
-
-5. **Update Lambda functions** to patch security vulnerabilities.
+1. Upload a trade file to the document bucket
+2. Check the DynamoDB tables to verify that the data was processed
+3. Initiate a reconciliation process through the API
+4. Verify that the results are stored in the matches table
 
 ## Next Steps
 
-After successful deployment and testing:
+After completing the initial setup:
 
-1. **Set up monitoring and alerts** for production environments.
+1. **Configure Monitoring**: Set up CloudWatch alarms for critical metrics
+2. **Set Up Logging**: Configure centralized logging for troubleshooting
+3. **Implement Backup Strategy**: Enable point-in-time recovery for DynamoDB tables
+4. **Schedule Regular Reconciliations**: Set up EventBridge rules to trigger reconciliations on a schedule
 
-2. **Configure backup strategies** for DynamoDB tables.
+## Additional Resources
 
-3. **Implement CI/CD pipelines** for ongoing development.
-
-4. **Document customizations** made to the system for future reference.
-
-## Contact Support
-
-If you encounter issues not addressed in this guide, please contact your administrator or AWS support.
-
----
-
-## Appendix: Manual Component Deployment
-
-If you need to deploy components individually, refer to the README.md file for detailed instructions.
+- [AWS DynamoDB Documentation](https://docs.aws.amazon.com/dynamodb/)
+- [AWS Lambda Documentation](https://docs.aws.amazon.com/lambda/)
+- [AWS S3 Documentation](https://docs.aws.amazon.com/s3/)
+- [AWS API Gateway Documentation](https://docs.aws.amazon.com/apigateway/)

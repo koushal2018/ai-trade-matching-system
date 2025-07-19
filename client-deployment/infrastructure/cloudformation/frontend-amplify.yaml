@@ -30,6 +30,8 @@ Parameters:
     Type: String
     Description: 'Personal access token for the Git repository'
     NoEcho: true
+    MinLength: 1
+    ConstraintDescription: 'AccessToken cannot be empty'
 
   BuildSpecContent:
     Type: String

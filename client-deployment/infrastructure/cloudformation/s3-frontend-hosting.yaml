@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'S3 Static Website Hosting for Trade Reconciliation Frontend'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: Environment name for resource naming
+    
+  ApiEndpointUrl:
+    Type: String
+    Description: URL of the API Gateway endpoint
+    
+  CreateCloudFront:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Whether to create a CloudFront distribution
+
+Conditions:
+  ShouldCreateCloudFront: !Equals [!Ref CreateCloudFront, 'true']
+
+Resources:
+  # S3 Bucket for Website Hosting
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub trade-reconciliation-frontend-${Environment}-${AWS::AccountId}
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3000
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+  # Bucket Policy to allow public read access
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Sub ${WebsiteBucket.Arn}/*
+
+  # CloudFront Distribution (Optional)
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: ShouldCreateCloudFront
+    Properties:
+      DistributionConfig:
+        Origins:
+          - DomainName: !GetAtt WebsiteBucket.RegionalDomainName
+            Id: S3Origin
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        Enabled: true
+        DefaultRootObject: index.html
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          TargetOriginId: S3Origin
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          ViewerProtocolPolicy: redirect-to-https
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+Outputs:
+  WebsiteBucketName:
+    Description: Name of the S3 bucket for website hosting
+    Value: !Ref WebsiteBucket
+
+  WebsiteURL:
+    Description: URL of the S3 website
+    Value: !GetAtt WebsiteBucket.WebsiteURL
+
+  CloudFrontDomainName:
+    Condition: ShouldCreateCloudFront
+    Description: Domain name of the CloudFront distribution
+    Value: !GetAtt CloudFrontDistribution.DomainName
+
+  CloudFrontDistributionId:
+    Condition: ShouldCreateCloudFront
+    Description: ID of the CloudFront distribution
+    Value: !Ref CloudFrontDistribution
+
+  DeploymentInstructions:
+    Description: Instructions for deploying the frontend
+    Value: !Sub |
+      To deploy your frontend:
+      1. Build your React/Angular/Vue app
+      2. Upload the build files to the S3 bucket: ${WebsiteBucket}
+      3. Use the AWS CLI command: aws s3 sync ./build/ s3://${WebsiteBucket} --acl public-read
+      4. Access your website at: ${WebsiteBucket.WebsiteURL}

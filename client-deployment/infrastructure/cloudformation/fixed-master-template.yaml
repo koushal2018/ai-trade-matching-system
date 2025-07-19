@@ -169,7 +169,7 @@ Resources:
   CoreInfrastructureStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub https://${S3BucketForTemplates}.s3.${AWS::Region}.amazonaws.com/${S3PrefixForTemplates}core-infrastructure.yaml
+      TemplateURL: !Sub https://${S3BucketForTemplates}.s3.${AWS::Region}.amazonaws.com/${S3PrefixForTemplates}fixed-core-infrastructure.yaml
       Parameters:
         Environment: !Ref Environment
       Tags:
@@ -178,12 +178,12 @@ Resources:
         - Key: System
           Value: TradeReconciliation
 
-  # API Lambda Stack
+  # API Lambda Stack - Updated to use the fixed template
   ApiLambdaStack:
     Type: AWS::CloudFormation::Stack
     DependsOn: CoreInfrastructureStack
     Properties:
-      TemplateURL: !Sub https://${S3BucketForTemplates}.s3.${AWS::Region}.amazonaws.com/${S3PrefixForTemplates}api-lambda.yaml
+      TemplateURL: !Sub https://${S3BucketForTemplates}.s3.${AWS::Region}.amazonaws.com/${S3PrefixForTemplates}fixed-api-lambda.yaml
       Parameters:
         Environment: !Ref Environment
         BankTableName: !GetAtt CoreInfrastructureStack.Outputs.BankTableName

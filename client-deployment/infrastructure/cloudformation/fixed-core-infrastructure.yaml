@@ -100,12 +100,12 @@ Resources:
         - Key: System
           Value: TradeReconciliation
 
-  # S3 Buckets
+  # S3 Buckets - Using CloudFormation generated names instead of hardcoded names
   DocumentBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Sub trec-docs-${Environment}-${AWS::AccountId}
+      # Removed hardcoded BucketName to let CloudFormation generate a unique name
       VersioningConfiguration:
         Status: Enabled
       CorsConfiguration:
@@ -137,6 +137,8 @@ Resources:
           Value: !Ref Environment
         - Key: System
           Value: TradeReconciliation
+        - Key: Name
+          Value: !Sub trade-reconciliation-documents-${Environment}
 
   DocumentBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -160,7 +162,7 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     Properties:
-      BucketName: !Sub trec-reports-${Environment}-${AWS::AccountId}
+      # Removed hardcoded BucketName to let CloudFormation generate a unique name
       VersioningConfiguration:
         Status: Enabled
       CorsConfiguration:
@@ -192,6 +194,8 @@ Resources:
           Value: !Ref Environment
         - Key: System
           Value: TradeReconciliation
+        - Key: Name
+          Value: !Sub trade-reconciliation-reports-${Environment}
 
   ReportBucketPolicy:
     Type: AWS::S3::BucketPolicy

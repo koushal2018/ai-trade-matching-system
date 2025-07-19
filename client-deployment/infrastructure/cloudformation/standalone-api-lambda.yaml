@@ -1,0 +1,298 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Standalone API Lambda resources for Trade Reconciliation System'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: Environment name for resource naming
+    
+  BankTableName:
+    Type: String
+    Description: Name of the DynamoDB table for bank trades
+    Default: trade-reconciliation-bank-trades-dev
+    
+  CounterpartyTableName:
+    Type: String
+    Description: Name of the DynamoDB table for counterparty trades
+    Default: trade-reconciliation-counterparty-trades-dev
+    
+  MatchesTableName:
+    Type: String
+    Description: Name of the DynamoDB table for match records
+    Default: trade-reconciliation-matches-dev
+    
+  DocumentBucketName:
+    Type: String
+    Description: Name of the S3 bucket for document storage
+    
+  ReportBucketName:
+    Type: String
+    Description: Name of the S3 bucket for report storage
+    
+  ApiGatewayStageName:
+    Type: String
+    Default: api
+    Description: Stage name for API Gateway deployment
+
+Resources:
+  # API Lambda IAM Role
+  ApiLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub trade-reconciliation-api-lambda-policy-${Environment}
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:BatchGetItem
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${BankTableName}
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CounterpartyTableName}
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MatchesTableName}
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${BankTableName}/index/*
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CounterpartyTableName}/index/*
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MatchesTableName}/index/*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${DocumentBucketName}
+                  - !Sub arn:aws:s3:::${DocumentBucketName}/*
+                  - !Sub arn:aws:s3:::${ReportBucketName}
+                  - !Sub arn:aws:s3:::${ReportBucketName}/*
+
+  # API Handler Lambda Function
+  ApiHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub trade-reconciliation-api-handler-${Environment}
+      Description: API Gateway handler for trade reconciliation
+      Handler: index.handler
+      Role: !GetAtt ApiLambdaRole.Arn
+      Runtime: nodejs18.x
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          BANK_TABLE: !Ref BankTableName
+          COUNTERPARTY_TABLE: !Ref CounterpartyTableName
+          MATCHES_TABLE: !Ref MatchesTableName
+          DOCUMENT_BUCKET: !Ref DocumentBucketName
+          REPORT_BUCKET: !Ref ReportBucketName
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log('Received event:', JSON.stringify(event, null, 2));
+            
+            // Default response
+            const response = {
+              statusCode: 200,
+              headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
+              },
+              body: JSON.stringify({ message: 'API handler function placeholder' })
+            };
+            
+            try {
+              // Extract path and HTTP method
+              const path = event.path || '';
+              const method = event.httpMethod || 'GET';
+              
+              // Simple routing
+              if (path.includes('/health')) {
+                response.body = JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString() });
+              } else if (path.includes('/api/trades')) {
+                response.body = JSON.stringify({ 
+                  message: 'Trades endpoint', 
+                  method: method,
+                  mockData: [
+                    { tradeId: 'T001', amount: 10000, currency: 'USD', status: 'MATCHED' },
+                    { tradeId: 'T002', amount: 15000, currency: 'EUR', status: 'UNMATCHED' }
+                  ]
+                });
+              } else {
+                response.body = JSON.stringify({ 
+                  message: 'Welcome to Trade Reconciliation API',
+                  version: '1.0.0',
+                  endpoints: ['/api/health', '/api/trades']
+                });
+              }
+            } catch (error) {
+              console.error('Error:', error);
+              response.statusCode = 500;
+              response.body = JSON.stringify({ error: 'Internal server error' });
+            }
+            
+            return response;
+          };
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+  # API Gateway
+  TradeReconciliationApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub trade-reconciliation-api-${Environment}
+      Description: API for Trade Reconciliation System
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+  # API Gateway Resources and Methods
+  ApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref TradeReconciliationApi
+      ParentId: !GetAtt TradeReconciliationApi.RootResourceId
+      PathPart: 'api'
+
+  # Proxy resource that catches all paths
+  ApiProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref TradeReconciliationApi
+      ParentId: !Ref ApiResource
+      PathPart: '{proxy+}'
+
+  # API Gateway ANY Method for proxy resource
+  ApiProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref TradeReconciliationApi
+      ResourceId: !Ref ApiProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunction.Arn}/invocations
+      RequestParameters:
+        method.request.path.proxy: true
+
+  # OPTIONS method for CORS support
+  ApiProxyOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref TradeReconciliationApi
+      ResourceId: !Ref ApiProxyResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # API Gateway Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiProxyMethod
+      - ApiProxyOptionsMethod
+    Properties:
+      RestApiId: !Ref TradeReconciliationApi
+      Description: !Sub 'Trade Reconciliation API deployment - ${Environment}'
+
+  # API Gateway Stage
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId: !Ref ApiDeployment
+      RestApiId: !Ref TradeReconciliationApi
+      StageName: !Ref ApiGatewayStageName
+      Description: !Sub 'Trade Reconciliation API Stage - ${Environment}'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+  # Lambda Permission for API Gateway
+  ApiHandlerLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiHandlerFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${TradeReconciliationApi}/*/*
+
+  # CloudWatch Logs Configuration
+  ApiHandlerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ApiHandlerFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+Outputs:
+  ApiHandlerFunctionArn:
+    Description: ARN of the API Handler Lambda function
+    Value: !GetAtt ApiHandlerFunction.Arn
+    Export:
+      Name: !Sub "trade-reconciliation-${Environment}-ApiHandlerFunctionArn"
+
+  ApiGatewayEndpoint:
+    Description: API Gateway Endpoint URL
+    Value: !Sub https://${TradeReconciliationApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiGatewayStageName}
+    Export:
+      Name: !Sub "trade-reconciliation-${Environment}-ApiGatewayEndpoint"
+
+  ApiGatewayId:
+    Description: API Gateway ID
+    Value: !Ref TradeReconciliationApi
+    Export:
+      Name: !Sub "trade-reconciliation-${Environment}-ApiGatewayId"

@@ -1,0 +1,179 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Minimal API Lambda resources for Trade Reconciliation System - Version 2'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: Environment name for resource naming
+    
+  BankTableName:
+    Type: String
+    Description: Name of the DynamoDB table for bank trades
+    Default: trade-reconciliation-bank-trades-dev
+    
+  CounterpartyTableName:
+    Type: String
+    Description: Name of the DynamoDB table for counterparty trades
+    Default: trade-reconciliation-counterparty-trades-dev
+    
+  MatchesTableName:
+    Type: String
+    Description: Name of the DynamoDB table for match records
+    Default: trade-reconciliation-matches-dev
+    
+  DocumentBucketName:
+    Type: String
+    Description: Name of the S3 bucket for document storage
+    
+  ReportBucketName:
+    Type: String
+    Description: Name of the S3 bucket for report storage
+
+Resources:
+  # API Lambda IAM Role
+  ApiLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub trade-reconciliation-api-lambda-policy-${Environment}
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:BatchGetItem
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${BankTableName}
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CounterpartyTableName}
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MatchesTableName}
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${BankTableName}/index/*
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CounterpartyTableName}/index/*
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MatchesTableName}/index/*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${DocumentBucketName}
+                  - !Sub arn:aws:s3:::${DocumentBucketName}/*
+                  - !Sub arn:aws:s3:::${ReportBucketName}
+                  - !Sub arn:aws:s3:::${ReportBucketName}/*
+
+  # API Handler Lambda Function
+  ApiHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub trade-reconciliation-api-handler-v2-${Environment}
+      Description: API Gateway handler for trade reconciliation
+      Handler: index.handler
+      Role: !GetAtt ApiLambdaRole.Arn
+      Runtime: nodejs18.x
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          BANK_TABLE: !Ref BankTableName
+          COUNTERPARTY_TABLE: !Ref CounterpartyTableName
+          MATCHES_TABLE: !Ref MatchesTableName
+          DOCUMENT_BUCKET: !Ref DocumentBucketName
+          REPORT_BUCKET: !Ref ReportBucketName
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log('Received event:', JSON.stringify(event, null, 2));
+            
+            // Default response
+            const response = {
+              statusCode: 200,
+              headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
+              },
+              body: JSON.stringify({ 
+                message: 'Welcome to Trade Reconciliation API',
+                version: '1.0.0',
+                timestamp: new Date().toISOString(),
+                environment: process.env.AWS_EXECUTION_ENV || 'unknown'
+              })
+            };
+            
+            return response;
+          };
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+  # Simple API Gateway with Lambda Integration
+  SimpleApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub trade-reconciliation-simple-api-${Environment}
+      Description: Simple API for Trade Reconciliation System
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # Root Method
+  RootMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref SimpleApi
+      ResourceId: !GetAtt SimpleApi.RootResourceId
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunction.Arn}/invocations
+
+  # Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: RootMethod
+    Properties:
+      RestApiId: !Ref SimpleApi
+      StageName: v1
+      Description: Initial deployment
+
+  # Lambda Permission
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiHandlerFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SimpleApi}/*/*
+
+Outputs:
+  ApiHandlerFunctionArn:
+    Description: ARN of the API Handler Lambda function
+    Value: !GetAtt ApiHandlerFunction.Arn
+
+  ApiEndpoint:
+    Description: API Gateway Endpoint URL
+    Value: !Sub https://${SimpleApi}.execute-api.${AWS::Region}.amazonaws.com/v1

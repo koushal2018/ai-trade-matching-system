@@ -413,15 +413,15 @@ Resources:
       Description: API Key for Trade Reconciliation API
       Enabled: true
       
+  # Fixed UsagePlan - removed DependsOn and fixed ApiStages reference
   UsagePlan:
     Type: AWS::ApiGateway::UsagePlan
-    DependsOn: ApiStage
     Properties:
       Name: !Sub trade-reconciliation-usage-plan-${Environment}
       Description: Usage plan for Trade Reconciliation API
       ApiStages:
         - ApiId: !Ref TradeReconciliationApi
-          Stage: !Ref ApiStage
+          Stage: !Ref ApiGatewayStageName
       Quota:
         Limit: 1000
         Period: DAY

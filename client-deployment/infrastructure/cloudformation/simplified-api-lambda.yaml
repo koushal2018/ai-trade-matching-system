@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'API Lambda resources for Trade Reconciliation System'
+Description: 'API Lambda resources for Trade Reconciliation System - Simplified Version'
 
 Parameters:
   Environment:
@@ -236,22 +236,6 @@ Resources:
       EndpointConfiguration:
         Types:
           - REGIONAL
-      # Adding resource policy directly in the RestApi resource
-      Policy:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal: '*'
-            Action: execute-api:Invoke
-            Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}/*
-          - Effect: Deny
-            Principal: '*'
-            Action: execute-api:Invoke
-            Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${AWS::StackName}/*
-            Condition:
-              NotIpAddress:
-                aws:SourceIp: 
-                  - 0.0.0.0/0  # Replace with actual allowed IP ranges
       Tags:
         - Key: Environment
           Value: !Ref Environment
@@ -286,16 +270,6 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunction.Arn}/invocations
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseModels:
-            application/json: Empty
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
       RequestParameters:
         method.request.path.proxy: true
 
@@ -361,7 +335,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${TradeReconciliationApi}/*/*
 
-    # S3 Event Notification Configuration
+  # S3 Event Notification Configuration
   DocumentBucketInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -403,102 +377,6 @@ Resources:
           Value: !Ref Environment
         - Key: System
           Value: TradeReconciliation
-          
-  # API Gateway Usage Plan and API Key
-  ApiKey:
-    Type: AWS::ApiGateway::ApiKey
-    DependsOn: ApiStage
-    Properties:
-      Name: !Sub trade-reconciliation-api-key-${Environment}
-      Description: API Key for Trade Reconciliation API
-      Enabled: true
-      
-  UsagePlan:
-    Type: AWS::ApiGateway::UsagePlan
-    DependsOn: ApiStage
-    Properties:
-      Name: !Sub trade-reconciliation-usage-plan-${Environment}
-      Description: Usage plan for Trade Reconciliation API
-      ApiStages:
-        - ApiId: !Ref TradeReconciliationApi
-          Stage: !Ref ApiStage
-      Quota:
-        Limit: 1000
-        Period: DAY
-      Throttle:
-        BurstLimit: 10
-        RateLimit: 5
-        
-  UsagePlanKey:
-    Type: AWS::ApiGateway::UsagePlanKey
-    Properties:
-      KeyId: !Ref ApiKey
-      KeyType: API_KEY
-      UsagePlanId: !Ref UsagePlan
-      
-  # CloudWatch Alarm for API Errors
-  ApiErrorsAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub ${Environment}-api-errors-alarm
-      AlarmDescription: Alarm for API Gateway 5XX errors
-      MetricName: 5XXError
-      Namespace: AWS/ApiGateway
-      Statistic: Sum
-      Period: 60
-      EvaluationPeriods: 1
-      Threshold: 5
-      ComparisonOperator: GreaterThanThreshold
-      Dimensions:
-        - Name: ApiName
-          Value: !Ref TradeReconciliationApi
-        - Name: Stage
-          Value: !Ref ApiGatewayStageName
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: System
-          Value: TradeReconciliation
-                  
-  # WAF Configuration
-  ApiWafAcl:
-    Type: AWS::WAFv2::WebACL
-    Properties:
-      Name: !Sub trade-reconciliation-waf-${Environment}
-      Scope: REGIONAL
-      DefaultAction:
-        Allow: {}
-      VisibilityConfig:
-        SampledRequestsEnabled: true
-        CloudWatchMetricsEnabled: true
-        MetricName: !Sub trade-reconciliation-waf-${Environment}
-      Rules:
-        - Name: AWSManagedRulesCommonRuleSet
-          Priority: 0
-          OverrideAction:
-            None: {}
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: AWSManagedRulesCommonRuleSet
-          Statement:
-            ManagedRuleGroupStatement:
-              VendorName: AWS
-              Name: AWSManagedRulesCommonRuleSet
-      Tags:
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: System
-          Value: TradeReconciliation
-
-  ApiWafAssociation:
-    Type: AWS::WAFv2::WebACLAssociation
-    Properties:
-      ResourceArn: !Sub arn:aws:apigateway:${AWS::Region}::/restapis/${TradeReconciliationApi}/stages/${ApiGatewayStageName}
-      WebACLArn: !GetAtt ApiWafAcl.Arn
-
-  # Note: S3 event notification is set up separately as it requires the bucket to exist first
-  # It will be added in the core infrastructure template or setup guide
 
 Outputs:
   ApiHandlerFunctionArn:
