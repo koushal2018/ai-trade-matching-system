@@ -1,0 +1,461 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Trade Reconciliation Solution - Core Infrastructure'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: Environment name (dev, test, prod)
+    AllowedValues:
+      - dev
+      - test
+      - prod
+
+Resources:
+  #############################################################
+  # S3 Bucket for Document Storage
+  #############################################################
+  DocumentsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${EnvironmentName}-trade-reconciliation-documents
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 90
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  DocumentsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DocumentsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyUnencryptedObjectUploads
+            Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Sub arn:aws:s3:::${DocumentsBucket}/*
+            Condition:
+              StringNotEquals:
+                's3:x-amz-server-side-encryption': 'AES256'
+          - Sid: DenyInsecureConnections
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource: !Sub arn:aws:s3:::${DocumentsBucket}/*
+            Condition:
+              Bool:
+                'aws:SecureTransport': false
+
+  #############################################################
+  # DynamoDB Tables
+  #############################################################
+  SourceTradeTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${EnvironmentName}-source-trades
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: documentId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: DocumentIdIndex
+          KeySchema:
+            - AttributeName: documentId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  TargetTradeTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${EnvironmentName}-target-trades
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: documentId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: DocumentIdIndex
+          KeySchema:
+            - AttributeName: documentId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  DocumentTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${EnvironmentName}-documents
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserIdIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  ReconciliationTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${EnvironmentName}-reconciliations
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserIdIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  MatchTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${EnvironmentName}-matches
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: reconciliationId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: ReconciliationIdIndex
+          KeySchema:
+            - AttributeName: reconciliationId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  #############################################################
+  # IAM Roles
+  #############################################################
+  DocumentProcessorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-document-processor-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DocumentProcessorPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${DocumentsBucket}
+                  - !Sub arn:aws:s3:::${DocumentsBucket}/*
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !GetAtt SourceTradeTable.Arn
+                  - !GetAtt TargetTradeTable.Arn
+                  - !GetAtt DocumentTable.Arn
+                  - !Sub ${SourceTradeTable.Arn}/index/*
+                  - !Sub ${TargetTradeTable.Arn}/index/*
+                  - !Sub ${DocumentTable.Arn}/index/*
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  ReconciliationEngineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-reconciliation-engine-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ReconciliationEnginePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !GetAtt SourceTradeTable.Arn
+                  - !GetAtt TargetTradeTable.Arn
+                  - !GetAtt MatchTable.Arn
+                  - !GetAtt ReconciliationTable.Arn
+                  - !Sub ${SourceTradeTable.Arn}/index/*
+                  - !Sub ${TargetTradeTable.Arn}/index/*
+                  - !Sub ${MatchTable.Arn}/index/*
+                  - !Sub ${ReconciliationTable.Arn}/index/*
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  ApiHandlerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-api-handler-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ApiHandlerPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !GetAtt SourceTradeTable.Arn
+                  - !GetAtt TargetTradeTable.Arn
+                  - !GetAtt DocumentTable.Arn
+                  - !GetAtt MatchTable.Arn
+                  - !GetAtt ReconciliationTable.Arn
+                  - !Sub ${SourceTradeTable.Arn}/index/*
+                  - !Sub ${TargetTradeTable.Arn}/index/*
+                  - !Sub ${DocumentTable.Arn}/index/*
+                  - !Sub ${MatchTable.Arn}/index/*
+                  - !Sub ${ReconciliationTable.Arn}/index/*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub arn:aws:s3:::${DocumentsBucket}
+                  - !Sub arn:aws:s3:::${DocumentsBucket}/*
+              - Effect: Allow
+                Action: 
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvironmentName}-trade-reconciliation-document-processor
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvironmentName}-trade-reconciliation-engine
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+Outputs:
+  DocumentsBucketName:
+    Description: Name of the S3 bucket for document storage
+    Value: !Ref DocumentsBucket
+    Export:
+      Name: !Sub ${EnvironmentName}-documents-bucket
+  
+  DocumentsBucketArn:
+    Description: ARN of the S3 bucket for document storage
+    Value: !GetAtt DocumentsBucket.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-documents-bucket-arn
+  
+  SourceTradeTableName:
+    Description: Name of the source trades DynamoDB table
+    Value: !Ref SourceTradeTable
+    Export:
+      Name: !Sub ${EnvironmentName}-source-trade-table
+  
+  SourceTradeTableArn:
+    Description: ARN of the source trades DynamoDB table
+    Value: !GetAtt SourceTradeTable.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-source-trade-table-arn
+  
+  TargetTradeTableName:
+    Description: Name of the target trades DynamoDB table
+    Value: !Ref TargetTradeTable
+    Export:
+      Name: !Sub ${EnvironmentName}-target-trade-table
+  
+  TargetTradeTableArn:
+    Description: ARN of the target trades DynamoDB table
+    Value: !GetAtt TargetTradeTable.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-target-trade-table-arn
+  
+  DocumentTableName:
+    Description: Name of the documents DynamoDB table
+    Value: !Ref DocumentTable
+    Export:
+      Name: !Sub ${EnvironmentName}-document-table
+  
+  DocumentTableArn:
+    Description: ARN of the documents DynamoDB table
+    Value: !GetAtt DocumentTable.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-document-table-arn
+  
+  ReconciliationTableName:
+    Description: Name of the reconciliations DynamoDB table
+    Value: !Ref ReconciliationTable
+    Export:
+      Name: !Sub ${EnvironmentName}-reconciliation-table
+  
+  ReconciliationTableArn:
+    Description: ARN of the reconciliations DynamoDB table
+    Value: !GetAtt ReconciliationTable.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-reconciliation-table-arn
+  
+  MatchTableName:
+    Description: Name of the matches DynamoDB table
+    Value: !Ref MatchTable
+    Export:
+      Name: !Sub ${EnvironmentName}-match-table
+  
+  MatchTableArn:
+    Description: ARN of the matches DynamoDB table
+    Value: !GetAtt MatchTable.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-match-table-arn
+  
+  DocumentProcessorRoleArn:
+    Description: ARN of the document processor Lambda IAM role
+    Value: !GetAtt DocumentProcessorRole.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-document-processor-role-arn
+  
+  ReconciliationEngineRoleArn:
+    Description: ARN of the reconciliation engine Lambda IAM role
+    Value: !GetAtt ReconciliationEngineRole.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-reconciliation-engine-role-arn
+  
+  ApiHandlerRoleArn:
+    Description: ARN of the API handler Lambda IAM role
+    Value: !GetAtt ApiHandlerRole.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-api-handler-role-arn

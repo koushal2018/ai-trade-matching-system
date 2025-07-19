@@ -1,0 +1,254 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Trade Reconciliation Solution - Authentication Resources'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: Environment name (dev, test, prod)
+    AllowedValues:
+      - dev
+      - test
+      - prod
+  
+  AdminEmail:
+    Type: String
+    Description: Email address for the admin user
+    Default: 'admin@example.com'
+
+Resources:
+  #############################################################
+  # Cognito User Pool
+  #############################################################
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub ${EnvironmentName}-trade-reconciliation-user-pool
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+        InviteMessageTemplate:
+          EmailMessage: 'Your username is {username} and temporary password is {####}. Please login to the Trade Reconciliation solution and change your password.'
+          EmailSubject: 'Welcome to the Trade Reconciliation Solution'
+          SMSMessage: 'Your username is {username} and temporary password is {####}'
+      AutoVerifiedAttributes:
+        - email
+      MfaConfiguration: 'OFF'
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: phone_number
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+      UsernameAttributes:
+        - email
+      UserPoolTags:
+        Environment: !Ref EnvironmentName
+      
+  #############################################################
+  # App Client
+  #############################################################
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub ${EnvironmentName}-trade-reconciliation-client
+      GenerateSecret: false
+      UserPoolId: !Ref UserPool
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+      PreventUserExistenceErrors: ENABLED
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      TokenValidityUnits:
+        AccessToken: days
+        IdToken: days
+        RefreshToken: days
+      AllowedOAuthFlows:
+        - implicit
+        - code
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      CallbackURLs:
+        - !Sub https://${EnvironmentName}-trade-reconciliation.auth.${AWS::Region}.amazoncognito.com/oauth2/idpresponse
+        - http://localhost:3000
+        - !Sub https://${EnvironmentName}-trade-reconciliation.${AWS::Region}.amplifyapp.com
+      LogoutURLs:
+        - http://localhost:3000
+        - !Sub https://${EnvironmentName}-trade-reconciliation.${AWS::Region}.amplifyapp.com
+      SupportedIdentityProviders:
+        - COGNITO
+
+  #############################################################
+  # User Pool Domain
+  #############################################################
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub ${EnvironmentName}-trade-reconciliation
+      UserPoolId: !Ref UserPool
+
+  #############################################################
+  # Admin User
+  #############################################################
+  AdminUser:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      Username: !Ref AdminEmail
+      UserPoolId: !Ref UserPool
+      UserAttributes:
+        - Name: email
+          Value: !Ref AdminEmail
+        - Name: email_verified
+          Value: true
+        - Name: name
+          Value: Administrator
+
+  #############################################################
+  # Identity Pool
+  #############################################################
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: !Sub ${EnvironmentName}TradeReconciliationIdentityPool
+      AllowUnauthenticatedIdentities: false
+      CognitoIdentityProviders:
+        - ClientId: !Ref UserPoolClient
+          ProviderName: !GetAtt UserPool.ProviderName
+      Tags:
+        Environment: !Ref EnvironmentName
+
+  #############################################################
+  # Identity Pool Roles
+  #############################################################
+  IdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        authenticated: !GetAtt AuthenticatedRole.Arn
+        unauthenticated: !GetAtt UnauthenticatedRole.Arn
+
+  #############################################################
+  # IAM Roles for Identity Pool
+  #############################################################
+  AuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-trade-reconciliation-authenticated-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref IdentityPool
+              'ForAnyValue:StringLike':
+                'cognito-identity.amazonaws.com:amr': authenticated
+      Policies:
+        - PolicyName: !Sub ${EnvironmentName}-trade-reconciliation-authenticated-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub arn:aws:s3:::${EnvironmentName}-trade-reconciliation-documents/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub arn:aws:s3:::${EnvironmentName}-trade-reconciliation-documents
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  UnauthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-trade-reconciliation-unauthenticated-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref IdentityPool
+              'ForAnyValue:StringLike':
+                'cognito-identity.amazonaws.com:amr': unauthenticated
+      Policies:
+        - PolicyName: !Sub ${EnvironmentName}-trade-reconciliation-unauthenticated-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Deny
+                Action: '*'
+                Resource: '*'
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+Outputs:
+  UserPoolId:
+    Description: ID of the Cognito User Pool
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub ${EnvironmentName}-user-pool-id
+  
+  UserPoolArn:
+    Description: ARN of the Cognito User Pool
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-user-pool-arn
+  
+  UserPoolClientId:
+    Description: ID of the Cognito User Pool Client
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub ${EnvironmentName}-user-pool-client-id
+  
+  IdentityPoolId:
+    Description: ID of the Cognito Identity Pool
+    Value: !Ref IdentityPool
+    Export:
+      Name: !Sub ${EnvironmentName}-identity-pool-id
+  
+  UserPoolDomainName:
+    Description: Domain name for the Cognito User Pool
+    Value: !Sub ${EnvironmentName}-trade-reconciliation.auth.${AWS::Region}.amazoncognito.com
+    Export:
+      Name: !Sub ${EnvironmentName}-user-pool-domain-name
+  
+  AuthenticatedRoleArn:
+    Description: ARN of the IAM role for authenticated users
+    Value: !GetAtt AuthenticatedRole.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-authenticated-role-arn

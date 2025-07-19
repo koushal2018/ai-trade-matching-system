@@ -1,0 +1,505 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Trade Reconciliation System - Infrastructure'
+
+Parameters:
+  DocumentBucketName:
+    Type: String
+    Description: Name of the S3 bucket to store trade documents
+    Default: trade-reconciliation-documents
+
+  ReportBucketName:
+    Type: String
+    Description: Name of the S3 bucket to store reconciliation reports
+    Default: trade-reconciliation-reports
+
+  ApiName:
+    Type: String
+    Description: Name of the API Gateway
+    Default: TradeReconciliationApi
+
+  LambdaRuntimeNodejs:
+    Type: String
+    Default: nodejs18.x
+    Description: Node.js runtime for Lambda functions
+    AllowedValues:
+      - nodejs16.x
+      - nodejs18.x
+      - nodejs20.x
+
+Resources:
+  # DynamoDB Tables
+  BankTradesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: BankTrades
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tradeId
+          AttributeType: S
+        - AttributeName: documentId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tradeId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: DocumentIndex
+          KeySchema:
+            - AttributeName: documentId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+
+  CounterpartyTradesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: CounterpartyTrades
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tradeId
+          AttributeType: S
+        - AttributeName: documentId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tradeId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: DocumentIndex
+          KeySchema:
+            - AttributeName: documentId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+
+  MatchesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Matches
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: matchId
+          AttributeType: S
+        - AttributeName: reconciliationId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: matchId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: ReconciliationIndex
+          KeySchema:
+            - AttributeName: reconciliationId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+
+  # S3 Buckets
+  DocumentBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref DocumentBucketName
+      VersioningConfiguration:
+        Status: Enabled
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            ExposedHeaders:
+              - ETag
+            MaxAge: 3000
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt DocumentProcessorFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: bank/
+                  - Name: suffix
+                    Value: .csv
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt DocumentProcessorFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: bank/
+                  - Name: suffix
+                    Value: .xlsx
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt DocumentProcessorFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: bank/
+                  - Name: suffix
+                    Value: .xls
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt DocumentProcessorFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: counterparty/
+                  - Name: suffix
+                    Value: .csv
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt DocumentProcessorFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: counterparty/
+                  - Name: suffix
+                    Value: .xlsx
+          - Event: s3:ObjectCreated:*
+            Function: !GetAtt DocumentProcessorFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: counterparty/
+                  - Name: suffix
+                    Value: .xls
+
+  DocumentBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DocumentBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowSSLRequestsOnly
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !Sub arn:aws:s3:::${DocumentBucket}
+              - !Sub arn:aws:s3:::${DocumentBucket}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  ReportBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref ReportBucketName
+      VersioningConfiguration:
+        Status: Enabled
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            ExposedHeaders:
+              - ETag
+            MaxAge: 3000
+
+  ReportBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ReportBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowSSLRequestsOnly
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !Sub arn:aws:s3:::${ReportBucket}
+              - !Sub arn:aws:s3:::${ReportBucket}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  # Lambda Functions
+  DocumentProcessorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: TradeReconciliation-DocumentProcessor
+      Handler: document_processor/index.handler
+      Runtime: !Ref LambdaRuntimeNodejs
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref 'AWS::NoValue'
+        S3Key: !Ref 'AWS::NoValue'
+      Environment:
+        Variables:
+          BANK_TABLE: !Ref BankTradesTable
+          COUNTERPARTY_TABLE: !Ref CounterpartyTradesTable
+          DOCUMENT_BUCKET: !Ref DocumentBucket
+
+  ReconciliationEngineFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: TradeReconciliation-ReconciliationEngine
+      Handler: reconciliation_engine/index.handler
+      Runtime: !Ref LambdaRuntimeNodejs
+      Timeout: 300
+      MemorySize: 512
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref 'AWS::NoValue'
+        S3Key: !Ref 'AWS::NoValue'
+      Environment:
+        Variables:
+          BANK_TABLE: !Ref BankTradesTable
+          COUNTERPARTY_TABLE: !Ref CounterpartyTradesTable
+          MATCHES_TABLE: !Ref MatchesTable
+          REPORT_BUCKET: !Ref ReportBucket
+
+  ApiHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: TradeReconciliation-ApiHandler
+      Handler: api_handler/index.handler
+      Runtime: !Ref LambdaRuntimeNodejs
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref 'AWS::NoValue'
+        S3Key: !Ref 'AWS::NoValue'
+      Environment:
+        Variables:
+          BANK_TABLE: !Ref BankTradesTable
+          COUNTERPARTY_TABLE: !Ref CounterpartyTradesTable
+          MATCHES_TABLE: !Ref MatchesTable
+          DOCUMENT_BUCKET: !Ref DocumentBucket
+          REPORT_BUCKET: !Ref ReportBucket
+          RECONCILIATION_ENGINE_FUNCTION: !GetAtt ReconciliationEngineFunction.Arn
+
+  # Lambda Function Permissions
+  DocumentProcessorPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref DocumentProcessorFunction
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+      SourceArn: !Sub arn:aws:s3:::${DocumentBucket}
+
+  ReconciliationEngineFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ReconciliationEngineFunction
+      Principal: lambda.amazonaws.com
+      SourceArn: !GetAtt ApiHandlerFunction.Arn
+
+  ApiHandlerFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiHandlerFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${TradeReconciliationApi}/*
+
+  # API Gateway
+  TradeReconciliationApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Ref ApiName
+      Description: API for Trade Reconciliation System
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Policy:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: 'execute-api:Invoke'
+            Resource: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:*/*
+
+  ApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref TradeReconciliationApi
+      ParentId: !GetAtt TradeReconciliationApi.RootResourceId
+      PathPart: api
+
+  # API Proxy Resource - catches all paths under /api
+  ApiProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref TradeReconciliationApi
+      ParentId: !Ref ApiResource
+      PathPart: '{proxy+}'
+
+  ApiProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref TradeReconciliationApi
+      ResourceId: !Ref ApiProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiHandlerFunction.Arn}/invocations
+        IntegrationResponses:
+          - StatusCode: 200
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: Empty
+
+  # API OPTIONS Method (for CORS)
+  ApiOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref TradeReconciliationApi
+      ResourceId: !Ref ApiProxyResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseModels:
+            application/json: Empty
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiProxyMethod
+      - ApiOptionsMethod
+    Properties:
+      RestApiId: !Ref TradeReconciliationApi
+      StageName: prod
+
+  # IAM Role for Lambda functions
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: TradeReconciliationLambdaPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !GetAtt BankTradesTable.Arn
+                  - !GetAtt CounterpartyTradesTable.Arn
+                  - !GetAtt MatchesTable.Arn
+                  - !Sub ${BankTradesTable.Arn}/index/*
+                  - !Sub ${CounterpartyTradesTable.Arn}/index/*
+                  - !Sub ${MatchesTable.Arn}/index/*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                  - s3:PutObjectTagging
+                  - s3:GetObjectTagging
+                Resource:
+                  - !Sub arn:aws:s3:::${DocumentBucket}
+                  - !Sub arn:aws:s3:::${DocumentBucket}/*
+                  - !Sub arn:aws:s3:::${ReportBucket}
+                  - !Sub arn:aws:s3:::${ReportBucket}/*
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt ReconciliationEngineFunction.Arn
+
+Outputs:
+  ApiEndpoint:
+    Description: API Endpoint URL
+    Value: !Sub https://${TradeReconciliationApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+
+  DocumentBucketName:
+    Description: Document Bucket Name
+    Value: !Ref DocumentBucket
+
+  ReportBucketName:
+    Description: Report Bucket Name
+    Value: !Ref ReportBucket
+
+  BankTradesTableName:
+    Description: Bank Trades Table Name
+    Value: !Ref BankTradesTable
+
+  CounterpartyTradesTableName:
+    Description: Counterparty Trades Table Name
+    Value: !Ref CounterpartyTradesTable
+
+  MatchesTableName:
+    Description: Matches Table Name
+    Value: !Ref MatchesTable
+
+  DocumentProcessorFunctionArn:
+    Description: Document Processor Function ARN
+    Value: !GetAtt DocumentProcessorFunction.Arn
+
+  ReconciliationEngineFunctionArn:
+    Description: Reconciliation Engine Function ARN
+    Value: !GetAtt ReconciliationEngineFunction.Arn
+
+  ApiHandlerFunctionArn:
+    Description: API Handler Function ARN
+    Value: !GetAtt ApiHandlerFunction.Arn

@@ -1,0 +1,278 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Core infrastructure for Trade Reconciliation System (S3 Buckets and DynamoDB Tables)'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: Environment name for resource naming
+
+Resources:
+  # DynamoDB Tables
+  BankTradesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub trade-reconciliation-bank-trades-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tradeId
+          AttributeType: S
+        - AttributeName: documentId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tradeId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: DocumentIndex
+          KeySchema:
+            - AttributeName: documentId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+  CounterpartyTradesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub trade-reconciliation-counterparty-trades-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tradeId
+          AttributeType: S
+        - AttributeName: documentId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tradeId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: DocumentIndex
+          KeySchema:
+            - AttributeName: documentId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+  MatchesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub trade-reconciliation-matches-${Environment}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: matchId
+          AttributeType: S
+        - AttributeName: reconciliationId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: matchId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: ReconciliationIndex
+          KeySchema:
+            - AttributeName: reconciliationId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+  # S3 Buckets
+  DocumentBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub trade-reconciliation-documents-${Environment}-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Enabled
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3000
+      LifecycleConfiguration:
+        Rules:
+          - Id: TransitionToIntelligentTiering
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: INTELLIGENT_TIERING
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+  DocumentBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DocumentBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowSSLRequestsOnly
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt DocumentBucket.Arn
+              - !Sub ${DocumentBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+  ReportBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub trade-reconciliation-reports-${Environment}-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Enabled
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3000
+      LifecycleConfiguration:
+        Rules:
+          - Id: TransitionToIntelligentTiering
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: INTELLIGENT_TIERING
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+  ReportBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ReportBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowSSLRequestsOnly
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt ReportBucket.Arn
+              - !Sub ${ReportBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+  
+  # Notification Configuration for S3 - Note: this is a custom resource to avoid circular dependencies
+  # Lambda function permissions are set in the api-lambda template
+  DocumentBucketEventConfiguration:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:cfn-s3-notification
+      BucketName: !Ref DocumentBucket
+      NotificationConfiguration:
+        LambdaFunctionConfigurations:
+          - Events:
+              - s3:ObjectCreated:*
+            Filter:
+              Key:
+                FilterRules:
+                  - Name: suffix
+                    Value: .csv
+                  - Name: prefix
+                    Value: bank/
+            LambdaFunctionArn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:trade-reconciliation-document-processor-${Environment}
+          - Events:
+              - s3:ObjectCreated:*
+            Filter:
+              Key:
+                FilterRules:
+                  - Name: suffix
+                    Value: .csv
+                  - Name: prefix
+                    Value: counterparty/
+            LambdaFunctionArn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:trade-reconciliation-document-processor-${Environment}
+          - Events:
+              - s3:ObjectCreated:*
+            Filter:
+              Key:
+                FilterRules:
+                  - Name: suffix
+                    Value: .xlsx
+                  - Name: prefix
+                    Value: bank/
+            LambdaFunctionArn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:trade-reconciliation-document-processor-${Environment}
+          - Events:
+              - s3:ObjectCreated:*
+            Filter:
+              Key:
+                FilterRules:
+                  - Name: suffix
+                    Value: .xlsx
+                  - Name: prefix
+                    Value: counterparty/
+            LambdaFunctionArn: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:trade-reconciliation-document-processor-${Environment}
+    DependsOn:
+      - DocumentBucket
+
+Outputs:
+  BankTableName:
+    Description: Name of the Bank Trades DynamoDB Table
+    Value: !Ref BankTradesTable
+    Export:
+      Name: !Sub "${AWS::StackName}-BankTableName"
+
+  CounterpartyTableName:
+    Description: Name of the Counterparty Trades DynamoDB Table
+    Value: !Ref CounterpartyTradesTable
+    Export:
+      Name: !Sub "${AWS::StackName}-CounterpartyTableName"
+
+  MatchesTableName:
+    Description: Name of the Matches DynamoDB Table
+    Value: !Ref MatchesTable
+    Export:
+      Name: !Sub "${AWS::StackName}-MatchesTableName"
+
+  DocumentBucketName:
+    Description: Name of the S3 Bucket for Document Storage
+    Value: !Ref DocumentBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-DocumentBucketName"
+
+  ReportBucketName:
+    Description: Name of the S3 Bucket for Report Storage
+    Value: !Ref ReportBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-ReportBucketName"

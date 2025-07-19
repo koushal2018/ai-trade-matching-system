@@ -1,0 +1,127 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Frontend Amplify App for Trade Reconciliation System'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - test
+      - prod
+    Description: Environment name for resource naming
+
+  ApiEndpointUrl:
+    Type: String
+    Description: URL of the API Gateway endpoint
+    Default: https://api.example.com/dev
+
+  RepositoryUrl:
+    Type: String
+    Description: 'Git repository URL (HTTPS) for frontend code'
+    Default: https://github.com/username/trade-reconciliation-frontend.git
+
+  RepositoryBranch:
+    Type: String
+    Description: 'Git repository branch to deploy'
+    Default: main
+
+  AccessToken:
+    Type: String
+    Description: 'Personal access token for the Git repository'
+    NoEcho: true
+
+  BuildSpecContent:
+    Type: String
+    Description: 'Build specification for the Amplify app'
+    Default: |
+      version: 1
+      frontend:
+        phases:
+          preBuild:
+            commands:
+              - npm ci
+          build:
+            commands:
+              - echo "REACT_APP_API_ENDPOINT=$API_ENDPOINT_URL" >> .env
+              - npm run build
+        artifacts:
+          baseDirectory: build
+          files:
+            - '**/*'
+        cache:
+          paths:
+            - node_modules/**/*
+
+Resources:
+  AmplifyApp:
+    Type: AWS::Amplify::App
+    Properties:
+      Name: !Sub trade-reconciliation-frontend-${Environment}
+      Description: Trade Reconciliation Frontend Application
+      Repository: !Ref RepositoryUrl
+      AccessToken: !Ref AccessToken
+      BuildSpec: !Ref BuildSpecContent
+      CustomRules:
+        - Source: </^[^.]+$|\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)([^.]+$)/>
+          Target: /index.html
+          Status: 200
+      EnvironmentVariables:
+        - Name: API_ENDPOINT_URL
+          Value: !Ref ApiEndpointUrl
+        - Name: ENVIRONMENT
+          Value: !Ref Environment
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+  AmplifyBranch:
+    Type: AWS::Amplify::Branch
+    Properties:
+      AppId: !GetAtt AmplifyApp.AppId
+      BranchName: !Ref RepositoryBranch
+      EnableAutoBuild: true
+      Description: !Sub 'Main branch for ${Environment} environment'
+      EnvironmentVariables:
+        - Name: API_ENDPOINT_URL
+          Value: !Ref ApiEndpointUrl
+        - Name: ENVIRONMENT
+          Value: !Ref Environment
+      Stage: !Ref Environment
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: System
+          Value: TradeReconciliation
+
+  # Optional: Domain configuration if needed
+  # AmplifyDomain:
+  #   Type: AWS::Amplify::Domain
+  #   Properties:
+  #     AppId: !GetAtt AmplifyApp.AppId
+  #     DomainName: your-domain.com
+  #     SubDomainSettings:
+  #       - Branch: !GetAtt AmplifyBranch.BranchName
+  #         Prefix: ''
+  #     EnableAutoSubDomain: true
+
+Outputs:
+  AmplifyAppId:
+    Description: Amplify App ID
+    Value: !GetAtt AmplifyApp.AppId
+    Export:
+      Name: !Sub "${AWS::StackName}-AmplifyAppId"
+
+  AmplifyDefaultDomain:
+    Description: Default Amplify App Domain
+    Value: !Sub ${AmplifyApp.DefaultDomain}
+    Export:
+      Name: !Sub "${AWS::StackName}-AmplifyDefaultDomain"
+
+  AppUrl:
+    Description: URL of the deployed application
+    Value: !Sub https://${RepositoryBranch}.${AmplifyApp.DefaultDomain}
+    Export:
+      Name: !Sub "${AWS::StackName}-AppUrl"

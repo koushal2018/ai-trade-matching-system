@@ -1,0 +1,146 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Trade Reconciliation Solution - Master Stack'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: Environment name (dev, test, prod)
+    AllowedValues:
+      - dev
+      - test
+      - prod
+  
+  ApiStageName:
+    Type: String
+    Default: api
+    Description: Name of the API Gateway stage
+  
+  EnableAuth:
+    Type: String
+    Default: 'false'
+    Description: Enable Cognito authentication
+    AllowedValues:
+      - 'true'
+      - 'false'
+  
+  AdminEmail:
+    Type: String
+    Description: Admin email address for Cognito user pool notifications
+    Default: ''
+
+Conditions:
+  EnableAuthCondition: !Equals [!Ref EnableAuth, 'true']
+  HasAdminEmail: !Not [!Equals [!Ref AdminEmail, '']]
+
+Resources:
+  #############################################################
+  # Core Infrastructure Stack
+  #############################################################
+  CoreInfrastructureStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: './core-infrastructure.yaml'
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  #############################################################
+  # Authentication Stack (Conditional)
+  #############################################################
+  AuthenticationStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: EnableAuthCondition
+    Properties:
+      TemplateURL: './authentication.yaml'
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        AdminEmail: !If [HasAdminEmail, !Ref AdminEmail, 'admin@example.com']
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  #############################################################
+  # API and Lambda Stack
+  #############################################################
+  ApiLambdaStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: CoreInfrastructureStack
+    Properties:
+      TemplateURL: './api-lambda.yaml'
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        ApiStageName: !Ref ApiStageName
+        CognitoUserPoolArn: !If 
+          - EnableAuthCondition
+          - !GetAtt AuthenticationStack.Outputs.UserPoolArn
+          - ''
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  #############################################################
+  # Frontend Stack (Conditional)
+  #############################################################
+  FrontendStack:
+    Type: AWS::CloudFormation::Stack
+    Condition: EnableAuthCondition
+    DependsOn:
+      - ApiLambdaStack
+      - AuthenticationStack
+    Properties:
+      TemplateURL: './frontend-amplify.yaml'
+      Parameters:
+        EnvironmentName: !Ref EnvironmentName
+        ApiEndpoint: !GetAtt ApiLambdaStack.Outputs.ApiEndpoint
+        UserPoolId: !GetAtt AuthenticationStack.Outputs.UserPoolId
+        UserPoolClientId: !GetAtt AuthenticationStack.Outputs.UserPoolClientId
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+Outputs:
+  ApiEndpoint:
+    Description: URL of the API Gateway endpoint
+    Value: !GetAtt ApiLambdaStack.Outputs.ApiEndpoint
+  
+  DocumentsBucketName:
+    Description: Name of the S3 bucket for document storage
+    Value: !GetAtt CoreInfrastructureStack.Outputs.DocumentsBucketName
+  
+  SourceTradeTableName:
+    Description: Name of the source trades DynamoDB table
+    Value: !GetAtt CoreInfrastructureStack.Outputs.SourceTradeTableName
+  
+  TargetTradeTableName:
+    Description: Name of the target trades DynamoDB table
+    Value: !GetAtt CoreInfrastructureStack.Outputs.TargetTradeTableName
+  
+  DocumentTableName:
+    Description: Name of the documents DynamoDB table
+    Value: !GetAtt CoreInfrastructureStack.Outputs.DocumentTableName
+  
+  ReconciliationTableName:
+    Description: Name of the reconciliations DynamoDB table
+    Value: !GetAtt CoreInfrastructureStack.Outputs.ReconciliationTableName
+  
+  MatchTableName:
+    Description: Name of the matches DynamoDB table
+    Value: !GetAtt CoreInfrastructureStack.Outputs.MatchTableName
+  
+  UserPoolId:
+    Condition: EnableAuthCondition
+    Description: ID of the Cognito User Pool
+    Value: !GetAtt AuthenticationStack.Outputs.UserPoolId
+  
+  UserPoolClientId:
+    Condition: EnableAuthCondition
+    Description: ID of the Cognito User Pool Client
+    Value: !GetAtt AuthenticationStack.Outputs.UserPoolClientId
+  
+  FrontendURL:
+    Condition: EnableAuthCondition
+    Description: URL of the frontend hosted on Amplify
+    Value: !GetAtt FrontendStack.Outputs.AmplifyAppURL

@@ -10,7 +10,7 @@ import json
 import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-
+from strands.models import BedrockModel
 from strands import Agent, tool
 from agents import (
     fetch_unmatched_trades, find_potential_matches, compute_similarity,
@@ -20,6 +20,16 @@ from agents import (
     store_report, fetch_reconciliation_results
 )
 
+bedrock_model = BedrockModel(
+    model_id="us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+    additional_request_fields={
+        "thinking":{
+            "type": "enabled",
+                    }
+    }
+)
+
+agent = Agent(model=bedrock_model)
 # Import configuration models
 from models import MatcherConfig, ReconcilerConfig, ReportConfig, TableConfig
 
