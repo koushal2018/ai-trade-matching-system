@@ -12,6 +12,11 @@ import Login from './components/auth/Login';
 import Dashboard from './components/pages/Dashboard';
 import DocumentUpload from './components/pages/DocumentUpload';
 import Trades from './components/pages/Trades';
+import AgentMonitorPage from './components/pages/agent-monitor/AgentMonitorPage';
+
+// Error Handling and Notifications
+import ErrorBoundary from './components/common/ErrorBoundary';
+import { ToastProvider } from './context/ToastContext';
 
 // Styles
 import './App.css';
@@ -101,148 +106,90 @@ const PublicRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <Router>
-        <div className="App">
-          <Routes>
-            {/* Auth Routes */}
-            <Route path="/auth" element={<AuthLayout />}>
-              <Route 
-                path="login" 
-                element={
-                  <PublicRoute>
-                    <Login />
-                  </PublicRoute>
-                } 
-              />
-            </Route>
-            <Route path="/login" element={<Navigate to="/auth/login" replace />} />
+      <ToastProvider>
+        <ErrorBoundary>
+          <Router>
+            <div className="App">
+              <Routes>
+                {/* Auth Routes */}
+                <Route path="/auth" element={<AuthLayout />}>
+                  <Route 
+                    path="login" 
+                    element={
+                      <PublicRoute>
+                        <Login />
+                      </PublicRoute>
+                    } 
+                  />
+                </Route>
+                <Route path="/login" element={<Navigate to="/auth/login" replace />} />
 
-            {/* Protected Routes */}
-            <Route 
-              path="/" 
-              element={
-                <ProtectedRoute>
-                  <MainLayout />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<Navigate to="/dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="upload" element={<DocumentUpload />} />
-              <Route path="trades" element={<Trades />} />
-              
-              {/* Agent Monitor Route */}
+              {/* Protected Routes */}
               <Route 
-                path="agent-monitor" 
+                path="/" 
                 element={
-                  <div className="p-6">
-                    <h1 className="text-2xl font-bold mb-4">Agent Monitor</h1>
-                    <div className="bg-white rounded-lg shadow p-6">
-                      <h2 className="text-lg font-semibold mb-4">AI Agent Execution Status</h2>
-                      <div className="space-y-4">
-                        <div className="border rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium">Trade PDF Processing Agent</span>
-                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">Running</span>
-                          </div>
-                          <p className="text-sm text-gray-600">Processing uploaded trade documents...</p>
-                          <div className="mt-2">
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                              <div className="bg-blue-600 h-2 rounded-full" style={{width: '75%'}}></div>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1">75% complete</p>
-                          </div>
-                        </div>
-                        
-                        <div className="border rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium">Trade Matching Agent</span>
-                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm">Queued</span>
-                          </div>
-                          <p className="text-sm text-gray-600">Waiting for PDF processing to complete...</p>
-                        </div>
-                        
-                        <div className="border rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="font-medium">Reconciliation Agent</span>
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">Idle</span>
-                          </div>
-                          <p className="text-sm text-gray-600">Ready to process matched trades...</p>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-6">
-                        <h3 className="text-md font-semibold mb-3">Recent Agent Logs</h3>
-                        <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
-                          <div className="space-y-2 font-mono text-sm">
-                            <div className="text-green-600">[2025-07-18 17:08:15] PDF Processing: Successfully extracted 45 trades from document_001.pdf</div>
-                            <div className="text-blue-600">[2025-07-18 17:08:10] Matching: Found 42 potential matches for trade batch #123</div>
-                            <div className="text-yellow-600">[2025-07-18 17:08:05] Validation: 3 trades require manual review</div>
-                            <div className="text-gray-600">[2025-07-18 17:07:58] System: Agent pipeline initialized</div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-4 flex space-x-3">
-                        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                          View Detailed Logs
-                        </button>
-                        <button className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
-                          Export Logs
-                        </button>
-                        <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-                          Restart Agents
-                        </button>
-                      </div>
+                  <ProtectedRoute>
+                    <MainLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="upload" element={<DocumentUpload />} />
+                <Route path="trades" element={<Trades />} />
+                
+                {/* Agent Monitor Route */}
+                <Route 
+                  path="agent-monitor" 
+                  element={<AgentMonitorPage />} 
+                />
+                
+                {/* Placeholder routes for future features */}
+                <Route 
+                  path="match-review" 
+                  element={
+                    <div className="p-6">
+                      <h1 className="text-2xl font-bold mb-4">Match Review</h1>
+                      <p className="text-gray-600">Coming soon...</p>
                     </div>
-                  </div>
-                } 
-              />
-              
-              {/* Placeholder routes for future features */}
-              <Route 
-                path="match-review" 
-                element={
-                  <div className="p-6">
-                    <h1 className="text-2xl font-bold mb-4">Match Review</h1>
-                    <p className="text-gray-600">Coming soon...</p>
-                  </div>
-                } 
-              />
-              <Route 
-                path="reconciliation" 
-                element={
-                  <div className="p-6">
-                    <h1 className="text-2xl font-bold mb-4">Reconciliation Detail</h1>
-                    <p className="text-gray-600">Coming soon...</p>
-                  </div>
-                } 
-              />
-              <Route 
-                path="reports" 
-                element={
-                  <div className="p-6">
-                    <h1 className="text-2xl font-bold mb-4">Reports</h1>
-                    <p className="text-gray-600">Coming soon...</p>
-                  </div>
-                } 
-              />
-              <Route 
-                path="admin" 
-                element={
-                  <div className="p-6">
-                    <h1 className="text-2xl font-bold mb-4">Admin Settings</h1>
-                    <p className="text-gray-600">Coming soon...</p>
-                  </div>
-                } 
-              />
-              
-              {/* Catch all */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Route>
-          </Routes>
-        </div>
-      </Router>
+                  } 
+                />
+                <Route 
+                  path="reconciliation" 
+                  element={
+                    <div className="p-6">
+                      <h1 className="text-2xl font-bold mb-4">Reconciliation Detail</h1>
+                      <p className="text-gray-600">Coming soon...</p>
+                    </div>
+                  } 
+                />
+                <Route 
+                  path="reports" 
+                  element={
+                    <div className="p-6">
+                      <h1 className="text-2xl font-bold mb-4">Reports</h1>
+                      <p className="text-gray-600">Coming soon...</p>
+                    </div>
+                  } 
+                />
+                <Route 
+                  path="admin" 
+                  element={
+                    <div className="p-6">
+                      <h1 className="text-2xl font-bold mb-4">Admin Settings</h1>
+                      <p className="text-gray-600">Coming soon...</p>
+                    </div>
+                  } 
+                />
+                
+                {/* Catch all */}
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Route>
+            </Routes>
+          </div>
+        </Router>
+        </ErrorBoundary>
+      </ToastProvider>
     </AuthProvider>
   );
 };
