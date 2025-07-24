@@ -1,2 +1,7 @@
 {
+    "kiroAgent.trustedCommands": [
+        "python *",
+        "cp *",
+        "touch *"
+    ]
 }
