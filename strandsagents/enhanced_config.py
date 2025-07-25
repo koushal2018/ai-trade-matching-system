@@ -13,7 +13,10 @@ from enum import Enum
 import logging
 from pathlib import Path
 
-from .models import MatcherConfig, ReconcilerConfig, ReportConfig
+try:
+    from .models import MatcherConfig, ReconcilerConfig, ReportConfig
+except ImportError:
+    from models import MatcherConfig, ReconcilerConfig, ReportConfig
 
 logger = logging.getLogger(__name__)
 

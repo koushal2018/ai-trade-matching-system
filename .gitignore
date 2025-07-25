@@ -224,3 +224,32 @@ coverage/
 *.bak
 *.backup
 *~
+# Project-specific ignores
+repl_state/
+*.pkl
+reconciliation_*.log
+diagnostic-function*.zip
+trade-api-handler*.zip
+*-fixed-final.zip
+*-updated-fixed.zip
+*-updated.zip
+
+# CloudFormation experimental templates
+**/cloudformation/final/
+**/cloudformation/minimal-*.yaml
+**/cloudformation/simplified-*.yaml
+**/cloudformation/fixed-*.yaml
+**/cloudformation/standalone-*.yaml
+
+# Status and summary files
+*SUMMARY.md
+*-summary.md
+*-issues-and-fixes.md
+deployment-validation-checklist.md
+IMPLEMENTATION_STATUS.md
+CLEANUP_SUMMARY.md
+
+# Reference and sample files
+referencearchitecture.html
+sample_trades.csv
+REFERENCE_ARCHITECTURE_DRAWING_INSTRUCTIONS.md
