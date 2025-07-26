@@ -1,0 +1,308 @@
+---
+# Field Mapping Configurations for Different Document Formats
+# This file defines how fields from various document formats should be mapped
+# to the standardized internal format used by the reconciliation system
+
+formats:
+  # Email format configuration
+  - format_name: "email_trade_confirmation"
+    format_type: "email"
+    field_mappings:
+      - source_field: "trade_id"
+        target_field: "trade_reference"
+        required: true
+      - source_field: "trade_date"
+        target_field: "execution_date"
+        transformation: "parse_date(value)"
+        required: true
+      - source_field: "counterparty"
+        target_field: "counterparty_name"
+        transformation: "clean_counterparty_name(value)"
+        required: true
+      - source_field: "notional"
+        target_field: "notional_amount"
+        transformation: "parse_currency_amount(value)"
+        required: true
+      - source_field: "currency"
+        target_field: "currency_code"
+        validation: "len(value) == 3"
+        required: true
+      - source_field: "product_type"
+        target_field: "instrument_type"
+        required: false
+      - source_field: "maturity_date"
+        target_field: "settlement_date"
+        transformation: "parse_date(value)"
+        required: false
+    extraction_rules:
+      date_formats: ["DD/MM/YYYY", "MM-DD-YYYY", "YYYY-MM-DD"]
+      currency_patterns: ["USD", "EUR", "GBP", "JPY", "CHF"]
+    validation_rules:
+      trade_reference: "len(value) > 0"
+      notional_amount: "float(value) > 0"
+    preprocessing_steps:
+      - "remove_html_tags"
+      - "normalize_whitespace"
+      - "extract_structured_data"
+
+  # SWIFT MT message format
+  - format_name: "swift_mt_message"
+    format_type: "swift"
+    field_mappings:
+      - source_field: "transaction_reference"
+        target_field: "trade_reference"
+        required: true
+      - source_field: "value_date_currency_amount"
+        target_field: "settlement_info"
+        transformation: "parse_swift_value_date(value)"
+        required: true
+      - source_field: "ordering_customer"
+        target_field: "counterparty_name"
+        transformation: "extract_customer_name(value)"
+        required: true
+      - source_field: "beneficiary_customer"
+        target_field: "beneficiary_info"
+        required: false
+      - source_field: "remittance_information"
+        target_field: "trade_details"
+        required: false
+    extraction_rules:
+      swift_fields: ["20", "21", "23B", "32A", "50K", "59", "70"]
+    validation_rules:
+      transaction_reference: "len(value) <= 16"
+    preprocessing_steps:
+      - "parse_swift_blocks"
+      - "extract_field_tags"
+
+  # Electronic trading data format
+  - format_name: "electronic_trading_fix"
+    format_type: "fix"
+    field_mappings:
+      - source_field: "order_id"
+        target_field: "trade_reference"
+        required: true
+      - source_field: "execution_id"
+        target_field: "execution_reference"
+        required: true
+      - source_field: "symbol"
+        target_field: "instrument_code"
+        required: true
+      - source_field: "order_quantity"
+        target_field: "quantity"
+        transformation: "float(value)"
+        required: true
+      - source_field: "price"
+        target_field: "execution_price"
+        transformation: "float(value)"
+        required: true
+      - source_field: "side"
+        target_field: "buy_sell_indicator"
+        transformation: "normalize_side(value)"
+        required: true
+      - source_field: "transaction_time"
+        target_field: "execution_timestamp"
+        transformation: "parse_fix_timestamp(value)"
+        required: true
+    extraction_rules:
+      fix_version: "4.4"
+      message_types: ["D", "8", "9"]
+    validation_rules:
+      quantity: "float(value) > 0"
+      execution_price: "float(value) > 0"
+    preprocessing_steps:
+      - "parse_fix_message"
+      - "validate_checksum"
+
+  # Exchange confirmation format
+  - format_name: "exchange_confirmation"
+    format_type: "exchange_confirmation"
+    field_mappings:
+      - source_field: "confirmation_id"
+        target_field: "confirmation_reference"
+        required: true
+      - source_field: "trade_reference"
+        target_field: "trade_reference"
+        required: true
+      - source_field: "execution_venue"
+        target_field: "exchange_code"
+        required: true
+      - source_field: "settlement_date"
+        target_field: "settlement_date"
+        transformation: "parse_date(value)"
+        required: true
+      - source_field: "clearing_member"
+        target_field: "clearing_member_code"
+        required: false
+      - source_field: "commission"
+        target_field: "commission_amount"
+        transformation: "float(value)"
+        required: false
+      - source_field: "net_amount"
+        target_field: "net_settlement_amount"
+        transformation: "parse_currency_amount(value)"
+        required: true
+    extraction_rules:
+      exchange_codes: ["NYSE", "NASDAQ", "LSE", "XETRA"]
+    validation_rules:
+      confirmation_reference: "len(value) > 0"
+      net_settlement_amount: "float(value) != 0"
+    preprocessing_steps:
+      - "normalize_exchange_format"
+      - "validate_settlement_date"
+
+  # CSV/Excel format for bulk trade data
+  - format_name: "csv_trade_data"
+    format_type: "csv"
+    field_mappings:
+      - source_field: "Trade ID"
+        target_field: "trade_reference"
+        required: true
+      - source_field: "Trade Date"
+        target_field: "execution_date"
+        transformation: "parse_date(value)"
+        required: true
+      - source_field: "Counterparty"
+        target_field: "counterparty_name"
+        required: true
+      - source_field: "Notional"
+        target_field: "notional_amount"
+        transformation: "parse_currency_amount(value)"
+        required: true
+      - source_field: "Currency"
+        target_field: "currency_code"
+        required: true
+      - source_field: "Product"
+        target_field: "instrument_type"
+        required: false
+      - source_field: "Maturity"
+        target_field: "settlement_date"
+        transformation: "parse_date(value)"
+        required: false
+      - source_field: "Rate"
+        target_field: "fixed_rate"
+        transformation: "float(value)"
+        required: false
+    extraction_rules:
+      delimiter: ","
+      header_row: true
+      encoding: "utf-8"
+    validation_rules:
+      trade_reference: "len(value) > 0"
+      notional_amount: "float(value) > 0"
+      currency_code: "len(value) == 3"
+    preprocessing_steps:
+      - "detect_delimiter"
+      - "validate_headers"
+      - "clean_numeric_fields"
+
+  # JSON format for API data
+  - format_name: "json_trade_api"
+    format_type: "json"
+    field_mappings:
+      - source_field: "tradeId"
+        target_field: "trade_reference"
+        required: true
+      - source_field: "executionDate"
+        target_field: "execution_date"
+        transformation: "parse_iso_date(value)"
+        required: true
+      - source_field: "counterparty.name"
+        target_field: "counterparty_name"
+        required: true
+      - source_field: "notional.amount"
+        target_field: "notional_amount"
+        transformation: "float(value)"
+        required: true
+      - source_field: "notional.currency"
+        target_field: "currency_code"
+        required: true
+      - source_field: "instrument.type"
+        target_field: "instrument_type"
+        required: false
+      - source_field: "settlement.date"
+        target_field: "settlement_date"
+        transformation: "parse_iso_date(value)"
+        required: false
+    extraction_rules:
+      nested_fields: true
+      array_handling: "flatten"
+    validation_rules:
+      trade_reference: "len(value) > 0"
+      notional_amount: "float(value) > 0"
+    preprocessing_steps:
+      - "validate_json_schema"
+      - "flatten_nested_objects"
+
+  # XML format for structured data
+  - format_name: "xml_trade_data"
+    format_type: "xml"
+    field_mappings:
+      - source_field: "//Trade/@id"
+        target_field: "trade_reference"
+        required: true
+      - source_field: "//Trade/ExecutionDate/text()"
+        target_field: "execution_date"
+        transformation: "parse_date(value)"
+        required: true
+      - source_field: "//Trade/Counterparty/Name/text()"
+        target_field: "counterparty_name"
+        required: true
+      - source_field: "//Trade/Notional/Amount/text()"
+        target_field: "notional_amount"
+        transformation: "float(value)"
+        required: true
+      - source_field: "//Trade/Notional/Currency/text()"
+        target_field: "currency_code"
+        required: true
+    extraction_rules:
+      namespace_aware: true
+      xpath_expressions: true
+    validation_rules:
+      trade_reference: "len(value) > 0"
+    preprocessing_steps:
+      - "validate_xml_schema"
+      - "resolve_namespaces"
+
+# Global transformation functions that can be referenced in field mappings
+transformation_functions:
+  parse_date:
+    description: "Parse various date formats into ISO format"
+    implementation: "date_utils.parse_flexible_date"
+  
+  parse_currency_amount:
+    description: "Parse currency amounts with various formatting"
+    implementation: "currency_utils.parse_amount"
+  
+  clean_counterparty_name:
+    description: "Clean and normalize counterparty names"
+    implementation: "text_utils.clean_counterparty"
+  
+  normalize_side:
+    description: "Normalize buy/sell indicators"
+    implementation: "trading_utils.normalize_side"
+  
+  parse_fix_timestamp:
+    description: "Parse FIX protocol timestamps"
+    implementation: "fix_utils.parse_timestamp"
+  
+  parse_swift_value_date:
+    description: "Parse SWIFT value date and currency amount"
+    implementation: "swift_utils.parse_value_date"
+
+# Validation rules that can be referenced in field mappings
+validation_rules:
+  positive_amount:
+    description: "Validate that amount is positive"
+    expression: "float(value) > 0"
+  
+  currency_code:
+    description: "Validate 3-letter currency code"
+    expression: "len(value) == 3 and value.isupper()"
+  
+  non_empty_string:
+    description: "Validate non-empty string"
+    expression: "len(str(value).strip()) > 0"
+  
+  valid_date:
+    description: "Validate date format"
+    expression: "date_utils.is_valid_date(value)"

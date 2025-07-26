@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Trade Reconciliation Solution - Master Stack'
+Description: 'Trade Reconciliation Solution - US Region Master Stack'
 
 Parameters:
   TemplateS3Bucket:
@@ -38,7 +38,7 @@ Parameters:
     Description: Admin email address for Cognito user pool notifications
     Default: ''
 
-  # AI Provider Configuration Parameters
+  # US-Specific AI Provider Configuration (All providers available)
   AIProviderType:
     Type: String
     Default: bedrock
@@ -65,17 +65,18 @@ Parameters:
     AllowedValues:
       - us-east-1
       - us-west-2
-      - eu-west-1
-      - eu-central-1
-      - ap-southeast-1
-      - ap-northeast-1
-      - me-central-1
-      - me-south-1
   
   BedrockModelId:
     Type: String
     Default: anthropic.claude-3-sonnet-20240229-v1:0
     Description: Bedrock model ID (when using Bedrock provider)
+    AllowedValues:
+      - anthropic.claude-3-sonnet-20240229-v1:0
+      - anthropic.claude-3-haiku-20240307-v1:0
+      - anthropic.claude-instant-v1
+      - amazon.titan-text-express-v1
+      - ai21.j2-ultra-v1
+      - cohere.command-text-v14
   
   SagemakerEndpointName:
     Type: String
@@ -127,32 +128,24 @@ Conditions:
   UseAIProvider: !Not [!Equals [!Ref AIProviderType, 'none']]
   UseLLMMode: !Or [!Equals [!Ref DecisionMode, 'llm'], !Equals [!Ref DecisionMode, 'hybrid']]
   
-  # Regional AI Service Availability Conditions
-  BedrockAvailableInRegion: !Or
-    - !Equals [!Ref AIProviderRegion, 'us-east-1']
-    - !Equals [!Ref AIProviderRegion, 'us-west-2']
-    - !Equals [!Ref AIProviderRegion, 'eu-west-1']
-    - !Equals [!Ref AIProviderRegion, 'eu-central-1']
-    - !Equals [!Ref AIProviderRegion, 'ap-southeast-1']
-    - !Equals [!Ref AIProviderRegion, 'ap-northeast-1']
-  
-  SagemakerAvailableInRegion: !Or
-    - !Equals [!Ref AIProviderRegion, 'us-east-1']
-    - !Equals [!Ref AIProviderRegion, 'us-west-2']
-    - !Equals [!Ref AIProviderRegion, 'eu-west-1']
-    - !Equals [!Ref AIProviderRegion, 'eu-central-1']
-    - !Equals [!Ref AIProviderRegion, 'ap-southeast-1']
-    - !Equals [!Ref AIProviderRegion, 'ap-northeast-1']
-    - !Equals [!Ref AIProviderRegion, 'me-central-1']
-    - !Equals [!Ref AIProviderRegion, 'me-south-1']
-  
   # Validation Conditions
-  ValidBedrockConfig: !And [!Condition UseBedrockProvider, !Condition BedrockAvailableInRegion]
-  ValidSagemakerConfig: !And [!Condition UseSagemakerProvider, !Condition SagemakerAvailableInRegion, !Not [!Equals [!Ref SagemakerEndpointName, '']]]
+  ValidBedrockConfig: !Condition UseBedrockProvider
+  ValidSagemakerConfig: !And [!Condition UseSagemakerProvider, !Not [!Equals [!Ref SagemakerEndpointName, '']]]
   ValidHuggingfaceConfig: !And [!Condition UseHuggingfaceProvider, !Not [!Equals [!Ref HuggingfaceApiToken, '']]]
   
   HasHuggingfaceToken: !Not [!Equals [!Ref HuggingfaceApiToken, '']]
   EnablePerformanceFeatures: !Equals [!Ref EnablePerformanceOptimization, 'true']
+  IsUSEast1: !Equals [!Ref AIProviderRegion, 'us-east-1']
+
+Rules:
+  ValidateAIProviderConfiguration:
+    RuleCondition: !Not [!Equals [!Ref AIProviderType, 'none']]
+    Assertions:
+      - Assert: !Or
+          - !Equals [!Ref AIProviderType, 'bedrock']
+          - !And [!Equals [!Ref AIProviderType, 'sagemaker'], !Not [!Equals [!Ref SagemakerEndpointName, '']]]
+          - !And [!Equals [!Ref AIProviderType, 'huggingface'], !Not [!Equals [!Ref HuggingfaceApiToken, '']]]
+        AssertDescription: "When using AI provider, appropriate configuration must be provided"
 
 Resources:
   #############################################################
@@ -171,6 +164,8 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
+        - Key: Region
+          Value: US
 
   #############################################################
   # Core Infrastructure Stack
@@ -191,6 +186,8 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
+        - Key: Region
+          Value: US
 
   #############################################################
   # Authentication Stack (Conditional)
@@ -206,6 +203,8 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
+        - Key: Region
+          Value: US
 
   #############################################################
   # API and Lambda Stack
@@ -222,7 +221,7 @@ Resources:
           - EnableAuthCondition
           - !GetAtt AuthenticationStack.Outputs.UserPoolArn
           - ''
-        # AI Provider Configuration
+        # AI Provider Configuration (US-specific - all providers available)
         AIProviderType: !Ref AIProviderType
         DecisionMode: !Ref DecisionMode
         AIProviderRegion: !Ref AIProviderRegion
@@ -236,6 +235,8 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
+        - Key: Region
+          Value: US
 
   #############################################################
   # Frontend Stack (Conditional)
@@ -256,6 +257,8 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
+        - Key: Region
+          Value: US
 
   #############################################################
   # Monitoring and Alerting Stack
@@ -276,6 +279,8 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
+        - Key: Region
+          Value: US
 
   #############################################################
   # Backup and Disaster Recovery Stack
@@ -291,10 +296,12 @@ Resources:
         BackupRetentionDays: 30
         PointInTimeRecoveryEnabled: 'true'
         S3ReplicationEnabled: 'true'
-        DisasterRecoveryRegion: 'us-west-2'
+        DisasterRecoveryRegion: !If [IsUSEast1, 'us-west-2', 'us-east-1']
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
+        - Key: Region
+          Value: US
 
 Outputs:
   ApiEndpoint:
@@ -317,25 +324,21 @@ Outputs:
     Description: Name of the S3 bucket for document storage
     Value: !GetAtt CoreInfrastructureStack.Outputs.DocumentsBucketName
   
-  SourceTradeTableName:
-    Description: Name of the source trades DynamoDB table
-    Value: !GetAtt CoreInfrastructureStack.Outputs.SourceTradeTableName
+  AIProviderConfiguration:
+    Description: AI provider configuration summary
+    Value: !Sub |
+      Provider: ${AIProviderType}
+      Region: ${AIProviderRegion}
+      Decision Mode: ${DecisionMode}
+      Bedrock Model: ${BedrockModelId}
+      Sagemaker Endpoint: ${SagemakerEndpointName}
   
-  TargetTradeTableName:
-    Description: Name of the target trades DynamoDB table
-    Value: !GetAtt CoreInfrastructureStack.Outputs.TargetTradeTableName
-  
-  DocumentTableName:
-    Description: Name of the documents DynamoDB table
-    Value: !GetAtt CoreInfrastructureStack.Outputs.DocumentTableName
-  
-  ReconciliationTableName:
-    Description: Name of the reconciliations DynamoDB table
-    Value: !GetAtt CoreInfrastructureStack.Outputs.ReconciliationTableName
-  
-  MatchTableName:
-    Description: Name of the matches DynamoDB table
-    Value: !GetAtt CoreInfrastructureStack.Outputs.MatchTableName
+  RegionalDeploymentInfo:
+    Description: Regional deployment information
+    Value: !Sub |
+      Deployed in US region (${AWS::Region})
+      AI Provider: ${AIProviderType} (All providers available)
+      DR Region: ${BackupDRStack.Outputs.DisasterRecoveryRegion}
   
   UserPoolId:
     Condition: EnableAuthCondition

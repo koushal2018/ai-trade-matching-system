@@ -20,9 +20,62 @@ Parameters:
     Type: String
     Description: ARN of the Cognito User Pool for API authentication
     Default: ''
+  
+  # AI Provider Configuration Parameters
+  AIProviderType:
+    Type: String
+    Default: bedrock
+    Description: AI provider type for enhanced reconciliation
+  
+  DecisionMode:
+    Type: String
+    Default: deterministic
+    Description: Decision making approach for trade reconciliation
+  
+  AIProviderRegion:
+    Type: String
+    Default: us-east-1
+    Description: AWS region for AI provider services
+  
+  BedrockModelId:
+    Type: String
+    Default: anthropic.claude-3-sonnet-20240229-v1:0
+    Description: Bedrock model ID
+  
+  SagemakerEndpointName:
+    Type: String
+    Default: ''
+    Description: Sagemaker endpoint name
+  
+  HuggingfaceModelName:
+    Type: String
+    Default: microsoft/DialoGPT-medium
+    Description: Huggingface model name
+  
+  HuggingfaceSecretArn:
+    Type: String
+    Default: ''
+    Description: ARN of the Huggingface API token secret
+  
+  ConfidenceThreshold:
+    Type: Number
+    Default: 0.8
+    Description: Confidence threshold for AI-powered matching decisions
+  
+  SemanticThreshold:
+    Type: Number
+    Default: 0.85
+    Description: Semantic similarity threshold for field matching
+  
+  EnablePerformanceOptimization:
+    Type: String
+    Default: 'true'
+    Description: Enable performance optimization features
 
 Conditions:
   HasCognitoAuth: !Not [!Equals [!Ref CognitoUserPoolArn, '']]
+  UseAIProvider: !Not [!Equals [!Ref AIProviderType, 'none']]
+  HasHuggingfaceSecret: !Not [!Equals [!Ref HuggingfaceSecretArn, '']]
 
 Resources:
   #############################################################
@@ -36,8 +89,8 @@ Resources:
       Runtime: nodejs18.x
       Timeout: 60
       MemorySize: 1024
-      Role: !ImportValue 
-        !Sub ${EnvironmentName}-document-processor-role-arn
+      Role: !ImportValue
+        Fn::Sub: ${EnvironmentName}-document-processor-role-arn
       Code:
         ZipFile: |
           // This is a placeholder. The actual code will be deployed separately.
@@ -48,14 +101,25 @@ Resources:
       Environment:
         Variables:
           ENVIRONMENT_NAME: !Ref EnvironmentName
-          DOCUMENTS_BUCKET: !ImportValue 
-            !Sub ${EnvironmentName}-documents-bucket
-          SOURCE_TRADE_TABLE: !ImportValue 
-            !Sub ${EnvironmentName}-source-trade-table
-          TARGET_TRADE_TABLE: !ImportValue 
-            !Sub ${EnvironmentName}-target-trade-table
-          DOCUMENT_TABLE: !ImportValue 
-            !Sub ${EnvironmentName}-document-table
+          DOCUMENTS_BUCKET: !ImportValue
+            Fn::Sub: ${EnvironmentName}-documents-bucket
+          SOURCE_TRADE_TABLE: !ImportValue
+            Fn::Sub: ${EnvironmentName}-source-trade-table
+          TARGET_TRADE_TABLE: !ImportValue
+            Fn::Sub: ${EnvironmentName}-target-trade-table
+          DOCUMENT_TABLE: !ImportValue
+            Fn::Sub: ${EnvironmentName}-document-table
+          # AI Provider Configuration
+          AI_PROVIDER_TYPE: !Ref AIProviderType
+          DECISION_MODE: !Ref DecisionMode
+          AI_PROVIDER_REGION: !Ref AIProviderRegion
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          SAGEMAKER_ENDPOINT_NAME: !Ref SagemakerEndpointName
+          HUGGINGFACE_MODEL_NAME: !Ref HuggingfaceModelName
+          HUGGINGFACE_SECRET_ARN: !Ref HuggingfaceSecretArn
+          CONFIDENCE_THRESHOLD: !Ref ConfidenceThreshold
+          SEMANTIC_THRESHOLD: !Ref SemanticThreshold
+          ENABLE_PERFORMANCE_OPTIMIZATION: !Ref EnablePerformanceOptimization
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
@@ -68,8 +132,8 @@ Resources:
       Runtime: nodejs18.x
       Timeout: 300
       MemorySize: 2048
-      Role: !ImportValue 
-        !Sub ${EnvironmentName}-reconciliation-engine-role-arn
+      Role: !ImportValue
+        Fn::Sub: ${EnvironmentName}-reconciliation-engine-role-arn
       Code:
         ZipFile: |
           // This is a placeholder. The actual code will be deployed separately.
@@ -80,14 +144,25 @@ Resources:
       Environment:
         Variables:
           ENVIRONMENT_NAME: !Ref EnvironmentName
-          SOURCE_TRADE_TABLE: !ImportValue 
-            !Sub ${EnvironmentName}-source-trade-table
-          TARGET_TRADE_TABLE: !ImportValue 
-            !Sub ${EnvironmentName}-target-trade-table
-          MATCH_TABLE: !ImportValue 
-            !Sub ${EnvironmentName}-match-table
-          RECONCILIATION_TABLE: !ImportValue 
-            !Sub ${EnvironmentName}-reconciliation-table
+          SOURCE_TRADE_TABLE: !ImportValue
+            Fn::Sub: ${EnvironmentName}-source-trade-table
+          TARGET_TRADE_TABLE: !ImportValue
+            Fn::Sub: ${EnvironmentName}-target-trade-table
+          MATCH_TABLE: !ImportValue
+            Fn::Sub: ${EnvironmentName}-match-table
+          RECONCILIATION_TABLE: !ImportValue
+            Fn::Sub: ${EnvironmentName}-reconciliation-table
+          # AI Provider Configuration
+          AI_PROVIDER_TYPE: !Ref AIProviderType
+          DECISION_MODE: !Ref DecisionMode
+          AI_PROVIDER_REGION: !Ref AIProviderRegion
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          SAGEMAKER_ENDPOINT_NAME: !Ref SagemakerEndpointName
+          HUGGINGFACE_MODEL_NAME: !Ref HuggingfaceModelName
+          HUGGINGFACE_SECRET_ARN: !Ref HuggingfaceSecretArn
+          CONFIDENCE_THRESHOLD: !Ref ConfidenceThreshold
+          SEMANTIC_THRESHOLD: !Ref SemanticThreshold
+          ENABLE_PERFORMANCE_OPTIMIZATION: !Ref EnablePerformanceOptimization
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
@@ -100,8 +175,8 @@ Resources:
       Runtime: nodejs18.x
       Timeout: 30
       MemorySize: 512
-      Role: !ImportValue 
-        !Sub ${EnvironmentName}-api-handler-role-arn
+      Role: !ImportValue
+        Fn::Sub: ${EnvironmentName}-api-handler-role-arn
       Code:
         ZipFile: |
           // This is a placeholder. The actual code will be deployed separately.
@@ -112,20 +187,31 @@ Resources:
       Environment:
         Variables:
           ENVIRONMENT_NAME: !Ref EnvironmentName
-          DOCUMENTS_BUCKET: !ImportValue 
-            !Sub ${EnvironmentName}-documents-bucket
-          SOURCE_TRADE_TABLE: !ImportValue 
-            !Sub ${EnvironmentName}-source-trade-table
-          TARGET_TRADE_TABLE: !ImportValue 
-            !Sub ${EnvironmentName}-target-trade-table
-          DOCUMENT_TABLE: !ImportValue 
-            !Sub ${EnvironmentName}-document-table
-          MATCH_TABLE: !ImportValue 
-            !Sub ${EnvironmentName}-match-table
-          RECONCILIATION_TABLE: !ImportValue 
-            !Sub ${EnvironmentName}-reconciliation-table
+          DOCUMENTS_BUCKET: !ImportValue
+            Fn::Sub: ${EnvironmentName}-documents-bucket
+          SOURCE_TRADE_TABLE: !ImportValue
+            Fn::Sub: ${EnvironmentName}-source-trade-table
+          TARGET_TRADE_TABLE: !ImportValue
+            Fn::Sub: ${EnvironmentName}-target-trade-table
+          DOCUMENT_TABLE: !ImportValue
+            Fn::Sub: ${EnvironmentName}-document-table
+          MATCH_TABLE: !ImportValue
+            Fn::Sub: ${EnvironmentName}-match-table
+          RECONCILIATION_TABLE: !ImportValue
+            Fn::Sub: ${EnvironmentName}-reconciliation-table
           DOCUMENT_PROCESSOR_FUNCTION: !Ref DocumentProcessorFunction
           RECONCILIATION_ENGINE_FUNCTION: !Ref ReconciliationEngineFunction
+          # AI Provider Configuration
+          AI_PROVIDER_TYPE: !Ref AIProviderType
+          DECISION_MODE: !Ref DecisionMode
+          AI_PROVIDER_REGION: !Ref AIProviderRegion
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          SAGEMAKER_ENDPOINT_NAME: !Ref SagemakerEndpointName
+          HUGGINGFACE_MODEL_NAME: !Ref HuggingfaceModelName
+          HUGGINGFACE_SECRET_ARN: !Ref HuggingfaceSecretArn
+          CONFIDENCE_THRESHOLD: !Ref ConfidenceThreshold
+          SEMANTIC_THRESHOLD: !Ref SemanticThreshold
+          ENABLE_PERFORMANCE_OPTIMIZATION: !Ref EnablePerformanceOptimization
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName

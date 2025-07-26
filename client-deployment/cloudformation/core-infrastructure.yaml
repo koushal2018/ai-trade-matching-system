@@ -10,6 +10,257 @@ Parameters:
       - dev
       - test
       - prod
+  
+  AIProviderType:
+    Type: String
+    Default: bedrock
+    Description: AI provider type for enhanced reconciliation
+    AllowedValues:
+      - bedrock
+      - sagemaker
+      - huggingface
+      - none
+  
+  AIProviderRegion:
+    Type: String
+    Default: us-east-1
+    Description: AWS region for AI provider services
+  
+  UseAIProvider:
+    Type: String
+    Default: 'false'
+    Description: Whether AI provider is enabled
+    AllowedValues:
+      - 'true'
+      - 'false'
+  
+  HuggingfaceSecretArn:
+    Type: String
+    Default: ''
+    Description: ARN of the Huggingface API token secret
+
+Resources:
+  #############################################################
+  # S3 Bucket for Document Storage
+  #############################################################
+  DocumentsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${EnvironmentName}-trade-reconciliation-documents
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 90
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  DocumentsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DocumentsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyUnencryptedObjectUploads
+            Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Sub arn:aws:s3:::${DocumentsBucket}/*
+            Condition:
+              StringNotEquals:
+                's3:x-amz-server-side-encryption': 'AES256'
+          - Sid: DenyInsecureConnections
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource: !Sub arn:aws:s3:::${DocumentsBucket}/*
+            Condition:
+              Bool:
+                'aws:SecureTransport': false
+
+  #############################################################
+  # DynamoDB Tables
+  #############################################################
+  SourceTradeTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${EnvironmentName}-source-trades
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: documentId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: DocumentIdIndex
+          KeySchema:
+            - AttributeName: documentId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  TargetTradeTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${EnvironmentName}-target-trades
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: documentId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: DocumentIdIndex
+          KeySchema:
+            - AttributeName: documentId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  DocumentTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${EnvironmentName}-documents
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserIdIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  ReconciliationTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${EnvironmentName}-reconciliations
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserIdIndex
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  MatchTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${EnvironmentName}-matches
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: reconciliationId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: ReconciliationIdIndex
+          KeySchema:
+            - AttributeName: reconciliationId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+Conditions:
+  UseAIProviderCondition: !Equals [!Ref UseAIProvider, 'true']
+  UseBedrockProvider: !Equals [!Ref AIProviderType, 'bedrock']
+  UseSagemakerProvider: !Equals [!Ref AIProviderType, 'sagemaker']
+  UseHuggingfaceProvider: !Equals [!Ref AIProviderType, 'huggingface']
+  HasHuggingfaceSecret: !Not [!Equals [!Ref HuggingfaceSecretArn, '']]
 
 Resources:
   #############################################################
@@ -269,6 +520,29 @@ Resources:
                   - !Sub ${SourceTradeTable.Arn}/index/*
                   - !Sub ${TargetTradeTable.Arn}/index/*
                   - !Sub ${DocumentTable.Arn}/index/*
+              # AI Service Permissions (Conditional)
+              - !If
+                - UseBedrockProvider
+                - Effect: Allow
+                  Action:
+                    - bedrock:InvokeModel
+                    - bedrock:InvokeModelWithResponseStream
+                  Resource: !Sub arn:aws:bedrock:${AIProviderRegion}::foundation-model/*
+                - !Ref AWS::NoValue
+              - !If
+                - UseSagemakerProvider
+                - Effect: Allow
+                  Action:
+                    - sagemaker:InvokeEndpoint
+                  Resource: !Sub arn:aws:sagemaker:${AIProviderRegion}:${AWS::AccountId}:endpoint/*
+                - !Ref AWS::NoValue
+              - !If
+                - HasHuggingfaceSecret
+                - Effect: Allow
+                  Action:
+                    - secretsmanager:GetSecretValue
+                  Resource: !Ref HuggingfaceSecretArn
+                - !Ref AWS::NoValue
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
@@ -308,6 +582,29 @@ Resources:
                   - !Sub ${TargetTradeTable.Arn}/index/*
                   - !Sub ${MatchTable.Arn}/index/*
                   - !Sub ${ReconciliationTable.Arn}/index/*
+              # AI Service Permissions (Conditional)
+              - !If
+                - UseBedrockProvider
+                - Effect: Allow
+                  Action:
+                    - bedrock:InvokeModel
+                    - bedrock:InvokeModelWithResponseStream
+                  Resource: !Sub arn:aws:bedrock:${AIProviderRegion}::foundation-model/*
+                - !Ref AWS::NoValue
+              - !If
+                - UseSagemakerProvider
+                - Effect: Allow
+                  Action:
+                    - sagemaker:InvokeEndpoint
+                  Resource: !Sub arn:aws:sagemaker:${AIProviderRegion}:${AWS::AccountId}:endpoint/*
+                - !Ref AWS::NoValue
+              - !If
+                - HasHuggingfaceSecret
+                - Effect: Allow
+                  Action:
+                    - secretsmanager:GetSecretValue
+                  Resource: !Ref HuggingfaceSecretArn
+                - !Ref AWS::NoValue
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
@@ -365,6 +662,29 @@ Resources:
                 Resource:
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvironmentName}-trade-reconciliation-document-processor
                   - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${EnvironmentName}-trade-reconciliation-engine
+              # AI Service Permissions (Conditional)
+              - !If
+                - UseBedrockProvider
+                - Effect: Allow
+                  Action:
+                    - bedrock:InvokeModel
+                    - bedrock:InvokeModelWithResponseStream
+                  Resource: !Sub arn:aws:bedrock:${AIProviderRegion}::foundation-model/*
+                - !Ref AWS::NoValue
+              - !If
+                - UseSagemakerProvider
+                - Effect: Allow
+                  Action:
+                    - sagemaker:InvokeEndpoint
+                  Resource: !Sub arn:aws:sagemaker:${AIProviderRegion}:${AWS::AccountId}:endpoint/*
+                - !Ref AWS::NoValue
+              - !If
+                - HasHuggingfaceSecret
+                - Effect: Allow
+                  Action:
+                    - secretsmanager:GetSecretValue
+                  Resource: !Ref HuggingfaceSecretArn
+                - !Ref AWS::NoValue
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
