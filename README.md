@@ -77,13 +77,32 @@ pip install boto3 flask strands
 
 Set up environment variables:
 ```bash
-export BANK_TABLE=BankTradeData
-export COUNTERPARTY_TABLE=CounterpartyTradeData
-export MATCHES_TABLE=TradeMatches
+# Critical: AWS_REGION must be set before running agents (required for Bedrock)
+export AWS_REGION=us-east-1
+export AWS_DEFAULT_REGION=us-east-1
+export BANK_TRADES_TABLE=BankTradeData
+export COUNTERPARTY_TRADES_TABLE=CounterpartyTradeData
+export TRADE_MATCHES_TABLE=TradeMatches
 export BUCKET_NAME=fab-otc-reconciliation-deployment
 ```
 
-### 4. AWS Resources
+**Important**: The `AWS_REGION` environment variable is automatically set to `us-east-1` in the trade reconciliation agent code to ensure proper Bedrock model initialization. This can be overridden by setting the environment variable before running the agent.
+
+### 4. AI Agent Configuration
+
+The Strands agents are configured to use Amazon Bedrock with Claude 3.7 Sonnet:
+- **Model**: `us.anthropic.claude-3-7-sonnet-20250219-v1:0`
+- **Region**: `us-east-1` (automatically configured in code)
+- **Features**: Thinking mode enabled for enhanced reasoning
+
+The agent automatically sets the AWS region environment variables during initialization:
+```python
+# Automatically configured in trade_reconciliation_agent.py
+os.environ['AWS_REGION'] = 'us-east-1'
+os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
+```
+
+### 5. AWS Resources
 
 Deploy the required AWS infrastructure:
 - DynamoDB tables with appropriate schemas
@@ -164,7 +183,25 @@ View real-time metrics including:
 
 ## AI Agent Tools
 
-The system includes specialized tools for automated processing:
+The system includes specialized tools for automated processing using the Strands framework:
+
+### Strands Agent Configuration
+The system uses Amazon Bedrock with Claude 3.7 Sonnet model for AI processing:
+```python
+# AWS region is automatically set before Strands import
+os.environ['AWS_REGION'] = 'us-east-1'
+os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
+
+bedrock_model = BedrockModel(
+    model_id="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    region="us-east-1",
+    additional_request_fields={
+        "thinking": {
+            "type": "enabled",
+        }
+    }
+)
+```
 
 ### Trade Matching Tools
 - `fetch_unmatched_trades()` - Retrieve trades pending matching
@@ -177,6 +214,11 @@ The system includes specialized tools for automated processing:
 - `compare_fields()` - Perform field-level comparison
 - `determine_overall_status()` - Calculate reconciliation status
 - `generate_reconciliation_report()` - Create detailed reports
+
+### Workflow Management Tools
+- `get_current_timestamp()` - Get timestamps for audit trails
+- `create_workflow_log()` - Track workflow progress and events
+- `validate_aws_connectivity()` - Test AWS service connectivity
 
 ## Configuration
 
@@ -222,6 +264,29 @@ npm test
 # Backend tests (if implemented)
 python -m pytest
 ```
+
+### Debug and Development Tools
+
+#### Trade Data Debugging
+The `debug_trades.py` utility helps developers inspect and troubleshoot trade data:
+
+```bash
+cd strandsagents
+python debug_trades.py
+```
+
+**Features:**
+- Inspects actual DynamoDB table contents
+- Shows trade status distribution (MATCHED, UNMATCHED, etc.)
+- Tests the `fetch_unmatched_trades()` function
+- Validates trade IDs and data consistency
+- Helps identify data issues before running reconciliation
+
+**Use cases:**
+- Debugging why no matches are found
+- Verifying data uploads completed successfully
+- Understanding current trade data state
+- Troubleshooting agent connectivity issues
 
 ### Code Structure
 
@@ -306,6 +371,34 @@ This project is proprietary and confidential.
 
 ## Troubleshooting
 
+### Debug Utilities
+
+#### Trade Data Debugging
+Use the debug utility to inspect DynamoDB table contents and trade matching status:
+
+```bash
+cd strandsagents
+python debug_trades.py
+```
+
+This utility provides:
+- **Table Content Analysis**: Shows actual trades in both bank and counterparty tables
+- **Status Distribution**: Displays breakdown of trade matching statuses
+- **Function Testing**: Tests the `fetch_unmatched_trades()` function directly
+- **Data Validation**: Verifies trade IDs and status values
+
+**Example Output:**
+```
+=== Checking Bank Trades Table: BankTradeData ===
+Found 25 bank trades (showing first 10)
+  Trade ID: BANK_001, Status: UNMATCHED
+  Trade ID: BANK_002, Status: MATCHED
+Bank trades status distribution: {'UNMATCHED': 15, 'MATCHED': 10}
+
+=== Testing fetch_unmatched_trades function ===
+fetch_unmatched_trades('BANK') returned 15 trades
+```
+
 ### Common Issues
 
 **Frontend won't start**
@@ -324,6 +417,12 @@ This project is proprietary and confidential.
 - Review document processing Lambda logs
 
 **No matches found**
-- Check if trades exist in both sources
+- Use `python debug_trades.py` to check if trades exist in both sources
 - Review matching algorithm weights
 - Verify composite key generation logic
+- Check trade status distribution using the debug utility
+
+**Agent connectivity issues**
+- Run the debug script to validate table access
+- Verify AWS region configuration (automatically set to us-east-1)
+- Check DynamoDB table permissions and existence

@@ -2,11 +2,13 @@
 Enhanced Configuration Management for AI-Powered Trade Reconciliation
 
 This module provides configuration classes for managing AI provider settings,
-decision-making modes, and enhanced reconciliation configurations.
+decision-making modes, and enhanced reconciliation configurations with
+deployment flexibility support.
 """
 
 import os
 import json
+import yaml
 from dataclasses import dataclass, field, asdict
 from typing import Dict, Any, Optional, List, Union
 from enum import Enum
@@ -15,8 +17,18 @@ from pathlib import Path
 
 try:
     from .models import MatcherConfig, ReconcilerConfig, ReportConfig
+    from .deployment_flexibility import (
+        DeploymentConfigManager, 
+        get_deployment_config,
+        adapt_config_for_environment
+    )
 except ImportError:
     from models import MatcherConfig, ReconcilerConfig, ReportConfig
+    from deployment_flexibility import (
+        DeploymentConfigManager, 
+        get_deployment_config,
+        adapt_config_for_environment
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -363,12 +375,14 @@ class EnhancedReportConfig(ReportConfig):
 
 
 class ConfigurationManager:
-    """Manages configuration loading, validation, and persistence."""
+    """Manages configuration loading, validation, and persistence with deployment flexibility."""
     
     def __init__(self, config_dir: Optional[str] = None):
         """Initialize configuration manager."""
         self.config_dir = Path(config_dir) if config_dir else Path.cwd() / "config"
         self.config_dir.mkdir(exist_ok=True)
+        self.deployment_manager = DeploymentConfigManager()
+        self.deployment_config = None
     
     def save_configuration(self, config: Union[EnhancedMatcherConfig, EnhancedReconcilerConfig, EnhancedReportConfig], 
                           filename: str) -> None:
@@ -437,6 +451,84 @@ class ConfigurationManager:
         
         return config_class(**config_dict)
     
+    def load_deployment_specific_config(self, config_filename: str) -> Dict[str, Any]:
+        """Load deployment-specific configuration file (YAML)."""
+        try:
+            if not self.deployment_config:
+                self.deployment_config = self.deployment_manager.load_or_detect_config()
+            
+            # Try deployment-specific config first
+            deployment_config_path = self.config_dir / f"{self.deployment_config.environment_type}_deployment.yaml"
+            
+            if deployment_config_path.exists():
+                with open(deployment_config_path, 'r') as f:
+                    config_data = yaml.safe_load(f)
+                logger.info(f"Loaded deployment-specific config: {deployment_config_path}")
+                return config_data
+            
+            # Fallback to generic config
+            generic_config_path = self.config_dir / f"{config_filename}.yaml"
+            if generic_config_path.exists():
+                with open(generic_config_path, 'r') as f:
+                    config_data = yaml.safe_load(f)
+                logger.info(f"Loaded generic config: {generic_config_path}")
+                return config_data
+            
+            logger.warning(f"No deployment config found for {config_filename}")
+            return {}
+        
+        except Exception as e:
+            logger.error(f"Failed to load deployment config: {e}")
+            return {}
+    
+    def adapt_ai_provider_config(self, base_config: AIProviderConfig) -> AIProviderConfig:
+        """Adapt AI provider configuration for current deployment environment."""
+        if not self.deployment_config:
+            self.deployment_config = self.deployment_manager.load_or_detect_config()
+        
+        # Get deployment-specific adaptations
+        adapted_dict = adapt_config_for_environment(base_config.to_dict())
+        
+        # Apply deployment-specific overrides
+        if self.deployment_config.environment_type == "vdi":
+            adapted_dict.update({
+                "provider_type": "huggingface",
+                "timeout_seconds": min(adapted_dict.get("timeout_seconds", 30), 30),
+                "max_retries": min(adapted_dict.get("max_retries", 3), 2)
+            })
+        elif self.deployment_config.environment_type == "standalone":
+            adapted_dict.update({
+                "provider_type": self.deployment_config.ai_provider_fallback,
+                "fallback_provider": "huggingface"
+            })
+        elif self.deployment_config.environment_type == "laptop":
+            # Use AWS services if available, otherwise fallback
+            if self.deployment_config.ai_provider_fallback == "bedrock":
+                adapted_dict["provider_type"] = "bedrock"
+            else:
+                adapted_dict["provider_type"] = "huggingface"
+        
+        return AIProviderConfig.from_dict(adapted_dict)
+    
+    def get_resource_constrained_config(self, base_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply resource constraints based on deployment environment."""
+        if not self.deployment_config:
+            self.deployment_config = self.deployment_manager.load_or_detect_config()
+        
+        constraints = self.deployment_config.resource_constraints
+        adapted_config = base_config.copy()
+        
+        # Apply resource constraints
+        adapted_config.update({
+            "max_batch_size": min(adapted_config.get("max_batch_size", 100), 
+                                constraints.get("batch_size_limit", 25)),
+            "max_concurrent_operations": constraints.get("max_concurrent_operations", 4),
+            "cache_size_mb": constraints.get("cache_size_mb", 512),
+            "memory_limit_mb": constraints.get("max_memory_mb", 4096)
+        })
+        
+        return adapted_config
+    
     def validate_all_configurations(self, matcher_config: EnhancedMatcherConfig,
                                   reconciler_config: EnhancedReconcilerConfig,
                                   report_config: EnhancedReportConfig) -> List[str]:
@@ -447,17 +539,64 @@ class ConfigurationManager:
         all_errors.extend([f"Reconciler: {error}" for error in reconciler_config.validate()])
         all_errors.extend([f"Report: {error}" for error in report_config.validate()])
         
+        # Add deployment-specific validation
+        if not self.deployment_config:
+            self.deployment_config = self.deployment_manager.load_or_detect_config()
+        
+        # Validate deployment compatibility
+        if (self.deployment_config.environment_type == "vdi" and 
+            matcher_config.ai_provider_config.provider_type == "bedrock"):
+            all_errors.append("Deployment: Bedrock not recommended for VDI environments")
+        
+        if (self.deployment_config.local_resources_only and 
+            not self.deployment_config.network_restrictions and
+            matcher_config.ai_provider_config.provider_type not in ["huggingface", "local"]):
+            all_errors.append("Deployment: Non-local AI provider selected for local-only environment")
+        
         return all_errors
 
 
 def load_enhanced_configurations() -> tuple[EnhancedMatcherConfig, EnhancedReconcilerConfig, EnhancedReportConfig]:
-    """Load all enhanced configurations from environment variables."""
+    """Load all enhanced configurations with deployment flexibility support."""
+    config_manager = ConfigurationManager()
+    
+    # Load base configurations from environment
     matcher_config = EnhancedMatcherConfig.from_environment()
     reconciler_config = EnhancedReconcilerConfig.from_environment()
     report_config = EnhancedReportConfig.from_environment()
     
+    # Apply deployment-specific adaptations
+    matcher_config.ai_provider_config = config_manager.adapt_ai_provider_config(matcher_config.ai_provider_config)
+    reconciler_config.ai_provider_config = config_manager.adapt_ai_provider_config(reconciler_config.ai_provider_config)
+    report_config.ai_provider_config = config_manager.adapt_ai_provider_config(report_config.ai_provider_config)
+    
+    # Apply resource constraints
+    matcher_dict = config_manager.get_resource_constrained_config(asdict(matcher_config))
+    matcher_config = EnhancedMatcherConfig(**matcher_dict)
+    
+    # Load deployment-specific configuration overrides
+    deployment_config = config_manager.load_deployment_specific_config("enhanced_config")
+    if deployment_config:
+        # Apply deployment-specific overrides to configurations
+        if "matcher" in deployment_config:
+            matcher_overrides = deployment_config["matcher"]
+            for key, value in matcher_overrides.items():
+                if hasattr(matcher_config, key):
+                    setattr(matcher_config, key, value)
+        
+        if "reconciler" in deployment_config:
+            reconciler_overrides = deployment_config["reconciler"]
+            for key, value in reconciler_overrides.items():
+                if hasattr(reconciler_config, key):
+                    setattr(reconciler_config, key, value)
+        
+        if "report" in deployment_config:
+            report_overrides = deployment_config["report"]
+            for key, value in report_overrides.items():
+                if hasattr(report_config, key):
+                    setattr(report_config, key, value)
+    
     # Validate all configurations
-    config_manager = ConfigurationManager()
     errors = config_manager.validate_all_configurations(matcher_config, reconciler_config, report_config)
     
     if errors:
@@ -465,5 +604,54 @@ def load_enhanced_configurations() -> tuple[EnhancedMatcherConfig, EnhancedRecon
         logger.error(error_msg)
         raise ValueError(error_msg)
     
-    logger.info("Enhanced configurations loaded and validated successfully")
+    deployment_env = get_deployment_config()
+    logger.info(f"Enhanced configurations loaded for {deployment_env.environment_type} environment")
     return matcher_config, reconciler_config, report_config
+
+@dataclass
+class EnhancedConfig:
+    """Main enhanced configuration class that combines all configuration components."""
+    matcher_config: EnhancedMatcherConfig = field(default_factory=EnhancedMatcherConfig.from_environment)
+    reconciler_config: EnhancedReconcilerConfig = field(default_factory=EnhancedReconcilerConfig.from_environment)
+    report_config: EnhancedReportConfig = field(default_factory=EnhancedReportConfig.from_environment)
+    deployment_environment: str = field(default_factory=lambda: os.getenv('DEPLOYMENT_ENVIRONMENT', 'aws'))
+    
+    @classmethod
+    def from_environment(cls) -> 'EnhancedConfig':
+        """Load complete enhanced configuration from environment."""
+        matcher_config, reconciler_config, report_config = load_enhanced_configurations()
+        
+        return cls(
+            matcher_config=matcher_config,
+            reconciler_config=reconciler_config,
+            report_config=report_config,
+            deployment_environment=os.getenv('DEPLOYMENT_ENVIRONMENT', 'aws')
+        )
+    
+    def validate(self) -> List[str]:
+        """Validate all configuration components."""
+        errors = []
+        errors.extend([f"Matcher: {error}" for error in self.matcher_config.validate()])
+        errors.extend([f"Reconciler: {error}" for error in self.reconciler_config.validate()])
+        errors.extend([f"Report: {error}" for error in self.report_config.validate()])
+        return errors
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert configuration to dictionary."""
+        return {
+            'matcher_config': asdict(self.matcher_config),
+            'reconciler_config': asdict(self.reconciler_config),
+            'report_config': asdict(self.report_config),
+            'deployment_environment': self.deployment_environment
+        }
+
+
+def load_deployment_aware_config(config_type: str = "enhanced") -> Dict[str, Any]:
+    """Load deployment-aware configuration for current environment."""
+    config_manager = ConfigurationManager()
+    deployment_config = config_manager.load_deployment_specific_config(config_type)
+    
+    # Apply environment-specific adaptations
+    adapted_config = adapt_config_for_environment(deployment_config)
+    
+    return adapted_config

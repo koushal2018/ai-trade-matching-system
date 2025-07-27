@@ -102,8 +102,11 @@ def fetch_unmatched_trades(source: str, limit: int = 100) -> List[Dict[str, Any]
         table = dynamodb.Table(table_name)
         
         response = table.scan(
-            FilterExpression="matched_status = :status",
-            ExpressionAttributeValues={":status": "PENDING"},
+            FilterExpression="matched_status = :pending OR matched_status = :unmatched OR attribute_not_exists(matched_status)",
+            ExpressionAttributeValues={
+                ":pending": "PENDING",
+                ":unmatched": "UNMATCHED"
+            },
             Limit=limit
         )
         
@@ -178,8 +181,11 @@ def find_potential_matches(trade: Dict[str, Any], opposite_source: str) -> List[
         else:
             # Fallback to scanning for unmatched trades
             response = table.scan(
-                FilterExpression="matched_status = :status",
-                ExpressionAttributeValues={":status": "PENDING"},
+                FilterExpression="matched_status = :pending OR matched_status = :unmatched OR attribute_not_exists(matched_status)",
+                ExpressionAttributeValues={
+                    ":pending": "PENDING",
+                    ":unmatched": "UNMATCHED"
+                },
                 Limit=50
             )
         

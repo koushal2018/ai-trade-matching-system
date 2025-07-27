@@ -388,4 +388,27 @@ class BedrockAdapter(AIProviderAdapter):
             
         except Exception as e:
             # Fallback explanation
-            return f"Field '{field_name}' mismatch: '{value1}' vs '{value2}'. Manual review required."
+            logger.error(f"Failed to generate mismatch explanation: {e}")
+            return f"Unable to explain mismatch between {field_name} values '{value1}' and '{value2}' due to AI service error."
+    
+    def get_metadata(self) -> Dict[str, Any]:
+        """Get metadata about this AI provider adapter."""
+        return {
+            'provider_type': 'bedrock',
+            'provider_name': 'AWS Bedrock',
+            'model_id': self.model_id,
+            'region': self.region,
+            'max_tokens': self.max_tokens,
+            'temperature': self.temperature,
+            'capabilities': [
+                'document_analysis',
+                'semantic_matching',
+                'intelligent_matching',
+                'mismatch_explanation'
+            ],
+            'supported_models': [
+                'anthropic.claude-3-sonnet-20240229-v1:0',
+                'anthropic.claude-3-haiku-20240307-v1:0',
+                'anthropic.claude-3-opus-20240229-v1:0'
+            ]
+        }

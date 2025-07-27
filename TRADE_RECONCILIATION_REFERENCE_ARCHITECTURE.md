@@ -36,11 +36,14 @@ This document presents the reference architecture for the AI-powered trade recon
 
 ### 3. **AI Processing Layer**
 - **Strands Trade Reconciliation Agent**
-  - Python-based AI agent framework
+  - Python-based AI agent framework using Amazon Bedrock
+  - **Model Configuration**: Claude 3.7 Sonnet with thinking mode enabled
+  - **Region**: us-east-1 (configurable via environment)
   - Specialized tool categories:
     - **Matching Tools**: Trade similarity computation
     - **Reconciliation Tools**: Field-level comparison
     - **Reporting Tools**: Comprehensive report generation
+    - **Workflow Tools**: Timestamp tracking, logging, connectivity validation
 - **Configuration Management**:
   - MatcherConfig: Similarity thresholds and field weights
   - ReconcilerConfig: Tolerance settings and critical fields
@@ -74,9 +77,24 @@ This document presents the reference architecture for the AI-powered trade recon
 
 ### **Backend Implementation** (`strandsagents/`)
 ```python
+# AWS region is automatically set before Strands import
+os.environ['AWS_REGION'] = 'us-east-1'
+os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
+
+# Bedrock Model Configuration
+bedrock_model = BedrockModel(
+    model_id="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    region="us-east-1",
+    additional_request_fields={
+        "thinking": {
+            "type": "enabled",
+        }
+    }
+)
+
 # Core Agent Implementation
 class TradeReconciliationAgent:
-    - Strands framework integration
+    - Strands framework integration with Bedrock
     - Tool-based architecture with decorators
     - Configuration-driven processing
     - Comprehensive workflow orchestration
@@ -87,6 +105,8 @@ class TradeReconciliationAgent:
     - compute_similarity()
     - compare_fields()
     - generate_reconciliation_report()
+    - get_current_timestamp()
+    - validate_aws_connectivity()
 ```
 
 ### **AI Workflow Stages**
@@ -183,13 +203,20 @@ ReconcilerConfig(
 
 ### **Environment Configuration**
 ```bash
-# Environment Variables
-BANK_TABLE=BankTradeData
-COUNTERPARTY_TABLE=CounterpartyTradeData
-MATCHES_TABLE=TradeMatches
-BUCKET_NAME=fab-otc-reconciliation-deployment
+# Environment Variables (automatically set by agent for Bedrock compatibility)
 AWS_REGION=us-east-1
+AWS_DEFAULT_REGION=us-east-1
+BANK_TRADES_TABLE=BankTradeData
+COUNTERPARTY_TRADES_TABLE=CounterpartyTradeData
+TRADE_MATCHES_TABLE=TradeMatches
+BUCKET_NAME=fab-otc-reconciliation-deployment
+
+# Bedrock Model Configuration
+BEDROCK_MODEL_ID=us.anthropic.claude-3-7-sonnet-20250219-v1:0
+BEDROCK_REGION=us-east-1
 ```
+
+**Note**: The trade reconciliation agent automatically sets `AWS_REGION` and `AWS_DEFAULT_REGION` environment variables during initialization to ensure proper Bedrock model functionality.
 
 ---
 

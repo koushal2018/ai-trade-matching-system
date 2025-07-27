@@ -474,6 +474,29 @@ class HuggingfaceAdapter(AIProviderAdapter):
             # Fallback explanation
             return f"Field '{field_name}' mismatch: '{value1}' vs '{value2}'. Manual review required."
     
+    def get_metadata(self) -> Dict[str, Any]:
+        """Get metadata about this AI provider adapter."""
+        return {
+            'provider_type': 'huggingface',
+            'provider_name': 'Hugging Face',
+            'model_name': self.model_name,
+            'api_token_configured': bool(self.api_token),
+            'use_auth_token': self.use_auth_token,
+            'max_length': self.max_length,
+            'capabilities': [
+                'document_analysis',
+                'semantic_matching',
+                'intelligent_matching',
+                'mismatch_explanation'
+            ],
+            'supported_models': [
+                'microsoft/DialoGPT-medium',
+                'microsoft/DialoGPT-large',
+                'gpt2',
+                'distilgpt2'
+            ]
+        }
+    
     async def cleanup(self):
         """Cleanup resources"""
         await super().cleanup()

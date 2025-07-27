@@ -446,3 +446,23 @@ class SagemakerAdapter(AIProviderAdapter):
         except Exception as e:
             # Fallback explanation
             return f"Field '{field_name}' mismatch: '{value1}' vs '{value2}'. Manual review required."
+    
+    def get_metadata(self) -> Dict[str, Any]:
+        """Get metadata about this AI provider adapter."""
+        return {
+            'provider_type': 'sagemaker',
+            'provider_name': 'AWS SageMaker',
+            'endpoint_name': self.endpoint_name,
+            'region': self.region,
+            'instance_type': self.instance_type,
+            'capabilities': [
+                'document_analysis',
+                'semantic_matching',
+                'intelligent_matching',
+                'mismatch_explanation'
+            ],
+            'supported_models': [
+                'huggingface-text-generation',
+                'custom-trained-models'
+            ]
+        }

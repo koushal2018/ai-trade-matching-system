@@ -28,8 +28,8 @@ class AIProviderFactory:
     }
     
     @classmethod
-    def create_provider(
-        self, 
+    async def create_provider(
+        cls, 
         provider_type: str, 
         config: Dict[str, Any],
         fallback_providers: Optional[list] = None
@@ -51,8 +51,8 @@ class AIProviderFactory:
         """
         provider_type = provider_type.lower()
         
-        if provider_type not in self._providers:
-            available_providers = ', '.join(self._providers.keys())
+        if provider_type not in cls._providers:
+            available_providers = ', '.join(cls._providers.keys())
             raise AIProviderConfigurationError(
                 "AIProviderFactory",
                 "provider_type",
@@ -61,7 +61,7 @@ class AIProviderFactory:
         
         try:
             # Create primary provider
-            provider_class = self._providers[provider_type]
+            provider_class = cls._providers[provider_type]
             provider = provider_class()
             
             logger.info(f"Created {provider_type} provider adapter")
@@ -75,7 +75,7 @@ class AIProviderFactory:
                 for fallback_type in fallback_providers:
                     try:
                         logger.info(f"Attempting fallback to {fallback_type} provider")
-                        return self.create_provider(fallback_type, config)
+                        return await cls.create_provider(fallback_type, config)
                     except Exception as fallback_error:
                         logger.warning(f"Fallback to {fallback_type} also failed: {fallback_error}")
                         continue

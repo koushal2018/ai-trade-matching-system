@@ -578,6 +578,10 @@ class BackwardCompatibilityManager:
         """Create a legacy adapter for an enhanced agent"""
         return LegacyAgentAdapter(enhanced_agent)
     
+    def migrate_legacy_config(self, legacy_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Migrate legacy configuration to new format."""
+        return self.config_migrator.migrate_config(legacy_config)
+    
     def run_compatibility_tests(self) -> Dict[str, Any]:
         """Run comprehensive compatibility tests"""
         logger.info("Running backward compatibility tests")

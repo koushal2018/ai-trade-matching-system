@@ -1,0 +1,126 @@
+# Laptop Deployment Configuration
+# Optimized for development and testing on local machines
+
+deployment:
+  type: "laptop"
+  description: "Development environment for laptops and local testing"
+  
+environment:
+  network_restrictions: false
+  local_resources_only: false
+  offline_capable: true
+  development_mode: true
+  hot_reload: true
+  
+resource_constraints:
+  max_memory_mb: 8192
+  max_cpu_cores: 8
+  max_concurrent_operations: 8
+  cache_size_mb: 1024
+  batch_size_limit: 50
+  max_file_size_mb: 500
+  
+ai_provider:
+  primary: "bedrock"  # If AWS credentials available
+  fallback: "huggingface"
+  model_cache_enabled: true
+  development_models: true
+  models:
+    text_analysis: "anthropic.claude-3-haiku-20240307-v1:0"
+    document_processing: "microsoft/layoutlm-large-uncased"
+    semantic_matching: "sentence-transformers/all-mpnet-base-v2"
+  
+storage:
+  type: "local"
+  base_path: "./dev_data"
+  backup_enabled: false
+  compression: false
+  test_data_included: true
+  
+database:
+  type: "sqlite"
+  path: "./dev_data/laptop.db"
+  in_memory_cache: true
+  
+connectivity:
+  internet_required: false
+  aws_services: true
+  timeout_seconds: 120
+  retry_attempts: 3
+  
+security:
+  encryption_at_rest: false
+  api_key_required: false
+  audit_logging: false
+  debug_mode: true
+  
+performance:
+  enable_caching: true
+  cache_ttl_hours: 1  # Short TTL for development
+  compression_enabled: false
+  batch_processing: true
+  parallel_processing: true
+  worker_threads: 4
+  
+logging:
+  level: "DEBUG"
+  file_path: "./logs/laptop.log"
+  max_size_mb: 100
+  backup_count: 2
+  console_output: true
+  verbose_errors: true
+  
+features:
+  document_processing:
+    max_pages: 1000
+    ocr_enabled: true
+    image_processing: "advanced"
+    supported_formats:
+      - "pdf"
+      - "docx"
+      - "xlsx"
+      - "csv"
+      - "txt"
+      - "json"
+  
+  trade_matching:
+    algorithm: "ai_enhanced"
+    similarity_threshold: 0.7
+    semantic_matching: true
+    experimental_features: true
+    field_weights:
+      trade_date: 1.0
+      amount: 0.95
+      counterparty: 0.9
+      instrument: 0.85
+      settlement_date: 0.8
+  
+  reporting:
+    format: "html"
+    include_details: true
+    export_formats:
+      - "json"
+      - "csv"
+      - "pdf"
+      - "xlsx"
+    charts_enabled: true
+    interactive_reports: true
+  
+  api:
+    enabled: true
+    port: 3000
+    cors_enabled: true
+    rate_limiting: false
+    swagger_ui: true
+  
+  testing:
+    mock_data_enabled: true
+    test_endpoints: true
+    performance_profiling: true
+    memory_monitoring: true
+  
+  development:
+    auto_reload: true
+    debug_endpoints: true
+    test_data_generator: true
+    mock_ai_responses: true

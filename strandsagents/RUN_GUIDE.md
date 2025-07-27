@@ -29,8 +29,14 @@ export AWS_SECRET_ACCESS_KEY=your_secret_key
 export AWS_REGION=us-east-1
 ```
 
+**Note**: The trade reconciliation agent automatically sets `AWS_REGION=us-east-1` and `AWS_DEFAULT_REGION=us-east-1` during initialization to ensure proper Bedrock model functionality.
+
 ### 3. Set Environment Variables
 ```bash
+# AWS Region (automatically set by agent, but can be overridden)
+export AWS_REGION=us-east-1
+export AWS_DEFAULT_REGION=us-east-1
+
 # Required DynamoDB table names
 export BANK_TRADES_TABLE=BankTrades
 export COUNTERPARTY_TRADES_TABLE=CounterpartyTrades
@@ -38,10 +44,30 @@ export TRADE_MATCHES_TABLE=TradeMatches
 
 # S3 bucket for reports
 export REPORT_BUCKET=trade-reconciliation-reports
-
-# AWS Region
-export AWS_REGION=us-east-1
 ```
+
+**Important**: The agent code automatically sets `AWS_REGION` and `AWS_DEFAULT_REGION` to `us-east-1` before importing Strands to ensure proper Bedrock model initialization. You can override this by setting these environment variables before running the agent.
+
+### 4. Bedrock Model Configuration
+The agent uses Amazon Bedrock with Claude 3.7 Sonnet model configured for the specified region:
+```python
+# AWS region is automatically set before Strands import
+os.environ['AWS_REGION'] = 'us-east-1'
+os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
+
+# Model configuration in trade_reconciliation_agent.py
+bedrock_model = BedrockModel(
+    model_id="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    region="us-east-1",  # Uses the automatically set AWS_REGION
+    additional_request_fields={
+        "thinking": {
+            "type": "enabled",
+        }
+    }
+)
+```
+
+This ensures consistent region configuration across all AWS services used by the agent.
 
 ## Running Methods
 
@@ -176,20 +202,24 @@ Create a setup script `setup_environment.sh`:
 #!/bin/bash
 echo "Setting up Trade Reconciliation Environment..."
 
-# Set environment variables
+# Set environment variables (AWS_REGION is automatically set by agent)
 export AWS_REGION=us-east-1
+export AWS_DEFAULT_REGION=us-east-1
 export BANK_TRADES_TABLE=BankTrades
 export COUNTERPARTY_TRADES_TABLE=CounterpartyTrades
 export TRADE_MATCHES_TABLE=TradeMatches
 export REPORT_BUCKET=trade-reconciliation-reports
 
 echo "Environment variables set:"
-echo "AWS_REGION: $AWS_REGION"
+echo "AWS_REGION: $AWS_REGION (automatically configured by agent)"
+echo "AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION"
 echo "BANK_TRADES_TABLE: $BANK_TRADES_TABLE"
 echo "COUNTERPARTY_TRADES_TABLE: $COUNTERPARTY_TRADES_TABLE"
 echo "TRADE_MATCHES_TABLE: $TRADE_MATCHES_TABLE"
 echo "REPORT_BUCKET: $REPORT_BUCKET"
 
+echo "Note: Agent automatically sets AWS region for Bedrock compatibility"
+echo "Validating Bedrock access in region $AWS_REGION..."
 echo "Ready to run trade reconciliation agent!"
 ```
 
@@ -199,7 +229,47 @@ chmod +x setup_environment.sh
 source setup_environment.sh
 ```
 
-## Troubleshooting
+## Debugging and Troubleshooting
+
+### Debug Utilities
+
+#### Trade Data Debug Script
+Use the dedicated debug script to inspect DynamoDB table contents and validate trade data:
+
+```bash
+cd strandsagents
+python debug_trades.py
+```
+
+**What it does:**
+- **Table Inspection**: Scans both bank and counterparty trade tables
+- **Status Analysis**: Shows distribution of trade matching statuses (MATCHED, UNMATCHED, etc.)
+- **Function Testing**: Tests the `fetch_unmatched_trades()` function directly
+- **Data Validation**: Verifies trade IDs and status field consistency
+
+**Example Output:**
+```
+=== Checking Bank Trades Table: BankTradeData ===
+Found 25 bank trades (showing first 10)
+  Trade ID: BANK_001, Status: UNMATCHED
+  Trade ID: BANK_002, Status: MATCHED
+Bank trades status distribution: {'UNMATCHED': 15, 'MATCHED': 10}
+
+=== Checking Counterparty Trades Table: CounterpartyTradeData ===
+Found 30 counterparty trades (showing first 10)
+  Trade ID: CP_001, Status: UNMATCHED
+Counterparty trades status distribution: {'UNMATCHED': 20, 'MATCHED': 10}
+
+=== Testing fetch_unmatched_trades function ===
+fetch_unmatched_trades('BANK') returned 15 trades
+fetch_unmatched_trades('COUNTERPARTY') returned 20 trades
+```
+
+**When to use:**
+- Before running the reconciliation agent to verify data exists
+- When troubleshooting matching issues (no matches found)
+- To understand the current state of trade data
+- When validating data uploads or imports
 
 ### Common Issues and Solutions
 
@@ -220,12 +290,20 @@ source setup_environment.sh
    ResourceNotFoundException: Table 'BankTrades' does not exist
    ```
    **Solution**: Create the required DynamoDB tables or verify table names in environment variables
+   **Debug**: Run `python debug_trades.py` to verify table access
 
 4. **Permission Errors**
    ```
    AccessDenied: User is not authorized to perform...
    ```
    **Solution**: Ensure your AWS user/role has proper DynamoDB and S3 permissions
+
+5. **No Unmatched Trades Found**
+   ```
+   fetch_unmatched_trades() returns empty list
+   ```
+   **Solution**: Use the debug script to check actual table contents and status values
+   **Debug**: Run `python debug_trades.py` to see trade status distribution
 
 ### Validation Commands
 

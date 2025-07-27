@@ -13,31 +13,58 @@ from pathlib import Path
 import json
 import yaml
 
-from .extensible_architecture import (
-    ExtensibleArchitectureManager,
-    PluginRegistry,
-    FieldMappingEngine,
-    RuleEngine,
-    WorkflowEngine,
-    PluginType
-)
-from .data_format_adapters import (
-    DataFormatAdapterRegistry,
-    register_builtin_adapters,
-    ProcessingResult
-)
-from .backward_compatibility import (
-    BackwardCompatibilityManager,
-    get_compatibility_manager
-)
-from .ai_providers.factory import AIProviderFactory
-from .enhanced_config import EnhancedConfig
-from .models import (
-    EnhancedMatcherConfig,
-    EnhancedReconcilerConfig,
-    AIProviderConfig,
-    DecisionModeConfig
-)
+try:
+    from .extensible_architecture import (
+        ExtensibleArchitectureManager,
+        PluginRegistry,
+        FieldMappingEngine,
+        RuleEngine,
+        WorkflowEngine,
+        PluginType
+    )
+    from .data_format_adapters import (
+        DataFormatAdapterRegistry,
+        register_builtin_adapters,
+        ProcessingResult
+    )
+    from .backward_compatibility import (
+        BackwardCompatibilityManager,
+        get_compatibility_manager
+    )
+    from .ai_providers.factory import AIProviderFactory
+    from .enhanced_config import EnhancedConfig
+    from .enhanced_config import (
+        EnhancedMatcherConfig,
+        EnhancedReconcilerConfig,
+        AIProviderConfig,
+        DecisionModeConfig
+    )
+except ImportError:
+    from extensible_architecture import (
+        ExtensibleArchitectureManager,
+        PluginRegistry,
+        FieldMappingEngine,
+        RuleEngine,
+        WorkflowEngine,
+        PluginType
+    )
+    from data_format_adapters import (
+        DataFormatAdapterRegistry,
+        register_builtin_adapters,
+        ProcessingResult
+    )
+    from backward_compatibility import (
+        BackwardCompatibilityManager,
+        get_compatibility_manager
+    )
+    from ai_providers.factory import AIProviderFactory
+    from enhanced_config import EnhancedConfig
+    from enhanced_config import (
+        EnhancedMatcherConfig,
+        EnhancedReconcilerConfig,
+        AIProviderConfig,
+        DecisionModeConfig
+    )
 
 logger = logging.getLogger(__name__)
 

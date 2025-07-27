@@ -26,7 +26,10 @@ from email.mime.multipart import MIMEMultipart
 import pandas as pd
 from pathlib import Path
 
-from .extensible_architecture import PluginInterface, PluginMetadata, PluginType
+try:
+    from .extensible_architecture import PluginInterface, PluginMetadata, PluginType
+except ImportError:
+    from extensible_architecture import PluginInterface, PluginMetadata, PluginType
 
 logger = logging.getLogger(__name__)
 

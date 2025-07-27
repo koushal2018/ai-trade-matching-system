@@ -1,0 +1,254 @@
+{
+  "integration_test_summary": {
+    "overall_status": "FAILED",
+    "total_execution_time": 41.29724097251892,
+    "timestamp": "2025-07-26 21:12:49",
+    "categories_passed": 4,
+    "total_categories": 6,
+    "overall_success_rate": 0.6666666666666666
+  },
+  "category_results": {
+    "strands_integration": {
+      "success_rate": 0.0,
+      "status": "FAILED",
+      "error": "'dict' object has no attribute 'decision_mode_config'"
+    },
+    "ai_provider_testing": {
+      "success_rate": 1.0,
+      "successful_count": 3,
+      "total_count": 3,
+      "status": "PASSED"
+    },
+    "performance_scalability": {
+      "success_rate": 0.6,
+      "successful_count": 3,
+      "total_count": 5,
+      "status": "FAILED"
+    },
+    "deployment_environments": {
+      "success_rate": 1.0,
+      "successful_count": 4,
+      "total_count": 4,
+      "status": "PASSED"
+    },
+    "backward_compatibility": {
+      "success_rate": 1.0,
+      "successful_count": 5,
+      "total_count": 5,
+      "status": "PASSED"
+    },
+    "user_acceptance_testing": {
+      "success_rate": 1.0,
+      "successful_count": 6,
+      "total_count": 6,
+      "status": "PASSED"
+    }
+  },
+  "detailed_results": {
+    "strands_integration": {
+      "workflow_initialization": true,
+      "agent_enhancement": false,
+      "tool_integration": false,
+      "ai_provider_integration": true,
+      "configuration_loading": true,
+      "error": "'dict' object has no attribute 'decision_mode_config'"
+    },
+    "ai_provider_testing": {
+      "bedrock": {
+        "initialization": true,
+        "document_analysis": true,
+        "semantic_matching": true,
+        "workflow_execution": true,
+        "performance_metrics": {
+          "analysis_time": 0.00011277198791503906,
+          "semantic_time": 1.3113021850585938e-05,
+          "workflow_time": 1.6689300537109375e-06
+        }
+      },
+      "sagemaker": {
+        "initialization": true,
+        "document_analysis": true,
+        "semantic_matching": true,
+        "workflow_execution": true,
+        "performance_metrics": {
+          "analysis_time": 1.0013580322265625e-05,
+          "semantic_time": 9.059906005859375e-06,
+          "workflow_time": 9.5367431640625e-07
+        }
+      },
+      "huggingface": {
+        "initialization": true,
+        "document_analysis": true,
+        "semantic_matching": true,
+        "workflow_execution": true,
+        "performance_metrics": {
+          "analysis_time": 1.0013580322265625e-05,
+          "semantic_time": 6.9141387939453125e-06,
+          "workflow_time": 1.1920928955078125e-06
+        }
+      }
+    },
+    "performance_scalability": {
+      "batch_processing": true,
+      "parallel_execution": true,
+      "memory_optimization": true,
+      "throughput_metrics": {
+        "10": {
+          "processing_time": 0.10097789764404297,
+          "throughput": 99.03157258483421,
+          "processed_count": 10
+        },
+        "50": {
+          "processing_time": 0.5004410743713379,
+          "throughput": 99.91186287578573,
+          "processed_count": 50
+        },
+        "100": {
+          "processing_time": 0.9998900890350342,
+          "throughput": 100.01099230467139,
+          "processed_count": 100
+        },
+        "500": {
+          "processing_time": 4.996110916137695,
+          "throughput": 100.0778422242337,
+          "processed_count": 500
+        }
+      },
+      "scalability_metrics": {
+        "parallel_throughput": 299.3963966536276,
+        "parallel_time": 0.5010080337524414,
+        "memory_usage": {
+          "initial_mb": 144.734375,
+          "final_mb": 144.96875,
+          "increase_mb": 0.234375
+        }
+      }
+    },
+    "deployment_environments": {
+      "aws": {
+        "configuration_valid": true,
+        "dependencies_available": true,
+        "connectivity_test": true,
+        "deployment_successful": true
+      },
+      "vdi": {
+        "configuration_valid": true,
+        "dependencies_available": true,
+        "connectivity_test": true,
+        "deployment_successful": true
+      },
+      "standalone": {
+        "configuration_valid": true,
+        "dependencies_available": true,
+        "connectivity_test": true,
+        "deployment_successful": true
+      },
+      "laptop": {
+        "configuration_valid": true,
+        "dependencies_available": true,
+        "connectivity_test": true,
+        "deployment_successful": true
+      }
+    },
+    "backward_compatibility": {
+      "legacy_config_support": true,
+      "deterministic_mode": true,
+      "existing_api_compatibility": true,
+      "data_format_compatibility": true,
+      "migration_support": true
+    },
+    "user_acceptance_testing": {
+      "trade_upload_workflow": true,
+      "matching_accuracy": true,
+      "report_generation": true,
+      "error_handling": true,
+      "user_interface_simulation": true,
+      "performance_acceptance": true
+    }
+  },
+  "performance_metrics": {
+    "batch_processing": true,
+    "parallel_execution": true,
+    "memory_optimization": true,
+    "throughput_metrics": {
+      "10": {
+        "processing_time": 0.10097789764404297,
+        "throughput": 99.03157258483421,
+        "processed_count": 10
+      },
+      "50": {
+        "processing_time": 0.5004410743713379,
+        "throughput": 99.91186287578573,
+        "processed_count": 50
+      },
+      "100": {
+        "processing_time": 0.9998900890350342,
+        "throughput": 100.01099230467139,
+        "processed_count": 100
+      },
+      "500": {
+        "processing_time": 4.996110916137695,
+        "throughput": 100.0778422242337,
+        "processed_count": 500
+      }
+    },
+    "scalability_metrics": {
+      "parallel_throughput": 299.3963966536276,
+      "parallel_time": 0.5010080337524414,
+      "memory_usage": {
+        "initial_mb": 144.734375,
+        "final_mb": 144.96875,
+        "increase_mb": 0.234375
+      }
+    }
+  },
+  "deployment_results": {
+    "aws": {
+      "configuration_valid": true,
+      "dependencies_available": true,
+      "connectivity_test": true,
+      "deployment_successful": true
+    },
+    "vdi": {
+      "configuration_valid": true,
+      "dependencies_available": true,
+      "connectivity_test": true,
+      "deployment_successful": true
+    },
+    "standalone": {
+      "configuration_valid": true,
+      "dependencies_available": true,
+      "connectivity_test": true,
+      "deployment_successful": true
+    },
+    "laptop": {
+      "configuration_valid": true,
+      "dependencies_available": true,
+      "connectivity_test": true,
+      "deployment_successful": true
+    }
+  },
+  "compatibility_results": {
+    "legacy_config_support": true,
+    "deterministic_mode": true,
+    "existing_api_compatibility": true,
+    "data_format_compatibility": true,
+    "migration_support": true
+  },
+  "recommendations": [
+    "Address failures in strands_integration",
+    "Optimize performance and scalability components"
+  ],
+  "next_steps": [
+    "Address failed test categories before proceeding",
+    "Review and fix integration issues",
+    "Re-run failed test suites after fixes",
+    "Consider phased deployment approach",
+    "Engage with development team for issue resolution"
+  ],
+  "system_readiness": {
+    "production_ready": false,
+    "deployment_approved": false,
+    "user_acceptance_complete": true
+  }
+}

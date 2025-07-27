@@ -10,6 +10,7 @@ import logging
 import asyncio
 import time
 import random
+import re
 from typing import Dict, Any, List, Optional, Union, Tuple, Callable
 from difflib import SequenceMatcher
 from decimal import Decimal
@@ -27,6 +28,13 @@ try:
         AIProviderConfigurationError
     )
     from .enhanced_config import DecisionMode, EnhancedMatcherConfig, EnhancedReconcilerConfig
+    from .financial_domain_intelligence import (
+        get_domain_intelligence, 
+        AssetClass, 
+        TradingContext,
+        FinancialDomainIntelligence
+    )
+    from .domain_prompts import get_domain_prompt_generator
 except ImportError:
     # Handle relative import for standalone testing
     import sys
@@ -43,6 +51,13 @@ except ImportError:
         AIProviderConfigurationError
     )
     from enhanced_config import DecisionMode, EnhancedMatcherConfig, EnhancedReconcilerConfig
+    from financial_domain_intelligence import (
+        get_domain_intelligence, 
+        AssetClass, 
+        TradingContext,
+        FinancialDomainIntelligence
+    )
+    from domain_prompts import get_domain_prompt_generator
 
 logger = logging.getLogger(__name__)
 
@@ -335,7 +350,7 @@ def reset_ai_service_metrics():
 
 def _deterministic_trade_analysis(trade_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Deterministic trade context analysis using rule-based logic.
+    Enhanced deterministic trade context analysis using financial domain intelligence.
     
     Args:
         trade_data: Trade information to analyze
@@ -343,44 +358,84 @@ def _deterministic_trade_analysis(trade_data: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Dictionary containing transaction type, critical fields, and context
     """
-    transaction_type = "unknown"
-    critical_fields = ["trade_date", "total_notional_quantity", "currency"]
+    # Get domain intelligence instance
+    domain_intel = get_domain_intelligence()
     
-    # Determine transaction type based on available fields
-    if trade_data.get('commodity_type'):
-        transaction_type = "commodity_trade"
-        critical_fields.extend(["commodity_type", "settlement_type"])
-    elif trade_data.get('currency_pair'):
-        transaction_type = "fx_trade"
-        critical_fields.extend(["currency_pair", "exchange_rate"])
-    elif trade_data.get('interest_rate'):
-        transaction_type = "interest_rate_swap"
-        critical_fields.extend(["interest_rate", "floating_rate_index"])
-    elif trade_data.get('underlying_asset'):
-        transaction_type = "derivative"
-        critical_fields.extend(["underlying_asset", "option_type"])
+    # Get comprehensive domain context
+    domain_context = domain_intel.get_domain_context(trade_data)
     
-    # Add common fields based on transaction type
-    if transaction_type in ["commodity_trade", "fx_trade"]:
-        critical_fields.extend(["effective_date", "termination_date"])
+    # Determine transaction type using domain intelligence
+    asset_class = domain_context.asset_class
+    trading_context = domain_context.trading_context
     
-    field_mappings = {
-        "settlement_date": "termination_date",
-        "maturity_date": "termination_date",
-        "notional": "total_notional_quantity",
-        "amount": "total_notional_quantity",
-        "counterparty": "buyer_legal_entity"
-    }
+    # Map asset class and trading context to transaction type
+    if asset_class == AssetClass.COMMODITIES:
+        if trading_context == TradingContext.FORWARD:
+            transaction_type = "commodity_forward"
+        elif trading_context == TradingContext.SWAP:
+            transaction_type = "commodity_swap"
+        else:
+            transaction_type = "commodity_trade"
+    elif asset_class == AssetClass.FX:
+        if trading_context == TradingContext.SPOT:
+            transaction_type = "fx_spot"
+        elif trading_context == TradingContext.FORWARD:
+            transaction_type = "fx_forward"
+        else:
+            transaction_type = "fx_trade"
+    elif asset_class == AssetClass.RATES:
+        if trading_context == TradingContext.SWAP:
+            transaction_type = "interest_rate_swap"
+        else:
+            transaction_type = "rates_trade"
+    elif asset_class == AssetClass.DERIVATIVES:
+        if trading_context == TradingContext.OPTION:
+            transaction_type = "option"
+        else:
+            transaction_type = "derivative"
+    else:
+        transaction_type = "unknown"
+    
+    # Get critical fields from domain context
+    critical_fields = [fp.field_name for fp in domain_context.field_priorities 
+                      if fp.criticality in ["CRITICAL", "IMPORTANT"]]
+    
+    # If no domain-specific fields, use defaults
+    if not critical_fields:
+        critical_fields = ["trade_date", "total_notional_quantity", "currency"]
+    
+    # Get field mappings from domain context
+    field_mappings = {}
+    for term, mapping in domain_context.terminology_mappings.items():
+        if term != mapping.standard_term:
+            field_mappings[term] = mapping.standard_term
+    
+    # Add default mappings if none from domain
+    if not field_mappings:
+        field_mappings = {
+            "settlement_date": "termination_date",
+            "maturity_date": "termination_date",
+            "notional": "total_notional_quantity",
+            "amount": "total_notional_quantity",
+            "counterparty": "buyer_legal_entity"
+        }
     
     return {
         "transaction_type": transaction_type,
         "critical_fields": list(set(critical_fields)),  # Remove duplicates
         "field_mappings": field_mappings,
-        "confidence": 0.8,
-        "method": "deterministic",
+        "confidence": 0.85,  # Higher confidence with domain intelligence
+        "method": "deterministic_enhanced",
         "context_metadata": {
-            "reasoning": f"Determined transaction type based on presence of key fields",
-            "asset_class": _determine_asset_class(trade_data)
+            "reasoning": f"Determined transaction type using domain intelligence",
+            "asset_class": asset_class.value,
+            "trading_context": trading_context.value,
+            "domain_confidence": {
+                "asset_class_confidence": domain_context.field_priorities[0].priority_score if domain_context.field_priorities else 0.8,
+                "trading_context_confidence": 0.8
+            },
+            "market_conventions": domain_context.market_conventions,
+            "validation_rules": domain_context.validation_rules
         }
     }
 
@@ -403,47 +458,55 @@ def _deterministic_field_match(
     field1_name: str, 
     field1_value: Any, 
     field2_name: str, 
-    field2_value: Any
+    field2_value: Any,
+    context: str = ""
 ) -> Dict[str, Any]:
     """
-    Deterministic field matching using exact and fuzzy string matching.
+    Enhanced deterministic field matching using financial domain intelligence.
     
     Args:
         field1_name: First field name
         field1_value: First field value
         field2_name: Second field name
         field2_value: Second field value
+        context: Optional context information
         
     Returns:
         Dictionary with match status, confidence, and reasoning
     """
-    # Check for exact field name match
-    if field1_name.lower() == field2_name.lower():
+    domain_intel = get_domain_intelligence()
+    
+    # Try to extract asset class from context
+    asset_class = AssetClass.UNKNOWN
+    trading_context = TradingContext.UNKNOWN
+    
+    if context:
+        # Simple context parsing - in real implementation this would be more sophisticated
+        context_lower = context.lower()
+        if "commodity" in context_lower or "oil" in context_lower or "gas" in context_lower:
+            asset_class = AssetClass.COMMODITIES
+        elif "fx" in context_lower or "currency" in context_lower:
+            asset_class = AssetClass.FX
+        elif "rate" in context_lower or "swap" in context_lower:
+            asset_class = AssetClass.RATES
+        elif "option" in context_lower or "derivative" in context_lower:
+            asset_class = AssetClass.DERIVATIVES
+    
+    # Normalize field names using domain intelligence
+    norm_field1, conf1 = domain_intel.normalize_field_name(field1_name, asset_class, trading_context)
+    norm_field2, conf2 = domain_intel.normalize_field_name(field2_name, asset_class, trading_context)
+    
+    # Calculate field name similarity
+    if norm_field1.lower() == norm_field2.lower():
         field_name_similarity = 1.0
+        is_semantic_match = True
     else:
         # Use fuzzy matching for field names
-        field_name_similarity = SequenceMatcher(None, field1_name.lower(), field2_name.lower()).ratio()
-    
-    # Check for semantic equivalents using predefined mappings
-    semantic_mappings = {
-        "settlement_date": ["maturity_date", "termination_date", "expiry_date"],
-        "notional": ["amount", "total_notional_quantity", "principal"],
-        "counterparty": ["buyer_legal_entity", "seller_legal_entity", "party"],
-        "trade_date": ["execution_date", "deal_date"],
-        "currency": ["ccy", "currency_code"],
-        "price": ["rate", "fixed_price", "strike_price"]
-    }
-    
-    is_semantic_match = False
-    for key, synonyms in semantic_mappings.items():
-        if (field1_name.lower() in [key] + synonyms and 
-            field2_name.lower() in [key] + synonyms):
-            is_semantic_match = True
-            field_name_similarity = max(field_name_similarity, 0.9)
-            break
+        field_name_similarity = SequenceMatcher(None, norm_field1.lower(), norm_field2.lower()).ratio()
+        is_semantic_match = field_name_similarity >= 0.85
     
     # Determine if fields are semantically equivalent
-    if field_name_similarity >= 0.9 or is_semantic_match:
+    if is_semantic_match:
         # Compare values
         if field1_value is None and field2_value is None:
             match_status = "MATCHED"
@@ -464,16 +527,25 @@ def _deterministic_field_match(
                 val2 = float(field2_value)
                 pct_diff = abs(val1 - val2) / abs(val1) if val1 != 0 else (1.0 if val2 != 0 else 0.0)
                 
-                if pct_diff <= 0.001:  # 0.1% tolerance
+                # Use asset class specific tolerances
+                tolerance = 0.001  # Default 0.1%
+                if asset_class == AssetClass.COMMODITIES:
+                    tolerance = 0.005  # 0.5% for commodities
+                elif asset_class == AssetClass.FX:
+                    tolerance = 0.0001  # 0.01% for FX rates
+                elif asset_class == AssetClass.RATES:
+                    tolerance = 0.000001  # Very tight for rates (1 basis point)
+                
+                if pct_diff <= tolerance:
                     match_status = "MATCHED"
                     confidence = 0.95
-                    reasoning = f"Numeric values match within tolerance (diff: {pct_diff:.4%})"
+                    reasoning = f"Numeric values match within {asset_class.value} tolerance (diff: {pct_diff:.4%})"
                 else:
                     match_status = "MISMATCHED"
                     confidence = 0.8
-                    reasoning = f"Numeric values differ by {pct_diff:.4%}"
+                    reasoning = f"Numeric values differ by {pct_diff:.4%} (tolerance: {tolerance:.4%})"
             except (ValueError, TypeError):
-                # String comparison
+                # String comparison with domain-aware normalization
                 string_similarity = SequenceMatcher(None, str(field1_value), str(field2_value)).ratio()
                 if string_similarity >= 0.85:
                     match_status = "MATCHED"
@@ -487,13 +559,25 @@ def _deterministic_field_match(
         match_status = "SEMANTIC_MISMATCH"
         confidence = field_name_similarity
         reasoning = f"Field names not semantically equivalent (similarity: {field_name_similarity:.2%})"
+        
+        # Add domain intelligence insights
+        if norm_field1 != field1_name or norm_field2 != field2_name:
+            reasoning += f" (normalized: {norm_field1} vs {norm_field2})"
     
     return {
         "match_status": match_status,
         "confidence": confidence,
         "reasoning": reasoning,
         "field_name_similarity": field_name_similarity,
-        "method": "deterministic"
+        "method": "deterministic_enhanced",
+        "domain_insights": {
+            "normalized_field1": norm_field1,
+            "normalized_field2": norm_field2,
+            "normalization_confidence1": conf1,
+            "normalization_confidence2": conf2,
+            "asset_class": asset_class.value,
+            "trading_context": trading_context.value
+        }
     }
 
 
@@ -607,6 +691,350 @@ async def ai_analyze_trade_context(
     
     else:
         raise ValueError(f"Unsupported analysis mode: {mode}")
+
+
+@tool
+async def context_aware_field_extraction(
+    trade_data: Dict[str, Any],
+    asset_class: str = None,
+    trading_context: str = None
+) -> Dict[str, Any]:
+    """
+    Extract and prioritize fields based on asset class and trading context.
+    
+    Args:
+        trade_data: Trade data dictionary
+        asset_class: Optional asset class hint
+        trading_context: Optional trading context hint
+        
+    Returns:
+        Dict with extracted fields, priorities, and context information
+    """
+    domain_intel = get_domain_intelligence()
+    
+    # Get domain context
+    domain_context = domain_intel.get_domain_context(trade_data)
+    
+    # Override with provided hints if available
+    if asset_class:
+        try:
+            domain_context.asset_class = AssetClass(asset_class.lower())
+        except ValueError:
+            logger.warning(f"Invalid asset class hint: {asset_class}")
+    
+    if trading_context:
+        try:
+            domain_context.trading_context = TradingContext(trading_context.lower())
+        except ValueError:
+            logger.warning(f"Invalid trading context hint: {trading_context}")
+    
+    # Extract and normalize field names
+    normalized_fields = {}
+    field_priorities = {}
+    
+    for field_name, field_value in trade_data.items():
+        normalized_name, confidence = domain_intel.normalize_field_name(
+            field_name, 
+            domain_context.asset_class, 
+            domain_context.trading_context
+        )
+        
+        normalized_fields[normalized_name] = {
+            "original_name": field_name,
+            "value": field_value,
+            "normalization_confidence": confidence
+        }
+        
+        # Get priority for this field
+        field_priority = None
+        for priority in domain_context.field_priorities:
+            if priority.field_name == normalized_name:
+                field_priority = priority
+                break
+        
+        if field_priority:
+            field_priorities[normalized_name] = {
+                "priority_score": field_priority.priority_score,
+                "criticality": field_priority.criticality,
+                "validation_rules": field_priority.validation_rules
+            }
+        else:
+            # Default priority for unknown fields
+            field_priorities[normalized_name] = {
+                "priority_score": 0.5,
+                "criticality": "OPTIONAL",
+                "validation_rules": []
+            }
+    
+    # Sort fields by priority
+    sorted_fields = sorted(
+        normalized_fields.keys(),
+        key=lambda f: field_priorities[f]["priority_score"],
+        reverse=True
+    )
+    
+    return {
+        "asset_class": domain_context.asset_class.value,
+        "trading_context": domain_context.trading_context.value,
+        "normalized_fields": normalized_fields,
+        "field_priorities": field_priorities,
+        "sorted_fields": sorted_fields,
+        "critical_fields": [
+            f for f in sorted_fields 
+            if field_priorities[f]["criticality"] == "CRITICAL"
+        ],
+        "important_fields": [
+            f for f in sorted_fields 
+            if field_priorities[f]["criticality"] == "IMPORTANT"
+        ],
+        "market_conventions": domain_context.market_conventions,
+        "validation_rules": domain_context.validation_rules
+    }
+
+
+@tool
+async def detect_asset_class_and_context(
+    trade_data: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Detect asset class and trading context from trade data.
+    
+    Args:
+        trade_data: Trade data dictionary
+        
+    Returns:
+        Dict with detected asset class, trading context, and confidence scores
+    """
+    domain_intel = get_domain_intelligence()
+    
+    # Detect asset class
+    asset_class, ac_confidence = domain_intel.detect_asset_class(trade_data)
+    
+    # Detect trading context
+    trading_context, tc_confidence = domain_intel.detect_trading_context(trade_data, asset_class)
+    
+    # Get domain context for additional insights
+    domain_context = domain_intel.get_domain_context(trade_data)
+    
+    return {
+        "asset_class": asset_class.value,
+        "asset_class_confidence": ac_confidence,
+        "trading_context": trading_context.value,
+        "trading_context_confidence": tc_confidence,
+        "detection_method": "pattern_and_field_analysis",
+        "market_conventions": domain_context.market_conventions,
+        "recommended_field_priorities": [
+            {
+                "field_name": fp.field_name,
+                "priority_score": fp.priority_score,
+                "criticality": fp.criticality
+            }
+            for fp in domain_context.field_priorities[:10]
+        ],
+        "terminology_mappings_count": len(domain_context.terminology_mappings),
+        "validation_rules": domain_context.validation_rules
+    }
+
+
+@tool
+async def normalize_market_terminology(
+    field_name: str,
+    field_value: Any,
+    asset_class: str = None,
+    trading_context: str = None,
+    learn_from_usage: bool = True
+) -> Dict[str, Any]:
+    """
+    Normalize field names and values using market terminology intelligence.
+    
+    Args:
+        field_name: Original field name
+        field_value: Field value
+        asset_class: Optional asset class context
+        trading_context: Optional trading context
+        learn_from_usage: Whether to learn from this usage
+        
+    Returns:
+        Dict with normalized field name, value insights, and confidence
+    """
+    domain_intel = get_domain_intelligence()
+    
+    # Parse asset class and trading context
+    ac = AssetClass.UNKNOWN
+    tc = TradingContext.UNKNOWN
+    
+    if asset_class:
+        try:
+            ac = AssetClass(asset_class.lower())
+        except ValueError:
+            logger.warning(f"Invalid asset class: {asset_class}")
+    
+    if trading_context:
+        try:
+            tc = TradingContext(trading_context.lower())
+        except ValueError:
+            logger.warning(f"Invalid trading context: {trading_context}")
+    
+    # Normalize field name
+    normalized_name, confidence = domain_intel.normalize_field_name(field_name, ac, tc)
+    
+    # Analyze field value for additional insights
+    value_insights = _analyze_field_value(field_name, field_value, ac, tc)
+    
+    # Learn from usage if enabled
+    if learn_from_usage and normalized_name != field_name and confidence > 0.7:
+        domain_intel.learn_terminology(field_name, normalized_name, ac, tc, confidence)
+    
+    return {
+        "original_field_name": field_name,
+        "normalized_field_name": normalized_name,
+        "normalization_confidence": confidence,
+        "field_value": field_value,
+        "value_insights": value_insights,
+        "asset_class": ac.value,
+        "trading_context": tc.value,
+        "learned": learn_from_usage and normalized_name != field_name
+    }
+
+
+@tool
+async def explain_terminology_difference(
+    term1: str,
+    term2: str,
+    asset_class: str = None,
+    trading_context: str = None
+) -> Dict[str, Any]:
+    """
+    Explain the difference or equivalence between two financial terms.
+    
+    Args:
+        term1: First term
+        term2: Second term
+        asset_class: Optional asset class context
+        trading_context: Optional trading context
+        
+    Returns:
+        Dict with explanation, equivalence assessment, and context
+    """
+    domain_intel = get_domain_intelligence()
+    
+    # Parse contexts
+    ac = AssetClass.UNKNOWN
+    tc = TradingContext.UNKNOWN
+    
+    if asset_class:
+        try:
+            ac = AssetClass(asset_class.lower())
+        except ValueError:
+            pass
+    
+    if trading_context:
+        try:
+            tc = TradingContext(trading_context.lower())
+        except ValueError:
+            pass
+    
+    # Normalize both terms
+    norm_term1, conf1 = domain_intel.normalize_field_name(term1, ac, tc)
+    norm_term2, conf2 = domain_intel.normalize_field_name(term2, ac, tc)
+    
+    # Check if they normalize to the same standard term
+    are_equivalent = norm_term1.lower() == norm_term2.lower()
+    
+    # Calculate similarity
+    similarity = domain_intel._calculate_field_similarity(term1.lower(), term2.lower())
+    
+    # Generate explanation
+    if are_equivalent:
+        explanation = f"'{term1}' and '{term2}' are equivalent terms in {ac.value} trading. "
+        explanation += f"Both normalize to the standard term '{norm_term1}'."
+        
+        if ac != AssetClass.UNKNOWN:
+            explanation += f" In {ac.value} markets, these terms are commonly used interchangeably."
+    else:
+        explanation = f"'{term1}' and '{term2}' are different terms in {ac.value} trading. "
+        explanation += f"'{term1}' normalizes to '{norm_term1}' while '{term2}' normalizes to '{norm_term2}'."
+        
+        if similarity > 0.5:
+            explanation += f" However, they have {similarity:.1%} similarity and may be related concepts."
+    
+    return {
+        "term1": term1,
+        "term2": term2,
+        "normalized_term1": norm_term1,
+        "normalized_term2": norm_term2,
+        "are_equivalent": are_equivalent,
+        "similarity_score": similarity,
+        "explanation": explanation,
+        "asset_class": ac.value,
+        "trading_context": tc.value,
+        "confidence1": conf1,
+        "confidence2": conf2
+    }
+
+
+def _analyze_field_value(field_name: str, field_value: Any, 
+                        asset_class: AssetClass, trading_context: TradingContext) -> Dict[str, Any]:
+    """Analyze field value for domain-specific insights"""
+    insights = {
+        "data_type": type(field_value).__name__,
+        "is_numeric": False,
+        "is_date": False,
+        "is_currency": False,
+        "validation_status": "unknown"
+    }
+    
+    if field_value is None:
+        insights["validation_status"] = "missing"
+        return insights
+    
+    value_str = str(field_value).strip()
+    
+    # Check if numeric
+    try:
+        float_val = float(field_value)
+        insights["is_numeric"] = True
+        insights["numeric_value"] = float_val
+        
+        # Asset class specific validations
+        if asset_class == AssetClass.FX and "rate" in field_name.lower():
+            if 0.0001 <= float_val <= 1000:  # Reasonable FX rate range
+                insights["validation_status"] = "valid"
+            else:
+                insights["validation_status"] = "suspicious_range"
+        elif asset_class == AssetClass.COMMODITIES and "price" in field_name.lower():
+            if float_val > 0:
+                insights["validation_status"] = "valid"
+            else:
+                insights["validation_status"] = "invalid_negative"
+        elif "notional" in field_name.lower() or "amount" in field_name.lower():
+            if float_val > 0:
+                insights["validation_status"] = "valid"
+            else:
+                insights["validation_status"] = "invalid_negative"
+    except (ValueError, TypeError):
+        pass
+    
+    # Check if date
+    date_patterns = [
+        r'\d{4}-\d{2}-\d{2}',  # YYYY-MM-DD
+        r'\d{2}/\d{2}/\d{4}',  # MM/DD/YYYY
+        r'\d{2}-\d{2}-\d{4}'   # MM-DD-YYYY
+    ]
+    
+    for pattern in date_patterns:
+        if re.match(pattern, value_str):
+            insights["is_date"] = True
+            insights["validation_status"] = "valid_date_format"
+            break
+    
+    # Check if currency
+    currency_pattern = r'^[A-Z]{3}$'
+    if re.match(currency_pattern, value_str):
+        insights["is_currency"] = True
+        insights["validation_status"] = "valid_currency_code"
+    
+    return insights
 
 
 @tool

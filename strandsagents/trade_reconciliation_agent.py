@@ -10,6 +10,11 @@ import json
 import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime
+
+# Set AWS region explicitly before importing Strands
+os.environ['AWS_REGION'] = 'us-east-1'
+os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
+
 from strands.models import BedrockModel
 from strands import Agent, tool
 from agents import (
@@ -22,11 +27,7 @@ from agents import (
 
 bedrock_model = BedrockModel(
     model_id="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-    additional_request_fields={
-        "thinking":{
-            "type": "enabled",
-                    }
-    }
+    region="us-east-1"
 )
 
 agent = Agent(model=bedrock_model)
@@ -93,6 +94,7 @@ class TradeReconciliationAgent:
         
         # Create the orchestration agent with custom tools
         self.agent = Agent(
+            model=bedrock_model,
             system_prompt=self._get_system_prompt(),
             tools=[
                 # Workflow management tools

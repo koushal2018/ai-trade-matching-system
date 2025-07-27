@@ -37,7 +37,13 @@ try:
         explain_mismatch,
         context_aware_field_extraction
     )
-    # Import actual AWS-powered tools from agents
+    # Import enhanced reporting tools
+    from .enhanced_reporting import generate_enhanced_reconciliation_report
+    from .report_exporters import ReportExportManager
+    from .user_feedback_system import submit_user_feedback, analyze_user_feedback, get_training_material
+    
+    # Import actual AWS-powered tools from agents (these would be implemented separately)
+    # For now, we'll create placeholder implementations
     from .agents import (
         fetch_unmatched_trades,
         find_potential_matches,
@@ -49,7 +55,6 @@ try:
         compare_fields,
         determine_overall_status,
         update_reconciliation_status,
-        generate_reconciliation_report,
         store_report,
         fetch_reconciliation_results
     )
@@ -92,6 +97,64 @@ except ImportError:
     )
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Enhanced Agent Classes for Integration Compatibility
+# ============================================================================
+
+class EnhancedTradeMatcherAgent:
+    """Enhanced trade matcher agent with AI capabilities."""
+    
+    def __init__(self, config: Optional[EnhancedMatcherConfig] = None):
+        """Initialize enhanced trade matcher agent."""
+        self.config = config or EnhancedMatcherConfig.from_environment()
+        self.agent = create_enhanced_trade_matcher_agent(self.config)
+    
+    async def run_tool(self, tool_name: str, *args, **kwargs):
+        """Run a specific tool."""
+        # This would delegate to the actual Strands agent
+        return await self.agent.run_tool(tool_name, *args, **kwargs)
+    
+    def __call__(self, message: str):
+        """Make the agent callable."""
+        return self.agent(message)
+
+
+class EnhancedTradeReconcilerAgent:
+    """Enhanced trade reconciler agent with AI capabilities."""
+    
+    def __init__(self, config: Optional[EnhancedReconcilerConfig] = None):
+        """Initialize enhanced trade reconciler agent."""
+        self.config = config or EnhancedReconcilerConfig.from_environment()
+        self.agent = create_enhanced_trade_reconciler_agent(self.config)
+    
+    async def run_tool(self, tool_name: str, *args, **kwargs):
+        """Run a specific tool."""
+        # This would delegate to the actual Strands agent
+        return await self.agent.run_tool(tool_name, *args, **kwargs)
+    
+    def __call__(self, message: str):
+        """Make the agent callable."""
+        return self.agent(message)
+
+
+class EnhancedReportGeneratorAgent:
+    """Enhanced report generator agent with AI capabilities."""
+    
+    def __init__(self, config: Optional[EnhancedReportConfig] = None):
+        """Initialize enhanced report generator agent."""
+        self.config = config or EnhancedReportConfig.from_environment()
+        self.agent = create_enhanced_report_generator_agent(self.config)
+    
+    async def run_tool(self, tool_name: str, *args, **kwargs):
+        """Run a specific tool."""
+        # This would delegate to the actual Strands agent
+        return await self.agent.run_tool(tool_name, *args, **kwargs)
+    
+    def __call__(self, message: str):
+        """Make the agent callable."""
+        return self.agent(message)
 
 
 # All tools are imported from their respective modules:
@@ -550,8 +613,11 @@ def create_enhanced_report_generator_agent(config: Optional[EnhancedReportConfig
     
     tools = [
         fetch_reconciliation_results,
-        generate_reconciliation_report,
-        store_report
+        generate_enhanced_reconciliation_report,
+        store_report,
+        submit_user_feedback,
+        analyze_user_feedback,
+        get_training_material
     ]
     
     # Create agent with configurable model
@@ -759,3 +825,9 @@ async def create_enhanced_agents() -> tuple[Agent, Agent, Agent]:
     except Exception as e:
         logger.error(f"Error creating enhanced agents: {e}")
         raise
+
+
+# Aliases for backward compatibility
+create_enhanced_trade_matcher = create_enhanced_trade_matcher_agent
+create_enhanced_trade_reconciler = create_enhanced_trade_reconciler_agent
+create_enhanced_report_generator = create_enhanced_report_generator_agent
