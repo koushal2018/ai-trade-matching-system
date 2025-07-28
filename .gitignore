@@ -253,3 +253,75 @@ CLEANUP_SUMMARY.md
 referencearchitecture.html
 sample_trades.csv
 REFERENCE_ARCHITECTURE_DRAWING_INSTRUCTIONS.md
+
+# Trade data files (sensitive financial data)
+*.csv
+*.xlsx
+*.xls
+trade_data/
+bank_trades/
+counterparty_trades/
+reconciliation_results/
+processed_trades/
+
+# AI model artifacts and cache
+model_cache/
+*.model
+*.pkl
+*.joblib
+embeddings/
+vector_store/
+
+# Strands agents runtime files
+agents_runtime/
+agent_logs/
+execution_history/
+
+# Frontend specific
+# Dependencies
+/trade-reconciliation-frontend/node_modules/
+/trade-reconciliation-frontend/.pnp
+/trade-reconciliation-frontend/.pnp.js
+
+# Testing
+/trade-reconciliation-frontend/coverage/
+
+# Production build
+/trade-reconciliation-frontend/build/
+
+# Misc
+/trade-reconciliation-frontend/.DS_Store
+/trade-reconciliation-frontend/.env.local
+/trade-reconciliation-frontend/.env.development.local
+/trade-reconciliation-frontend/.env.test.local
+/trade-reconciliation-frontend/.env.production.local
+
+# Debug logs
+/trade-reconciliation-frontend/npm-debug.log*
+/trade-reconciliation-frontend/yarn-debug.log*
+/trade-reconciliation-frontend/yarn-error.log*
+
+# Lambda deployment artifacts
+/client-deployment/lambda/**/*.zip
+/client-deployment/lambda/**/node_modules/
+lambda_function.zip
+deployment_package.zip
+
+# CloudFormation stack outputs
+stack-outputs.json
+cfn-response.json
+
+# Local development databases
+*.db
+*.sqlite
+local_dynamodb/
+
+# Performance and monitoring data
+performance_metrics/
+monitoring_data/
+*.perf
+
+# Kiro IDE files
+.kiro/cache/
+.kiro/logs/
+.kiro
