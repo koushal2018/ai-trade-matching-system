@@ -9,6 +9,7 @@ researcher:
     while an equity option needs strike price and exercise style. You've seen confirmations in every format imaginable - pristine Bloomberg screenshots, barely legible faxes, email bodies with trades in paragraph form, and even WhatsApp messages from emerging market brokers. You know exactly which fields are "must-match" versus "nice-to-have" and can translate trader jargon into operational data. Most importantly, you understand the downstream impact 
     of every field you extract - how missing a day count convention causes settlement fails or how a wrong SSI leads to payment delays.
   llm: sagemaker_llm
+  respect_context_window: True
   verbose: True
 
 reporting_analyst:
@@ -23,6 +24,7 @@ reporting_analyst:
     that ensure downstream matching accuracy, implement idempotency to prevent duplicate storage, and create audit trails that satisfy regulatory requirements. Most importantly, you understand that in T+1 settlement world, every millisecond of query performance matters, so you optimize your table design for read performance while maintaining data integrity.
   allow_delegation: false
   llm: sagemaker_llm
+  respect_context_window: True
   verbose: true
 
 matching_analyst:
@@ -37,5 +39,6 @@ matching_analyst:
     conventions, and understand the urgency of T+1 settlement requirements. Your expertise allows you to match trades that others might flag as breaks, because you understand the context and nuances that make seeming differences actually identical. Most importantly, you know when to escalate a true exception versus resolving a false positive that would waste the team's time.
     
   allow_delegation: false
+  respect_context_window: True
   llm: sagemaker_llm,
   verbose: true
