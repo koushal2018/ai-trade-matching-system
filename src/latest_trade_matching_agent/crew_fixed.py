@@ -289,7 +289,7 @@ class LatestTradeMatchingAgent:
             agents=self.agents,
             tasks=self.tasks,
             process=Process.sequential,
-            memory=False,  # Disable memory to reduce context size
+            memory=True,  # Disable memory to reduce context size
             verbose=True,
             max_rpm=5,  # Limit requests per minute
             share_crew=False  # Don't share telemetry

@@ -18,7 +18,7 @@ def run():
     Run the crew.
     """
     inputs = {
-        'document_path': './data/BANK/FAB_26933659.pdf'
+        'document_path': './data/COUNTERPARTY/GCS381315_V1.pdf'
     }
     
     try:

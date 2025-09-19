@@ -482,3 +482,78 @@ Return only the JSON, no other text or explanations."""
             return f"Error extracting from {file_path}: {str(e)}"
         except Exception as e:
             return f"Error processing PDF: {str(e)}"
+
+
+class TradeUpdateInput(BaseModel):
+    """Input schema for TradeUpdateTool."""
+    trade_updates: Dict[str, Dict[str, Any]] = Field(..., description="Dictionary of trade_id -> update_fields mapping")
+    source: str = Field(..., description="Source type: 'bank' or 'counterparty'")
+
+class TradeUpdateTool(BaseTool):
+    name: str = "TradeUpdateTool"
+    description: str = "Updates specific fields for trades in TinyDB databases"
+    args_schema: Type[BaseModel] = TradeUpdateInput
+
+    def _run(self, trade_updates: Dict[str, Dict[str, Any]], source: str) -> str:
+        try:
+            # Determine database file based on source
+            if source.lower() == "bank":
+                db_file = "./storage/bank_trade_data.db"
+                table_name = "bank_trades"
+            elif source.lower() == "counterparty":
+                db_file = "./storage/counterparty_trade_data.db"
+                table_name = "counterparty_trades"
+            else:
+                return f"Error: Invalid source '{source}'. Must be 'bank' or 'counterparty'"
+            
+            # Check if database exists
+            if not os.path.exists(db_file):
+                return f"Error: Database file not found: {db_file}"
+            
+            # Initialize TinyDB with caching
+            db = TinyDB(db_file, storage=CachingMiddleware(JSONStorage))
+            table = db.table(table_name)
+            
+            results = []
+            Trade = Query()
+            
+            # Update each trade
+            for trade_id, update_fields in trade_updates.items():
+                # Find the trade by trade_id
+                existing_trades = table.search(
+                    (Trade.trade_id == trade_id) | 
+                    (Trade.internal_reference == str(trade_id))
+                )
+                
+                if existing_trades:
+                    # Update all matching trades (there should typically be only one)
+                    for trade in existing_trades:
+                        table.update(update_fields, doc_ids=[trade.doc_id])
+                        results.append({
+                            "trade_id": trade_id,
+                            "status": "updated",
+                            "updated_fields": list(update_fields.keys())
+                        })
+                else:
+                    results.append({
+                        "trade_id": trade_id,
+                        "status": "not_found",
+                        "message": f"Trade with ID {trade_id} not found in {source} database"
+                    })
+            
+            # Close database
+            db.close()
+            
+            result = {
+                "status": "success",
+                "database": db_file,
+                "table": table_name,
+                "source": source,
+                "updates_processed": len(trade_updates),
+                "results": results
+            }
+            
+            return json.dumps(result, indent=2)
+            
+        except Exception as e:
+            return f"Error updating trades: {str(e)}"
