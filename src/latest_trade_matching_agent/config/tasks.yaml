@@ -5,13 +5,14 @@ research_task:
     
     **WORKFLOW:**
     1. Use PDFExtractorTool to extract text from the local PDF path
-    2. Identify document type and counterparty from format/header analysis
-    3. Apply counterparty-specific parsing rules (e.g., Goldman date formats, JPM field names)
-    4. Analyze extracted text to identify trade fields based on asset class
-    5. Validate critical fields for completeness and format
-    6. Structure data into JSON format with required fields
-    7. Flag any ambiguous or missing critical fields
-    8. **MANDATORY**: Use FileWriterTool to save the complete extracted JSON data to ./data/trade_data.json file
+    2. Analyze the extracted text to identify document type and counterparty
+    3. Parse the trade fields based on asset class using your analytical skills
+    4. Validate critical fields for completeness and format using your expertise
+    5. Structure data into JSON format with required fields  
+    6. Flag any ambiguous or missing critical fields in your analysis
+    7. **MANDATORY**: Use FileWriterTool to save the complete extracted JSON data to ./data/trade_data.json file
+    
+    **IMPORTANT**: Do not try to use workflow steps as tools. Only use the actual tools available: PDFExtractorTool and FileWriterTool.
     
     **ASSET CLASS SPECIFIC EXTRACTION:**
     - FX: Focus on currency pairs, fixing dates, settlement dates, NDF fixing sources
@@ -70,13 +71,13 @@ reporting_task:
     
     **WORKFLOW:**
     1. Use FileReadTool to read trade_data.json created by researcher
-    2. Parse JSON data and perform schema validation
-    3. Check for duplicate trades using composite key (date + counterparty + product + notional)
-    4. Apply data enrichment (e.g., calculate settlement amounts, days to settlement)
-    5. Create audit trail entry with timestamp and source document
+    2. Parse JSON data and perform schema validation using your analytical skills
+    3. Check for duplicate trades using composite key (date + counterparty + product + notional) through analysis
+    4. Apply data enrichment (e.g., calculate settlement amounts, days to settlement) using your calculations
+    5. Create audit trail entry with timestamp and source document in your processing
     6. Use TradeStorageTool with trade data and document path for routing
-    7. Implement retry logic for transient failures
-    8. Create indexes for optimal matching performance
+    
+    **IMPORTANT**: Only use the actual tools available: FileReadTool and TradeStorageTool. Do not try to use workflow steps as tools.
     
     **VALIDATION BEFORE STORAGE:**
     - Ensure minimum required fields are present based on asset class

@@ -34,6 +34,7 @@ litellm.default_max_retries = 10
 litellm.default_timeout = 180
 litellm.request_timeout = 180
 litellm.suppress_debug_info = True
+litellm.modify_params = True  # Enable parameter modification for Bedrock compatibility
 
 # Custom wrapper class for rate limiting with improved error handling
 class RateLimitedLLM(LLM):
@@ -72,9 +73,9 @@ class RateLimitedLLM(LLM):
         if estimated_tokens > self.max_context_tokens:
             logger.warning(f"Context too large ({estimated_tokens:.0f} tokens), truncating...")
             
-            # Always ensure first message is system or user message
+            # Always ensure first message is user message for Bedrock compatibility
             first_msg = messages[0]
-            if first_msg.get('role') not in ['system', 'user']:
+            if first_msg.get('role') != 'user':
                 # Insert a user message at the beginning
                 first_msg = {"role": "user", "content": "Please help me with this task."}
                 remaining_msgs = messages
@@ -111,6 +112,13 @@ class RateLimitedLLM(LLM):
         max_retries = 8
         base_delay = 10.0  # Increased base delay
         
+        # Ensure conversation starts with user message for Bedrock compatibility
+        if messages and messages[0].get('role') != 'user':
+            messages.insert(0, {
+                'role': 'user',
+                'content': 'Continue the task execution.'
+            })
+        
         # Truncate messages if needed
         messages = self._truncate_messages_if_needed(messages)
         
@@ -135,10 +143,11 @@ class RateLimitedLLM(LLM):
             except Exception as e:
                 error_str = str(e).lower()
                 
-                # Check for rate limit or token limit errors
+                # Check for rate limit, token limit errors, and Bedrock-specific errors
                 if any(err in error_str for err in [
                     "rate limit", "too many requests", "429", 
-                    "too many tokens", "context length", "maximum context"
+                    "too many tokens", "context length", "maximum context",
+                    "throttling", "max rpm reached", "conversation must start with a user message"
                 ]):
                     self.consecutive_errors += 1
                     self.error_backoff_multiplier = min(4.0, 1.5 ** self.consecutive_errors)
@@ -182,8 +191,8 @@ def get_llm():
             max_retries=10,
             timeout=180,
             request_timeout=180,
-            min_request_interval=10.0,  # Longer interval for Bedrock
-            max_context_tokens=6000  # Smaller context for Bedrock
+            min_request_interval=15.0,  # Even longer interval for Bedrock Nova Pro
+            max_context_tokens=4000  # Much smaller context for Bedrock to avoid throttling
         )
     elif provider == "anthropic":
         # Anthropic configuration
