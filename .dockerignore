@@ -1,0 +1,57 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+build
+*.egg-info
+dist
+
+# Virtual environments
+.venv
+venv
+env
+
+# Environment files (should be mounted)
+.env
+
+# Storage and data (should be mounted)
+storage/
+data/
+processed/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Documentation
+*.md
+!DEPLOYMENT.md
+
+# Test files
+tests/
+test_*.py
+
+# Lock files
+*.lock
+poetry.lock
+Pipfile.lock
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints
