@@ -33,7 +33,7 @@ class RateLimitedLLM(LLM):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.last_request_time = 0
-        self.min_request_interval = 2.0  # Minimum 2 seconds between requests
+        self.min_request_interval = 5.0  # Minimum 5 seconds between requests
 
     def _wait_if_needed(self):
         """Add delay to respect rate limits"""
@@ -48,7 +48,7 @@ class RateLimitedLLM(LLM):
     def call(self, messages, **kwargs):
         """Override call method with rate limiting and exponential backoff"""
         max_retries = 5
-        base_delay = 2.0
+        base_delay = 5.0
 
         for attempt in range(max_retries):
             try:
