@@ -11,7 +11,7 @@ research_task:
     5. Validate critical fields for completeness and format
     6. Structure data into JSON format with required fields
     7. Flag any ambiguous or missing critical fields
-    8. Use FileWriterTool to save as trade_data.json
+    8. **MANDATORY**: Use FileWriterTool to save the complete extracted JSON data to ./data/trade_data.json file
     
     **ASSET CLASS SPECIFIC EXTRACTION:**
     - FX: Focus on currency pairs, fixing dates, settlement dates, NDF fixing sources
@@ -44,14 +44,23 @@ research_task:
     - Flag if critical matching fields are missing
     
     Save the COMPLETE extracted JSON structure with validation flags and confidence scores.
+    
+    **CRITICAL FINAL STEP**: After extracting all data, you MUST use the FileWriterTool to write the JSON data to "./data/trade_data.json". 
+    Use this exact format: FileWriterTool with parameters {"filename": "./data/trade_data.json", "content": "<your_json_string>", "overwrite": true}
   expected_output: >
-    JSON file created with extracted trade data including:
-    - Complete trade economics and terms
-    - Extraction confidence scores for each field
-    - List of any missing critical fields
-    - Warnings for suspicious or inconsistent values
-    - Counterparty identification and document type
-    - Summary of key fields for quick operational review
+    **REQUIREMENT: A file named 'trade_data.json' MUST be created in the ./data/ directory using FileWriterTool.**
+    
+    Your response should confirm:
+    1. "Successfully used FileWriterTool to create ./data/trade_data.json"
+    2. File contains extracted trade data including:
+       - Complete trade economics and terms
+       - Extraction confidence scores for each field
+       - List of any missing critical fields
+       - Warnings for suspicious or inconsistent values
+       - Counterparty identification and document type
+       - Summary of key fields for quick operational review
+    
+    **THE TASK IS ONLY COMPLETE WHEN YOU HAVE USED FileWriterTool AND THE FILE EXISTS ON DISK.**
   agent: researcher
 
 reporting_task:

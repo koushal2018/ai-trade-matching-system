@@ -62,27 +62,48 @@ class RateLimitedLLM(LLM):
     
     def _truncate_messages_if_needed(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Truncate messages to stay within token limits"""
+        if not messages:
+            return messages
+            
         # Simple heuristic: estimate ~4 chars per token
         total_chars = sum(len(str(msg.get('content', ''))) for msg in messages)
         estimated_tokens = total_chars / 4
         
         if estimated_tokens > self.max_context_tokens:
             logger.warning(f"Context too large ({estimated_tokens:.0f} tokens), truncating...")
-            # Keep system message and truncate others
-            if messages and messages[0].get('role') == 'system':
-                system_msg = messages[0]
-                other_msgs = messages[1:]
-                # Take last few messages that fit
-                truncated_msgs = [system_msg]
-                char_count = len(str(system_msg.get('content', '')))
-                for msg in reversed(other_msgs):
-                    msg_chars = len(str(msg.get('content', '')))
-                    if (char_count + msg_chars) / 4 < self.max_context_tokens:
-                        truncated_msgs.insert(1, msg)
-                        char_count += msg_chars
-                    else:
-                        break
-                return truncated_msgs
+            
+            # Always ensure first message is system or user message
+            first_msg = messages[0]
+            if first_msg.get('role') not in ['system', 'user']:
+                # Insert a user message at the beginning
+                first_msg = {"role": "user", "content": "Please help me with this task."}
+                remaining_msgs = messages
+            else:
+                remaining_msgs = messages[1:]
+            
+            # Build truncated message list starting with first message
+            truncated_msgs = [first_msg]
+            char_count = len(str(first_msg.get('content', '')))
+            
+            # Add messages from the end (most recent) that fit within limits
+            for msg in reversed(remaining_msgs):
+                msg_chars = len(str(msg.get('content', '')))
+                if (char_count + msg_chars) / 4 < self.max_context_tokens:
+                    # Insert after first message but maintain chronological order
+                    truncated_msgs.append(msg)
+                    char_count += msg_chars
+                else:
+                    break
+            
+            # Ensure we have alternating user/assistant messages if needed
+            if len(truncated_msgs) > 1:
+                # Check the last message role
+                last_role = truncated_msgs[-1].get('role')
+                if last_role == 'assistant':
+                    # Add a user message to continue conversation
+                    truncated_msgs.append({"role": "user", "content": "Please continue."})
+                    
+            return truncated_msgs
         return messages
 
     def call(self, messages, **kwargs):
@@ -205,7 +226,7 @@ class LatestTradeMatchingAgent:
         return Agent(
             config=self.agents_config['researcher'],
             llm=llm,
-            tools=[pdf_extractor],
+            tools=[pdf_extractor, file_writer],
             verbose=True,
             max_iter=10,  # Limit iterations
             max_execution_time=600  # 10 minute timeout
