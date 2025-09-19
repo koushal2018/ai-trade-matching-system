@@ -9,6 +9,10 @@
 
 An intelligent, production-ready system that automatically processes derivative trade confirmations, extracting data from PDFs and performing sophisticated matching with real-world asynchronous processing.
 
+## ⚠️ Disclaimer
+
+**This is a personal educational project and has no affiliation, endorsement, or connection with any financial institutions, banks, or companies mentioned in the documentation or sample data. All bank names, trade references, and financial data used are purely fictional and for demonstration purposes only. This project is intended for learning and research purposes.**
+
 ## ✨ Key Features
 
 - **📄 AI-Powered PDF Extraction** - Uses GPT-4 Vision to extract trade data from any format
