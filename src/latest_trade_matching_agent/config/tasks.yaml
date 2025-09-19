@@ -1,334 +1,124 @@
 research_task:
   description: >
-    Extract and structure trade data from PDF document with intelligent field recognition and validation.
+    **CRITICAL DATA PRESERVATION:** Extract comprehensive trade data from PDF maintaining ALL critical details for accurate matching.
     Document Path: {document_path}
     
-    **WORKFLOW:**
-    1. Use PDFExtractorTool to extract text from the local PDF path
-    2. Analyze the extracted text to identify document type and counterparty
-    3. Parse the trade fields based on asset class using your analytical skills
-    4. Validate critical fields for completeness and format using your expertise
-    5. Structure data into JSON format with required fields  
-    6. Flag any ambiguous or missing critical fields in your analysis
-    7. **MANDATORY**: Use FileWriterTool to save the complete extracted JSON data to ./data/trade_data.json file
+    **MANDATORY WORKFLOW:**
+    1. Use PDFExtractorTool to extract text from {document_path}
+    2. Extract and preserve ALL the following critical fields (DO NOT SIMPLIFY):
+       - Trade_ID/Reference Number/Deal ID
+       - Counterparty details (name, LEI code, address, contact info)
+       - Trade Date, Settlement Date, Maturity Date
+       - Product details (asset class, instrument type, ISIN/CUSIP)
+       - Economic terms (notional, price, rate, currency, day count)
+       - Payment schedules and frequencies
+       - Trade capacity (principal/agent)
+       - Regulatory fields (USI, UTI, MiFID flags)
+       - Settlement instructions (SSI details, account numbers)
+       - Risk and margin information
+       - Any additional custom fields specific to the trade type
+    3. Structure as comprehensive JSON preserving granular detail
+    4. Use FileWriterTool to save complete JSON to ./data/trade_data.json
     
-    **IMPORTANT**: Do not try to use workflow steps as tools. Only use the actual tools available: PDFExtractorTool and FileWriterTool.
+    **DATA QUALITY REQUIREMENTS:**
+    - Preserve decimal precision for all amounts
+    - Maintain original date formats 
+    - Keep all counterparty identifiers
+    - Extract complete payment schedules
+    - Capture all regulatory flags
+    - Retain settlement instruction details
     
-    **ASSET CLASS SPECIFIC EXTRACTION:**
-    - FX: Focus on currency pairs, fixing dates, settlement dates, NDF fixing sources
-    - Rates/Swaps: Day count conventions, payment frequencies, floating rate indices
-    - Equities: ISIN/CUSIP/SEDOL, corporate actions, dividend treatment
-    - Commodities: Delivery terms, quality specs, location differentials
-    - Credit: Reference entity, seniority, credit events, recovery rates
+    **TOOLS AVAILABLE:**
+    - PDFExtractorTool: Extract PDF content
+    - FileWriterTool: Save comprehensive JSON output
     
-    **FIELD VALIDATION RULES:**
-    - Dates: Ensure business day validity, logical sequence (trade < effective < maturity)
-    - Amounts: Check for obvious errors (e.g., notional = 0, negative premiums where inappropriate)
-    - Identifiers: Validate check digits for ISIN/CUSIP
-    - Counterparties: Match against known entity variations (e.g., "GS" = "Goldman Sachs International")
+    **CRITICAL:** Do NOT simplify or summarize data. Preserve rich details essential for trade matching.
     
-    **REQUIRED COMPREHENSIVE JSON STRUCTURE:**
-    Use the complete structured format returned by PDFExtractorTool including:
-    - All identification fields (tradeId, transactionReference, dealNumber, UTI, USI)
-    - Complete party information (partyA/partyB with legal names, short names, LEI, BIC codes)
-    - All date fields (tradeDate, effectiveDate, maturityDate, settlementDate, fixingDates)
-    - Economic terms (commodity, notionalQuantity, currency, price, fixedPrice, floatingRate)
-    - Financial terms (premium, spread, strikePrice, multiplier, upfront payment)
-    - Settlement instructions (SSI, account numbers, clearing info)
-    - Risk & operational fields (marginRequirements, governingLaw, master agreement)
-    - Metadata: documentSource, extractionConfidence, flaggedIssues
-    
-    **HANDLING AMBIGUOUS DATA:**
-    - If multiple values could be the trade ID, extract all as candidates
-    - For illegible/unclear fields, mark as "UNCLEAR_[fieldname]" with best guess
-    - Note any fields that appear inconsistent with asset class
-    - Flag if critical matching fields are missing
-    
-    Save the COMPLETE extracted JSON structure with validation flags and confidence scores.
-    
-    **CRITICAL FINAL STEP**: After extracting all data, you MUST use the FileWriterTool to write the JSON data to "./data/trade_data.json". 
-    Use this exact format: FileWriterTool with parameters {"filename": "./data/trade_data.json", "content": "<your_json_string>", "overwrite": true}
   expected_output: >
-    **REQUIREMENT: A file named 'trade_data.json' MUST be created in the ./data/ directory using FileWriterTool.**
-    
-    Your response should confirm:
-    1. "Successfully used FileWriterTool to create ./data/trade_data.json"
-    2. File contains extracted trade data including:
-       - Complete trade economics and terms
-       - Extraction confidence scores for each field
-       - List of any missing critical fields
-       - Warnings for suspicious or inconsistent values
-       - Counterparty identification and document type
-       - Summary of key fields for quick operational review
-    
-    **THE TASK IS ONLY COMPLETE WHEN YOU HAVE USED FileWriterTool AND THE FILE EXISTS ON DISK.**
+    Confirmation that trade_data.json has been created in ./data/ directory containing:
+    - Complete trade data with Trade_ID and ALL extracted fields
+    - Comprehensive counterparty details including LEI codes
+    - Full economic terms with decimal precision
+    - Complete payment schedules and settlement instructions
+    - All regulatory and compliance fields
+    - Message: "Successfully created ./data/trade_data.json with comprehensive trade data"
   agent: researcher
 
 reporting_task:
   description: >
-    Store trade JSON data into TinyDB (local NoSQL database) with validation, deduplication, and intelligent routing.
-    Document Path: {document_path}
+    **TASK FOCUS:** Store comprehensive trade data in TinyDB database with data integrity preservation.
     
-    **WORKFLOW:**
-    1. Use FileReadTool to read trade_data.json created by researcher
-    2. Parse JSON data and perform schema validation using your analytical skills
-    3. Check for duplicate trades using composite key (date + counterparty + product + notional) through analysis
-    4. Apply data enrichment (e.g., calculate settlement amounts, days to settlement) using your calculations
-    5. Create audit trail entry with timestamp and source document in your processing
-    6. Use TradeStorageTool with trade data and document path for routing
+    **STRICT WORKFLOW (NO DEVIATIONS):**
+    1. Use "Read a file's content" tool to read ./data/trade_data.json (read ONCE only)
+    2. Parse the JSON string into a dictionary
+    3. Use TradeStorageTool with the parsed trade data and file path "./data/COUNTERPARTY/GCS381315_V2.pdf"
     
-    **IMPORTANT**: Only use the actual tools available: FileReadTool and TradeStorageTool. Do not try to use workflow steps as tools.
+    **MANDATORY REQUIREMENTS:**
+    - Read the file ONCE, parse it, then use TradeStorageTool
+    - Preserve ALL data fields from the comprehensive JSON structure
+    - Do NOT read the file multiple times
+    - Do NOT look for a "status" field - the JSON contains trade data directly
+    - Do NOT use PDFExtractorTool or delegate tasks
+    - Do NOT provide database optimization advice
+    - Do NOT suggest system improvements
     
-    **VALIDATION BEFORE STORAGE:**
-    - Ensure minimum required fields are present based on asset class
-    - Validate data types and formats (dates as ISO, amounts as decimals)
-    - Check referential integrity if trade has multiple legs
-    - Verify LEI/BIC codes against reference data if available
-    - Flag trades missing critical matching fields for priority review
+    **ALLOWED TOOLS ONLY:**
+    - Read a file's content: Read the JSON file
+    - TradeStorageTool: Store data in TinyDB
     
     **ROUTING LOGIC:**
-    - File path contains "/BANK/" → bank_trade_data.db (TinyDB database)
-    - File path contains "/COUNTERPARTY/" → counterparty_trade_data.db (TinyDB database)
-    - File path contains "/BROKER/" → Route based on executing party field
-    - Unidentifiable source → quarantine_trade_data.db with manual review flag
+    Since the original path contains "/COUNTERPARTY/", store in counterparty_trade_data.db
     
-    **TINYDB OPTIMIZATION:**
-    - Document-based storage with JSON format
-    - Built-in indexing and query capabilities
-    - Query by: trade_id, trade_date, match_status, commodity, counterparty
-    - Automatic deduplication based on internal_reference
-    - Status tracking (unmatched/matched/exception) for workflow management
-    - Caching middleware for improved performance
+    **TASK BOUNDARY:** You are ONLY responsible for data storage. Do not provide suggestions 
+    about data architecture, system design, or operational improvements.
     
-    **DUPLICATE HANDLING:**
-    - If exact duplicate exists: Skip insertion, log as duplicate
-    - If same reference but different economics: Store with version number, flag for review
-    - If potential duplicate (fuzzy match): Store but flag as "POTENTIAL_DUPLICATE"
-    
-    **AUDIT TRAIL:**
-    - Record: timestamp, source file, extraction confidence, user/system ID
-    - Track any data transformations or enrichments applied
-    - Log validation failures or warnings
-    - Maintain change history if trade is updated
-    
-    **ERROR HANDLING:**
-    - Connection failures: Retry 3 times with exponential backoff
-    - Validation failures: Store in error queue with detailed reason
-    - Partial failures: Implement transaction rollback
-    - Alert on systematic issues (e.g., >10% failure rate)
   expected_output: >
-    Confirmation of successful TinyDB storage including:
-    - Trade ID and database table where stored
-    - Action taken (inserted/updated)
-    - Any validation warnings or flags
-    - Duplicate check results
-    - Query keys available for matching
-    - Audit trail confirmation
-    - Statistics (e.g., "Inserted 1 new trade, total records: 15")
-    - If errors: Detailed error report with remediation steps
+    Confirmation of successful storage containing ONLY:
+    - "Stored trade [Trade_ID] in counterparty_trade_data.db"
+    - "Action: inserted"
+    - Database record count
+    - NO additional commentary or suggestions
   agent: reporting_analyst
 
 matching_task:
   description: >
-    Check matching status and generate report for trades in TinyDB databases. Handle both real-time matches and pending confirmations.
+    **YOUR ONLY JOB: Generate a trade matching report comparing bank vs counterparty trade data.**
     
-    **WORKFLOW:**
-    1. Use TradeRetrievalTool to check all trades in bank_trade_data.db and counterparty_trade_data.db
-    2. Apply intelligent matching algorithms with asset-class specific rules
-    3. Perform multi-pass matching (exact → fuzzy → proximity)
-    4. Calculate match confidence scores and identify break types
-    5. Detect systematic patterns and recurring issues
-    6. Generate detailed matching report with actionable insights
-    7. Use FileWriterTool to save matching_report.json
-    8. Store matching results in matching_results.json file
-    9. Update source trade files with matching status
+    **STRICT TASK BOUNDARIES:**
+    You are ONLY allowed to perform trade matching analysis. Do NOT provide project management advice, 
+    suggestions about system improvements, or general business guidance. Stay 100% focused on trade matching.
     
-    **MULTI-PASS MATCHING STRATEGY:**
+    **MANDATORY WORKFLOW (FOLLOW EXACTLY):**
+    1. Use TradeRetrievalTool with {"source": "all", "filters": {}} to get all trades
+    2. Use MatchingStatusTool with {"generate_report": true} to check matching status  
+    3. Create ONLY a trade matching JSON report with the results
+    4. Use FileWriterTool to save report as ./data/matching_report.json
     
-    Pass 1 - EXACT MATCH:
-    - Match on unique identifiers (UTI, USI, transactionReference)
-    - 100% confidence score
+    **REQUIRED TOOLS (USE ONLY THESE):**
+    - TradeRetrievalTool: Get trades from database
+    - MatchingStatusTool: Check matching status
+    - FileWriterTool: Save the report
     
-    Pass 2 - HIGH CONFIDENCE MATCH:
-    - Match on: tradeDate + counterparty + product + notional + price
-    - Apply exact field matching
-    - 95% confidence score
+    **ABSOLUTE PROHIBITIONS:**
+    - NO project management advice or recommendations
+    - NO system architecture suggestions  
+    - NO general business guidance
+    - NO delegation to other agents
+    - NO use of tools not listed above
+    - NO deviation from the exact workflow above
     
-    Pass 3 - FUZZY MATCH:
-    - Primary Match Fields: tradeDate (±1 day) + counterparty + product type
-    - Apply tolerances:
-      * Price: 0.01% for liquid products, 0.1% for illiquid/structured
-      * Quantity: 0.001% for large notionals (>10MM), exact for small trades
-      * Dates: Consider timezone (T vs T+1 booking), holidays, system delays
-      * Counterparty: Handle variations (LEI match even if names differ)
-      * Currency: Check for conversion errors (e.g., GBP pence vs pounds)
-    - 75-90% confidence based on field matches
+    **RESPONSE FORMAT REQUIREMENT:**
+    Your response must ONLY contain trade matching analysis data. Any response containing 
+    project management advice will be considered a task failure.
     
-    Pass 4 - PROXIMITY MATCH:
-    - Identify potential matches requiring manual review
-    - Flag specific discrepancies
-    - 50-74% confidence score
-    
-    **BREAK CATEGORIZATION:**
-    - ECONOMIC_BREAK: Price, quantity, or notional differences beyond tolerance
-    - SETTLEMENT_BREAK: SSI, account, or payment instruction mismatches
-    - REFERENCE_BREAK: Different trade IDs but economics match
-    - BOOKING_BREAK: Same trade booked to different books/portfolios
-    - DATE_BREAK: Settlement, maturity, or fixing date discrepancies
-    - COUNTERPARTY_BREAK: Legal entity mismatches requiring static data update
-    - DUPLICATE: Multiple potential matches found
-    
-    **SYSTEMATIC ISSUE DETECTION:**
-    - Pattern Recognition:
-      * All trades from specific counterparty missing fields
-      * Consistent pricing differences with particular desks
-      * Recurring settlement instruction issues
-      * Time-based patterns (e.g., Asian trades always book date T+1)
-    - Calculate statistics by:
-      * Counterparty match rates
-      * Asset class match rates
-      * Booking system/source match rates
-      * Time-of-day patterns
-    
-    **STORE IN DYNAMODB MatchingResults TABLE:**
-    
-    Schema:
-    {
-      "matchId": "UUID",
-      "matchDate": "2024-01-15",
-      "matchTime": "2024-01-15T14:30:00Z",
-      "bankTradeId": "trade reference from bank",
-      "counterpartyTradeId": "trade reference from counterparty",
-      "matchStatus": "MATCHED|UNMATCHED|EXCEPTION|MATCHED_WITH_BREAKS",
-      "matchConfidence": 95.5,
-      "matchMethod": "EXACT|FUZZY|PROXIMITY",
-      "assetClass": "FX|RATES|EQUITY|CREDIT|COMMODITY",
-      "economicMatch": true/false,
-      "breaks": [
-        {
-          "breakType": "SETTLEMENT_BREAK",
-          "field": "settlementAccount",
-          "bankValue": "ACC123",
-          "counterpartyValue": "ACC456",
-          "impact": "HIGH",
-          "suggestedAction": "Update SSI in static data"
-        }
-      ],
-      "keyEconomics": {
-        "notional": 1000000,
-        "currency": "USD",
-        "tradeDate": "2024-01-15",
-        "counterparty": "GOLDMAN_SACHS"
-      },
-      "processingMetadata": {
-        "matchingDuration": "250ms",
-        "rulesApplied": ["FUZZY_PRICE", "ENTITY_MAPPING"],
-        "dataQualityScore": 0.92,
-        "manualReviewRequired": false,
-        "reviewPriority": "LOW|MEDIUM|HIGH|CRITICAL"
-      },
-      "systematicIssue": {
-        "detected": true/false,
-        "pattern": "All Goldman FX forwards missing fixing source",
-        "frequency": "15 trades in last 5 days",
-        "suggestedFix": "Update Goldman FTP feed mapping"
-      },
-      "auditTrail": {
-        "matchedBy": "matching_analyst_v2.1",
-        "matchedAt": "2024-01-15T14:30:00Z",
-        "sourceSystem": "AWS_RECONCILIATION",
-        "reportLocation": "./reports/2024-01-15/report_14:30.json"
-      }
-    }
-    
-    **LOCAL FILE OPTIMIZATION:**
-    - Primary Key: matchDate + matchId
-    - Indexing: matchDate + matchStatus (for status filtering)
-    - Search keys: bankTradeId (for trade lookup)
-    - Reverse lookup: counterpartyTradeId
-    - Exception management: matchStatus + matchTime
-    - Analytics: counterparty + matchDate
-    - Archive: 180 days for MATCHED, indefinite for EXCEPTIONS
-    
-    **UPDATE SOURCE FILES:**
-    - Update bank_trade_data.json with matchStatus and matchId
-    - Update counterparty_trade_data.json with matchStatus and matchId
-    - Create bi-directional links for easy navigation
-    
-    **PRIORITY SCORING FOR MANUAL REVIEW:**
-    CRITICAL: 
-    - Notional > $100MM with any break
-    - Settlement date = today with SSI break
-    - Regulatory reportable trades with discrepancies
-    
-    HIGH:
-    - Notional > $10MM with economic breaks
-    - T+1 settlement with any break
-    - New counterparty trades (first time matching)
-    
-    MEDIUM:
-    - Standard trades with settlement breaks
-    - Matched trades with non-economic discrepancies
-    
-    LOW:
-    - Small notional trades (<$1MM)
-    - Reference-only breaks with economic match
-    
-    **REPORT STRUCTURE:**
-    {
-      "executiveSummary": {
-        "reportTime": "2024-01-15T14:30:00Z",
-        "totalBankTrades": 1523,
-        "totalCounterpartyTrades": 1498,
-        "matchRate": "94.3%",
-        "criticalExceptions": 3,
-        "estimatedOperationalRisk": "$2.3MM"
-      },
-      "matchStatistics": {
-        "exactMatches": 1245,
-        "fuzzyMatches": 189,
-        "matchedWithBreaks": 67,
-        "unmatchedBank": 22,
-        "unmatchedCounterparty": 8,
-        "exceptions": 12
-      },
-      "byAssetClass": {
-        "FX": {"matchRate": "97%", "commonIssue": "Fixing dates"},
-        "RATES": {"matchRate": "91%", "commonIssue": "Day count conventions"}
-      },
-      "byCounterparty": {
-        "GOLDMAN": {"matchRate": "96%", "trades": 234},
-        "JPMORGAN": {"matchRate": "93%", "trades": 189}
-      },
-      "criticalExceptions": [...],
-      "systematicIssues": [
-        {
-          "pattern": "Deutsche Bank equity trades consistently missing ISIN",
-          "impact": "23 trades affected",
-          "recommendation": "Contact DB operations for feed fix"
-        }
-      ],
-      "operationalMetrics": {
-        "processingTime": "4.7 seconds",
-        "tradesPerSecond": 324,
-        "dataQualityScore": 0.89,
-        "estimatedTimeSaved": "6.5 hours vs manual"
-      },
-      "recommendations": [
-        "1. Prioritize 3 critical breaks for immediate resolution",
-        "2. Schedule call with Deutsche Bank re: systematic ISIN issue",
-        "3. Update Goldman SSI mapping for new legal entity"
-      ]
-    }
   expected_output: >
-    Comprehensive matching analysis including:
-    - Detailed matching report JSON with executive summary and drill-down details
-    - All matching results stored in matching_results.json file
-    - Source trade files updated with matching status and references
-    - Prioritized exception list for operations team
-    - Systematic issues identified with remediation recommendations
-    - Match statistics by multiple dimensions (counterparty, asset class, time)
-    - Audit trail for regulatory compliance
-    - Performance metrics and time saved vs manual processing
-    - Clear next actions for operations team ordered by priority
+    A JSON file saved at ./data/matching_report.json containing ONLY trade matching data:
+    - Total trades from bank database
+    - Total trades from counterparty database  
+    - List of matched trades with IDs
+    - List of unmatched trades
+    - Match rate percentage
+    - Message: "Matching report saved to ./data/matching_report.json"
+    
+    **CRITICAL:** No project management advice, system recommendations, or general guidance allowed.
   agent: matching_analyst
