@@ -15,7 +15,7 @@ An intelligent, production-ready system that automatically processes derivative 
 
 ## ✨ Key Features
 
-- **📄 AI-Powered PDF Extraction** - Uses GPT-4 Vision to extract trade data from any format
+- **📄 AI-Powered PDF Extraction** - Uses AWS Nova model to extract trade data from any format
 - **🤖 Multi-Agent Architecture** - Specialized AI agents for extraction, storage, and matching
 - **⚡ Real-time Matching** - Automatic matching when confirmations arrive asynchronously
 - **💾 Local-First** - TinyDB for storage, no cloud dependencies required
@@ -29,7 +29,7 @@ An intelligent, production-ready system that automatically processes derivative 
 
 - Python 3.12 or higher
 - Poppler (for PDF processing)
-- OpenAI API key (for GPT-4 Vision)
+- AWS credentials (for Nova model)
 
 ### Installation
 
@@ -54,7 +54,7 @@ pip install -r requirements.txt
 
 # 5. Configure environment
 cp .env.example .env
-# Edit .env and add your OpenAI API key
+# Edit .env and add your AWS credentials
 
 # 6. Run setup to create sample data
 python setup.py
@@ -140,13 +140,13 @@ python test_matching.py
 
 ### Environment Variables (.env)
 ```bash
-# Required
-OPENAI_API_KEY=sk-...your-key-here
-
-# Optional AWS (for Bedrock LLMs)
+# Required AWS (for Nova model)
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_DEFAULT_REGION=us-east-1
+
+# Optional OpenAI
+OPENAI_API_KEY=sk-...your-key-here
 
 # Optional Anthropic
 ANTHROPIC_API_KEY=...
@@ -255,7 +255,7 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 ## 🙏 Acknowledgments
 
 - [CrewAI](https://www.crewai.com/) - Multi-agent framework
-- [OpenAI](https://openai.com/) - GPT-4 Vision API
+- [AWS Bedrock](https://aws.amazon.com/bedrock/) - Nova model API
 - [TinyDB](https://tinydb.readthedocs.io/) - Lightweight database
 - [pdf2image](https://github.com/Belval/pdf2image) - PDF processing
 
