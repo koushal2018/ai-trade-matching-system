@@ -1,11 +1,22 @@
+import sys
+import warnings
+
+from datetime import datetime
+
+from latest_trade_matching_agent.crew_fixed import LatestTradeMatchingAgent
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 from mcp import StdioServerParameters
 from crewai_tools import MCPServerAdapter
-from latest_trade_matching_agent.crew import LatestTradeMatchingAgent
+
+
 
 def run():
     # Define your inputs
     inputs = {
-        'document_path': './data/COUNTERPARTY/GCS381315_V1.pdf'
+        'document_path': 's3://fab-otc-reconciliation-deployment/COUNTERPARTY/GCS381315_V1.pdf',
+        'unique_identifier': 'FAB_26933659_AD'
     }
     
     # Set up DynamoDB MCP server parameters
@@ -15,7 +26,7 @@ def run():
         env={
             "DDB-MCP-READONLY": "false",  # Set to false if you need write access
             "AWS_PROFILE": "default",
-            "AWS_REGION": "us-west-2",
+            "AWS_REGION": "us-east-1",
             "FASTMCP_LOG_LEVEL": "ERROR"
         }
     )

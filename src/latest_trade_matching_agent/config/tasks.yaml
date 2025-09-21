@@ -53,7 +53,7 @@ trade_entity_extractor_task:
 
 reporting_task:
   description: >
-    **TASK FOCUS:** Store comprehensive trade data in TinyDB database with data integrity preservation.
+    **TASK FOCUS:** Store comprehensive trade data in DynamoDB database with data integrity preservation.
     
     **STRICT WORKFLOW (NO DEVIATIONS):**
     1. Use "List files in directory" tool to check .data/ folder for JSON files
@@ -69,8 +69,8 @@ reporting_task:
     **MANDATORY REQUIREMENTS:**
     - Read the file ONLY ONCE after identifying it
     - Determine database based on content:
-      - Use TinyDB to store data in ./storage/counterparty_trade_data.db if the file contains counterparty trade data
-      - Use TinyDB to store data in ./storage/bank_trade_data.db if the file contains bank trade data
+      - Use DynamoDB to store data in CounterpartyTradeDate if the file contains counterparty trade data
+      - Use DynamoDB to store data in BankTradeData if the file contains bank trade data
     - Use Trade_ID as the primary key for storage
     - If Trade_ID exists, update the record; if not, insert a new record
     - Ensure idempotent operations to prevent duplicates
@@ -102,10 +102,10 @@ matching_task:
   description: >
     **CRITICAL TRADE MATCHING TASK - APPLY YOUR 20+ YEARS OF EXPERTISE**
     
-    You need to match trades between bank_trade_data.db (./storage/bank_trade_data.db) and 
-    counterparty_trade_data.db (./storage/counterparty_trade_data.db). If the databases do not exist or are empty,
-    return an error message indicating the issue or ask the previous agent to populate them. If they exist, proceed with the matching.
+    You need to match trades stored in DynamoDB Tables BankTradeData and CounterpartyTradeDate
+     If the tables do not exist or are empty,return an error message indicating the issue or ask the previous agent to populate them. If they exist, proceed with the matching.
     if they are incorrectly updated i.e bank trade data in counterparty db or vice versa, identify and flag this as a critical error to your co-workers and ask them fix it and send it back to you
+    
     
     **USE YOUR VETERAN EXPERTISE TO:**
     
@@ -173,7 +173,7 @@ matching_task:
        - Recommended actions based on your experience
     
     3. **DETAILED ANALYSIS REPORT:**
-       Save to ./data/{unique_identifier}_matching_report.md:
+       Save to ./data/{unique_identifier}_matching_report.md and also update the DynamoDB table TradeMatches with:
        - Matched trades with any caveats or conditions
        - Breaks analysis with root cause identification
        - Pattern recognition (are breaks systematic or random?)
@@ -193,7 +193,7 @@ matching_task:
     processing millions of trades. A report that operations managers can trust because it 
     reflects real-world matching, not naive algorithmic comparison.
     
-    Message: "Matching report saved to ./data/{unique_identifier}_matching_report.md - 
+    Message: "Matching report saved to ./data/{unique_identifier}_matching_report.md in the s3 bucket as well- 
     Match rate: [X%] (within expected range based on counterparty and data quality)"
     
   agent: matching_analyst
