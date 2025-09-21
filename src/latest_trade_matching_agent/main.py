@@ -15,8 +15,8 @@ from crewai_tools import MCPServerAdapter
 def run():
     # Define your inputs
     inputs = {
-        'document_path': 's3://fab-otc-reconciliation-deployment/BANK/FAB_27254314.pdf',
-        'unique_identifier': 'FAB_27254314'
+        'document_path': './data/COUNTERPARTY/GCS382857_V1.pdf',
+        'unique_identifier': 'GCS382857',
     }
     
     # Set up DynamoDB MCP server parameters

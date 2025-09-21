@@ -3,10 +3,13 @@ from crewai.project import CrewBase, agent, crew, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from typing import List, Optional
 from .tools import PDFToImageTool
-from crewai_tools import S3ReaderTool, S3WriterTool, OCRTool, DirectoryReadTool
+from crewai_tools import OCRTool, DirectoryReadTool,FileReadTool,FileWriterTool
 import os
 from dotenv import load_dotenv
 import logging
+import openlit
+
+openlit.init()
 
 load_dotenv()
 
@@ -18,13 +21,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 llm = LLM(
-    model="bedrock/us.anthropic.claude-sonnet-4-20250514-v1:0"
+    model="bedrock/global.anthropic.claude-sonnet-4-20250514-v1:0"
 )
 
 # Initialize standard tools
 pdf_tool = PDFToImageTool()
-file_reader = S3ReaderTool()
-file_writer = S3WriterTool()
+file_reader = FileReadTool()
+file_writer = FileWriterTool()
 ocr_tool = OCRTool(llm)
 directory_read_tool = DirectoryReadTool()  # Add this if needed
 
@@ -144,7 +147,7 @@ class LatestTradeMatchingAgent:
             agents=self.agents,
             tasks=self.tasks,
             process=Process.sequential,
-            memory=True,
+            memory=False,
             verbose=True,
             max_rpm=3,
             share_crew=False

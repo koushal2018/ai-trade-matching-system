@@ -1,3 +1,8 @@
+# Environment files
+.env
+.env.local
+.env.production
+
 # Python
 __pycache__/
 *.py[cod]
@@ -19,52 +24,49 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
-# Virtual Environment
+# Virtual environments
 .venv/
 venv/
 ENV/
 env/
-
-# Environment Variables
-.env
-.env.local
-
-# Database files
-storage/*.db
-*.db
-
-# Logs
-*.log
-logs/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+
+# Generated files
+pdf_images/
+storage/*.db
+logs/
+data/*.json
+data/*.md
+data/temp/
+
+# AWS
+.aws/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Temporary files
-tmp/
-temp/
-*.tmp
+# CrewAI
+.crewai/
 
-# Development artifacts
-pdf_images/
-db/
-reports/
-*.lock
-.claude/
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
 
-# Data files (generated during testing)
-data/*.json
-data/*.db
-data/BANK/*.json
-data/COUNTERPARTY/*.json
-
-# Release artifacts (keep releases/ for version management)
-# releases/
+# Documentation builds
+docs/_build/
