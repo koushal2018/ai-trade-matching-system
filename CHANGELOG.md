@@ -1,4 +1,4 @@
-# Changelog
+x   # Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -15,6 +15,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - [Add your bug fixes here]
+
+## [0.1.0] - 2024-12-12
+
+### Added
+- Enhanced PDF-to-image conversion pipeline
+- Improved OCR accuracy with AWS Nova model
+- Comprehensive matching report generation
+- Better error handling and logging
+- Rate limiting and execution timeouts
+
+### Changed
+- Migrated from ChromaDB to TinyDB for better reliability
+- Streamlined agent configuration
+- Improved storage architecture
+- Enhanced matching algorithms
+
+### Fixed
+- PDF processing reliability issues
+- Agent coordination improvements
+- Storage consistency problems
+- Memory usage optimization
+
+## [0.1.0-alpha.2] - 2024-12-10
+
+### Added
+- Advanced PDF processing capabilities
+- Enhanced storage system
+- Improved agent workflows
 
 ## [0.1.0-alpha.1] - 2025-09-20
 
