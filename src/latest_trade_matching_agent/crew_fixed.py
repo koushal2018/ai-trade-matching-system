@@ -19,14 +19,14 @@ logger = logging.getLogger(__name__)
 
 
 llm = LLM(
-    model="bedrock/amazon.nova-pro-v1:0"
+    model="bedrock/us.anthropic.claude-sonnet-4-20250514-v1:0"
 )
 # Initialize tools
 pdf_tool = PDFToImageTool()
 file_reader = FileReadTool()
 file_writer = FileWriterTool()
-ocr_tool = OCRTool(llm)
 directory_read_tool = DirectoryReadTool()
+ocr_tool = OCRTool(llm)
 
 
 @CrewBase
@@ -42,22 +42,22 @@ class LatestTradeMatchingAgent:
             llm=llm,
             tools=[pdf_tool, file_writer],
             verbose=True,
-            max_rpm=2,  # Reduce requests per minute to avoid rate limits
-            max_iter=3,  # Limit iterations to prevent long loops
+            max_rpm=2,
+            max_iter=3,
             max_execution_time=180,
-            multimodal=True  # 3 minute timeout
+            multimodal=True
         )
     @agent
-    def researcher(self) -> Agent:
+    def trade_entity_extractor(self) -> Agent:
         return Agent(
-            config=self.agents_config['researcher'],
+            config=self.agents_config['trade_entity_extractor'],
             llm=llm,
-            tools=[ocr_tool, file_writer, file_reader, directory_read_tool],
+            tools=[ocr_tool, file_writer, file_reader,directory_read_tool],
             verbose=True,
             max_rpm=2,
-            max_iter=10,  # Limit iterations
-            max_execution_time=600,
-            multimodal=True # 10 minute timeout
+            max_iter=5,
+            max_execution_time=300,
+            multimodal=True
         )
 
 
@@ -66,11 +66,11 @@ class LatestTradeMatchingAgent:
         return Agent(
             config=self.agents_config['reporting_analyst'],
             llm=llm,
-            tools=[file_reader, file_writer],
+            tools=[file_reader, file_writer,directory_read_tool],
             verbose=True,
             max_rpm=2,
-            max_iter=10,
-            max_execution_time=600,
+            max_iter=5,
+            max_execution_time=300,
             multimodal=True
         )
 
@@ -79,12 +79,12 @@ class LatestTradeMatchingAgent:
         return Agent(
             config=self.agents_config['matching_analyst'],
             llm=llm,
-            tools=[file_reader, file_writer],
+            tools=[file_reader, file_writer,directory_read_tool],
             verbose=True,
             max_rpm=2,
-            max_iter=15,  # More iterations for complex matching
-            max_execution_time=900,
-            multimodal=True  # 15 minute timeout
+            max_iter=8,
+            max_execution_time=600,
+            multimodal=True
         )
 
     @task
@@ -96,7 +96,7 @@ class LatestTradeMatchingAgent:
     @task
     def research_task(self) -> Task:
         return Task(
-            config=self.tasks_config['research_task']
+            config=self.tasks_config['trade_entity_extractor_task'],
         )
 
     @task

@@ -18,7 +18,7 @@ def run():
     """
     Run the crew.
     """
-    document_path = './data/BANK/FAB_26933659.pdf'
+    document_path = './data/COUNTERPARTY/GCS381315_V1.pdf'
     unique_identifier = Path(document_path).stem + '_'
     
     inputs = {

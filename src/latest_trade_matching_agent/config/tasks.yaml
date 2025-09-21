@@ -7,14 +7,15 @@ document_processing_task:
   agent: document_processor
 
 
-research_task:
+trade_entity_extractor_task:
   description: >
-    **CRITICAL DATA PRESERVATION:** Extract comprehensive trade data from the Images maintaining ALL critical details for accurate matching.
+    **CRITICAL DATA PRESERVATION:** Extract comprehensive trade data from converted images maintaining ALL critical details for accurate matching.
     Document Path: {document_path}
     
     **MANDATORY WORKFLOW:**
     
-    1. Extract and preserve ALL the following critical fields (DO NOT SIMPLIFY):
+    1. Find and use OCR Tool on the image files created by the previous agent in ./pdf_images/ folder
+    2. Extract and preserve ALL the following critical fields (DO NOT SIMPLIFY):
        - Trade_ID/Reference Number/Deal ID
        - Counterparty details (name, LEI code, address, contact info)
        - Trade Date, Settlement Date, Maturity Date
@@ -27,7 +28,7 @@ research_task:
        - Risk and margin information
        - Any additional custom fields specific to the trade type
     3. Structure as comprehensive JSON preserving granular detail
-    4. Use FileWriterTool to save complete JSON to ./data/trade_data.json
+    4. Use FileWriterTool to save complete JSON to ./data/trade_data_{unique_identifier}.json
     
     **DATA QUALITY REQUIREMENTS:**
     - Preserve decimal precision for all amounts
@@ -37,34 +38,41 @@ research_task:
     - Capture all regulatory flags
     - Retain settlement instruction details
     
-   
     **CRITICAL:** Do NOT simplify or summarize data. Preserve rich details essential for trade matching.
     
   expected_output: >
-    Confirmation that trade_data.json has been created in ./data/ directory containing:
+    Confirmation that json has been created in ./data/ directory containing:
     - name the file with a unique_identifier so the earlier ones dont get overwritten.
     - Complete trade data with Trade_ID and ALL extracted fields
     - Comprehensive counterparty details including LEI codes
     - Full economic terms with decimal precision
     - Complete payment schedules and settlement instructions
     - All regulatory and compliance fields
-    - Message: "Successfully created ./data/trade_data.json with comprehensive trade data"
-  agent: researcher
+   
+  agent: trade_entity_extractor
 
 reporting_task:
   description: >
     **TASK FOCUS:** Store comprehensive trade data in TinyDB database with data integrity preservation.
     
     **STRICT WORKFLOW (NO DEVIATIONS):**
-    1. Use "Read a file's content" tool to read ./data/trade_data.json (read ONCE only)
+    1. Use "Read a file's content" tool to read json file saved in .data/ folder (read ONCE only)
     2. Parse the JSON string into a dictionary
-    3. Use TradeStorageTool to store the parsed data into TinyDB database
-       - If the file path contains "/COUNTERPARTY/", use counterparty_trade_data.db
-       - If the file path contains "/BANK/", use bank_trade_data.db
-   
+    
     
     **MANDATORY REQUIREMENTS:**
-    - Read the file ONCE, parse it, then use TradeStorageTool
+    - Read the file ONLY ONCE
+      - Use TinyDB to store data in ./storage/counterparty_trade_data.db if the file contains counterparty trade data
+      - Use TinyDB to store data in ./storage/bank_trade_data.db if the file contains bank trade data
+    - Use Trade_ID as the primary key for storage
+    - If Trade_ID exists, update the record; if not, insert a new record
+    - Ensure idempotent operations to prevent duplicates
+    - Maintain data integrity and accuracy during storage
+    - Optimize for efficient retrieval during trade matching
+    - Ensure database schema supports multi-asset class trades
+    - Implement error handling for read/write operations
+    - Log each storage action with timestamp and action type (insert/update)
+      - Confirm successful storage with a concise message
     - Preserve ALL data fields from the comprehensive JSON structure
     - Do NOT read the file multiple times
     - Do NOT look for a "status" field - the JSON contains trade data directly
@@ -72,7 +80,6 @@ reporting_task:
     - Do NOT provide database optimization advice
     - Do NOT suggest system improvements
    
-
 
     **TASK BOUNDARY:** You are ONLY responsible for data storage. Do not provide suggestions 
     about data architecture, system design, or operational improvements.
@@ -90,7 +97,9 @@ matching_task:
     **CRITICAL TRADE MATCHING TASK - APPLY YOUR 20+ YEARS OF EXPERTISE**
     
     You need to match trades between bank_trade_data.db (./storage/bank_trade_data.db) and 
-    counterparty_trade_data.db (./storage/counterparty_trade_data.db).
+    counterparty_trade_data.db (./storage/counterparty_trade_data.db). If the databases do not exist or are empty,
+    return an error message indicating the issue or ask the previous agent to populate them. If they exist, proceed with the matching.
+    if they are incorrectly updated i.e bank trade data in counterparty db or vice versa, identify and flag this as a critical error to your co-workers and ask them fix it and send it back to you
     
     **USE YOUR VETERAN EXPERTISE TO:**
     

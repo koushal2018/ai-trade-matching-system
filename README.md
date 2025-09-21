@@ -53,11 +53,16 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 # 4. Install Python dependencies
 pip install -r requirements.txt
 
-# 5. Configure environment
+# 5. Run setup script (creates directories and databases)
+python setup.py
+
+# 6. Configure environment
 cp .env.example .env
 # Edit .env and add your AWS credentials
 
-# 6. Run the system!
+# 7. Add your PDF files to data/BANK/ and data/COUNTERPARTY/
+
+# 8. Run the system!
 python -m src.latest_trade_matching_agent.main
 
 # Or using CrewAI CLI
