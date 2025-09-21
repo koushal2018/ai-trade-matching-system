@@ -56,7 +56,7 @@ class LatestTradeMatchingAgent:
             verbose=True,
             max_rpm=2,
             max_iter=5,
-            max_execution_time=300,
+            max_execution_time=600,
             multimodal=True
         )
 

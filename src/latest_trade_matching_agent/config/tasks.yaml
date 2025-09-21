@@ -56,12 +56,19 @@ reporting_task:
     **TASK FOCUS:** Store comprehensive trade data in TinyDB database with data integrity preservation.
     
     **STRICT WORKFLOW (NO DEVIATIONS):**
-    1. Use "Read a file's content" tool to read json file saved in .data/ folder (read ONCE only)
-    2. Parse the JSON string into a dictionary
+    1. Use "List files in directory" tool to check .data/ folder for JSON files
+    2. Use "Read a file's content" tool to read the FIRST JSON file found in .data/ folder (read ONCE only)
+    3. Parse the JSON string into a dictionary
     
+    **FILE LOCATION LOGIC:**
+    - Look for ANY .json file in the .data/ directory
+    - If multiple JSON files exist, prioritize files containing "trade" or "counterparty" in the name
+    - If no matching pattern, use the first JSON file found
+    - The actual filename may vary (e.g., trade_data.json, counterparty_trades.json, extracted_data.json)
     
     **MANDATORY REQUIREMENTS:**
-    - Read the file ONLY ONCE
+    - Read the file ONLY ONCE after identifying it
+    - Determine database based on content:
       - Use TinyDB to store data in ./storage/counterparty_trade_data.db if the file contains counterparty trade data
       - Use TinyDB to store data in ./storage/bank_trade_data.db if the file contains bank trade data
     - Use Trade_ID as the primary key for storage
@@ -72,7 +79,7 @@ reporting_task:
     - Ensure database schema supports multi-asset class trades
     - Implement error handling for read/write operations
     - Log each storage action with timestamp and action type (insert/update)
-      - Confirm successful storage with a concise message
+    - Confirm successful storage with a concise message
     - Preserve ALL data fields from the comprehensive JSON structure
     - Do NOT read the file multiple times
     - Do NOT look for a "status" field - the JSON contains trade data directly
@@ -80,18 +87,17 @@ reporting_task:
     - Do NOT provide database optimization advice
     - Do NOT suggest system improvements
    
-
     **TASK BOUNDARY:** You are ONLY responsible for data storage. Do not provide suggestions 
     about data architecture, system design, or operational improvements.
     
   expected_output: >
     Confirmation of successful storage containing ONLY:
-    - "Stored trade [Trade_ID] in counterparty_trade_data.db"
-    - "Action: inserted"
+    - "Stored trade [Trade_ID] in [database_name]"
+    - "Action: [inserted/updated]"
     - Database record count
     - NO additional commentary or suggestions
   agent: reporting_analyst
-
+  
 matching_task:
   description: >
     **CRITICAL TRADE MATCHING TASK - APPLY YOUR 20+ YEARS OF EXPERTISE**
