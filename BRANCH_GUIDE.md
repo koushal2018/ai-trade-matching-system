@@ -56,3 +56,42 @@ All branches share:
 - Agent orchestration logic
 - Knowledge base integration
 - Action group definitions
+
+## Quick Reference
+
+### Switch Branches
+```bash
+# Use the helper script
+bash switch-branch.sh aws        # → aws-native
+bash switch-branch.sh ml         # → sagemaker
+bash switch-branch.sh agents     # → aws-agentcore
+bash switch-branch.sh main       # → main
+bash switch-branch.sh list       # → show all branches
+
+# Or use git directly
+git checkout aws-native
+git checkout sagemaker
+git checkout aws-agentcore
+```
+
+### Share Changes Between Branches
+```bash
+# Fix bug in main, apply to other branches
+git checkout main
+# make fix
+git commit -m "Fix trade matching bug"
+
+# Apply to other branches
+git checkout aws-native
+git cherry-pick <commit-hash>
+
+git checkout sagemaker
+git cherry-pick <commit-hash>
+```
+
+### Development Workflow
+1. Work on feature in appropriate branch
+2. Test thoroughly
+3. Commit changes
+4. Cherry-pick shared improvements to other branches
+5. Push all updated branches
