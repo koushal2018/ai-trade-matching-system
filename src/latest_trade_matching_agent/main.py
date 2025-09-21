@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import sys
 import warnings
+from pathlib import Path
 
 from datetime import datetime
 
@@ -17,8 +18,12 @@ def run():
     """
     Run the crew.
     """
+    document_path = './data/COUNTERPARTY/GCS381315_V1.pdf'
+    unique_identifier = Path(document_path).stem + '_'
+    
     inputs = {
-        'document_path': './data/COUNTERPARTY/GCS381315_V1.pdf'
+        'document_path': document_path,
+        'unique_identifier': unique_identifier
     }
     
     try:

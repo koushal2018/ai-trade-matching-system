@@ -53,5 +53,18 @@ tmp/
 temp/
 *.tmp
 
+# Development artifacts
+pdf_images/
+db/
+reports/
+*.lock
+.claude/
+
+# Data files (generated during testing)
+data/*.json
+data/*.db
+data/BANK/*.json
+data/COUNTERPARTY/*.json
+
 # Release artifacts (keep releases/ for version management)
 # releases/

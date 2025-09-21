@@ -1,10 +1,20 @@
-research_task:
+
+document_processing_task:
   description: >
-    **CRITICAL DATA PRESERVATION:** Extract comprehensive trade data from PDF maintaining ALL critical details for accurate matching.
+    Convert the PDF document at {document_path} to high-quality images. Create a unique folder in ./pdf_images/ and save all images there.
+  expected_output: >
+    Each page converted into high-resolution JPEG images saved in a unique folder. Provide the folder path containing the images.
+  agent: document_processor
+
+
+trade_entity_extractor_task:
+  description: >
+    **CRITICAL DATA PRESERVATION:** Extract comprehensive trade data from converted images maintaining ALL critical details for accurate matching.
     Document Path: {document_path}
     
     **MANDATORY WORKFLOW:**
-    1. Use PDFExtractorTool to extract text from {document_path}
+    
+    1. Find and use OCR Tool on the image files created by the previous agent in ./pdf_images/ folder
     2. Extract and preserve ALL the following critical fields (DO NOT SIMPLIFY):
        - Trade_ID/Reference Number/Deal ID
        - Counterparty details (name, LEI code, address, contact info)
@@ -18,7 +28,7 @@ research_task:
        - Risk and margin information
        - Any additional custom fields specific to the trade type
     3. Structure as comprehensive JSON preserving granular detail
-    4. Use FileWriterTool to save complete JSON to ./data/trade_data.json
+    4. Use FileWriterTool to save complete JSON to ./data/trade_data_{unique_identifier}.json
     
     **DATA QUALITY REQUIREMENTS:**
     - Preserve decimal precision for all amounts
@@ -28,97 +38,162 @@ research_task:
     - Capture all regulatory flags
     - Retain settlement instruction details
     
-    **TOOLS AVAILABLE:**
-    - PDFExtractorTool: Extract PDF content
-    - FileWriterTool: Save comprehensive JSON output
-    
     **CRITICAL:** Do NOT simplify or summarize data. Preserve rich details essential for trade matching.
     
   expected_output: >
-    Confirmation that trade_data.json has been created in ./data/ directory containing:
+    Confirmation that json has been created in ./data/ directory containing:
+    - name the file with a unique_identifier so the earlier ones dont get overwritten.
     - Complete trade data with Trade_ID and ALL extracted fields
     - Comprehensive counterparty details including LEI codes
     - Full economic terms with decimal precision
     - Complete payment schedules and settlement instructions
     - All regulatory and compliance fields
-    - Message: "Successfully created ./data/trade_data.json with comprehensive trade data"
-  agent: researcher
+   
+  agent: trade_entity_extractor
 
 reporting_task:
   description: >
     **TASK FOCUS:** Store comprehensive trade data in TinyDB database with data integrity preservation.
     
     **STRICT WORKFLOW (NO DEVIATIONS):**
-    1. Use "Read a file's content" tool to read ./data/trade_data.json (read ONCE only)
-    2. Parse the JSON string into a dictionary
-    3. Use TradeStorageTool with the parsed trade data and file path "./data/COUNTERPARTY/GCS381315_V2.pdf"
+    1. Use "List files in directory" tool to check .data/ folder for JSON files
+    2. Use "Read a file's content" tool to read the FIRST JSON file found in .data/ folder (read ONCE only)
+    3. Parse the JSON string into a dictionary
+    
+    **FILE LOCATION LOGIC:**
+    - Look for ANY .json file in the .data/ directory
+    - If multiple JSON files exist, prioritize files containing "trade" or "counterparty" in the name
+    - If no matching pattern, use the first JSON file found
+    - The actual filename may vary (e.g., trade_data.json, counterparty_trades.json, extracted_data.json)
     
     **MANDATORY REQUIREMENTS:**
-    - Read the file ONCE, parse it, then use TradeStorageTool
+    - Read the file ONLY ONCE after identifying it
+    - Determine database based on content:
+      - Use TinyDB to store data in ./storage/counterparty_trade_data.db if the file contains counterparty trade data
+      - Use TinyDB to store data in ./storage/bank_trade_data.db if the file contains bank trade data
+    - Use Trade_ID as the primary key for storage
+    - If Trade_ID exists, update the record; if not, insert a new record
+    - Ensure idempotent operations to prevent duplicates
+    - Maintain data integrity and accuracy during storage
+    - Optimize for efficient retrieval during trade matching
+    - Ensure database schema supports multi-asset class trades
+    - Implement error handling for read/write operations
+    - Log each storage action with timestamp and action type (insert/update)
+    - Confirm successful storage with a concise message
     - Preserve ALL data fields from the comprehensive JSON structure
     - Do NOT read the file multiple times
     - Do NOT look for a "status" field - the JSON contains trade data directly
     - Do NOT use PDFExtractorTool or delegate tasks
     - Do NOT provide database optimization advice
     - Do NOT suggest system improvements
-    
-    **ALLOWED TOOLS ONLY:**
-    - Read a file's content: Read the JSON file
-    - TradeStorageTool: Store data in TinyDB
-    
-    **ROUTING LOGIC:**
-    Since the original path contains "/COUNTERPARTY/", store in counterparty_trade_data.db
-    
+   
     **TASK BOUNDARY:** You are ONLY responsible for data storage. Do not provide suggestions 
     about data architecture, system design, or operational improvements.
     
   expected_output: >
     Confirmation of successful storage containing ONLY:
-    - "Stored trade [Trade_ID] in counterparty_trade_data.db"
-    - "Action: inserted"
+    - "Stored trade [Trade_ID] in [database_name]"
+    - "Action: [inserted/updated]"
     - Database record count
     - NO additional commentary or suggestions
   agent: reporting_analyst
-
+  
 matching_task:
   description: >
-    **YOUR ONLY JOB: Generate a trade matching report comparing bank vs counterparty trade data.**
+    **CRITICAL TRADE MATCHING TASK - APPLY YOUR 20+ YEARS OF EXPERTISE**
     
-    **STRICT TASK BOUNDARIES:**
-    You are ONLY allowed to perform trade matching analysis. Do NOT provide project management advice, 
-    suggestions about system improvements, or general business guidance. Stay 100% focused on trade matching.
+    You need to match trades between bank_trade_data.db (./storage/bank_trade_data.db) and 
+    counterparty_trade_data.db (./storage/counterparty_trade_data.db). If the databases do not exist or are empty,
+    return an error message indicating the issue or ask the previous agent to populate them. If they exist, proceed with the matching.
+    if they are incorrectly updated i.e bank trade data in counterparty db or vice versa, identify and flag this as a critical error to your co-workers and ask them fix it and send it back to you
     
-    **MANDATORY WORKFLOW (FOLLOW EXACTLY):**
-    1. Use TradeRetrievalTool with {"source": "all", "filters": {}} to get all trades
-    2. Use MatchingStatusTool with {"generate_report": true} to check matching status  
-    3. Create ONLY a trade matching JSON report with the results
-    4. Use FileWriterTool to save report as ./data/matching_report.json
+    **USE YOUR VETERAN EXPERTISE TO:**
     
-    **REQUIRED TOOLS (USE ONLY THESE):**
-    - TradeRetrievalTool: Get trades from database
-    - MatchingStatusTool: Check matching status
-    - FileWriterTool: Save the report
+    1. **ANALYZE DATA STRUCTURES:**
+       - Examine both databases to understand their schemas and field naming conventions
+       - Identify which fields map between systems (e.g., "Trade ID" vs "Reference Number")
+       - Recognize counterparty-specific formatting patterns you've seen in your 20 years
+       - Document any data quality issues or missing critical fields
     
-    **ABSOLUTE PROHIBITIONS:**
-    - NO project management advice or recommendations
-    - NO system architecture suggestions  
-    - NO general business guidance
-    - NO delegation to other agents
-    - NO use of tools not listed above
-    - NO deviation from the exact workflow above
+    2. **APPLY PROFESSIONAL MATCHING LOGIC:**
+       - Use your knowledge of what constitutes a match vs a break in real trading operations
+       - Apply appropriate tolerances based on asset class and field type (you know when 0.01 matters)
+       - Recognize rounding differences vs real discrepancies
+       - Identify systematic booking problems vs one-off errors
+       - Consider T+1 settlement requirements and their impact on matching urgency
     
-    **RESPONSE FORMAT REQUIREMENT:**
-    Your response must ONLY contain trade matching analysis data. Any response containing 
-    project management advice will be considered a task failure.
+    3. **PERFORM INTELLIGENT MATCHING:**
+       - Match trades using your understanding of critical vs non-critical fields
+       - Apply ISDA standards and regional market conventions as appropriate
+       - Recognize when seeming differences are actually identical (format variations)
+       - Flag true exceptions that need escalation vs false positives
+       - Handle each asset class with its specific matching requirements
+    
+    4. **VALIDATE WITH PROFESSIONAL SKEPTICISM:**
+       - A 100% match rate is a RED FLAG - real-world matching NEVER achieves this
+       - Question any matching logic that produces unrealistic results
+       - Apply the "smell test" - does this match make business sense?
+       - Consider counterparty relationships and their typical error patterns
+    
+    5. **CLASSIFY MATCHES PROFESSIONALLY:**
+       Based on your experience, categorize each trade comparison as:
+       - MATCHED: All critical fields align within acceptable tolerances
+       - PROBABLE MATCH: Minor discrepancies that your experience suggests are not breaks
+       - REVIEW REQUIRED: Discrepancies that need human investigation
+       - BREAK: Clear mismatch requiring immediate attention
+       - DUPLICATE/ERROR: Systematic issues requiring escalation
+    
+    6. **APPLY CONTEXT AND NUANCE:**
+       - Use your knowledge of how Goldman vs JPMorgan vs other counterparties book trades
+       - Recognize exotic derivative component matching requirements
+       - Understand when to apply strict matching vs intelligent tolerance
+       - Identify patterns that indicate upstream system issues
+    
+    **CRITICAL REQUIREMENTS:**
+    - DO NOT blindly match everything - this would be malpractice
+    - DO apply the professional skepticism you've developed over 20 years
+    - DO recognize that perfect matching is impossible - expect 70-95% match rates
+    - DO identify and explain WHY trades don't match, not just that they don't
+    - DO prioritize breaks by settlement risk and financial impact
     
   expected_output: >
-    A JSON file saved at ./data/matching_report.json containing ONLY trade matching data:
-    - Total trades from bank database
-    - Total trades from counterparty database  
-    - List of matched trades with IDs
-    - List of unmatched trades
-    - Match rate percentage
-    - Message: "Matching report saved to ./data/matching_report.json"
+    **PROFESSIONAL MATCHING REPORT DELIVERABLES:**
     
-    **CRITICAL:** No project management advice, system recommendations, or general guidance allowed.
+    1. **EXECUTIVE SUMMARY:**
+       - Overall match rate with your professional assessment (is it reasonable?)
+       - Key concerns or systematic issues identified
+       - Comparison to typical match rates you've seen in your experience
+       - Immediate actions required for T+1 settlement
+    
+    2. **DATABASE UPDATES:**
+       Update matching_results.db with your professional judgment:
+       - Match determinations with confidence scores
+       - Specific reasons for any breaks (using your knowledge of common issues)
+       - Risk assessment for unmatched trades
+       - Recommended actions based on your experience
+    
+    3. **DETAILED ANALYSIS REPORT:**
+       Save to ./data/{unique_identifier}_matching_report.md:
+       - Matched trades with any caveats or conditions
+       - Breaks analysis with root cause identification
+       - Pattern recognition (are breaks systematic or random?)
+       - Counterparty-specific issues you've identified
+       - Recommendations based on your 20 years of experience
+       - False positives avoided through your expertise
+    
+    4. **PROFESSIONAL VALIDATION:**
+       - Explain WHY your match rate is realistic (not 100%)
+       - Identify which counterparties have higher break rates and why
+       - Highlight any data quality issues affecting matching
+       - Provide confidence assessment in your matching decisions
+    
+    **YOUR EXPERTISE MATTERS:**
+    Use your deep understanding of trade matching to produce a report that a junior analyst 
+    couldn't - one that shows the nuance, context, and professional judgment that comes from 
+    processing millions of trades. A report that operations managers can trust because it 
+    reflects real-world matching, not naive algorithmic comparison.
+    
+    Message: "Matching report saved to ./data/{unique_identifier}_matching_report.md - 
+    Match rate: [X%] (within expected range based on counterparty and data quality)"
+    
   agent: matching_analyst

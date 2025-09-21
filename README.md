@@ -1,13 +1,14 @@
 # 🏦 AI Trade Matching System
 
-> **Enterprise-grade trade confirmation matching powered by CrewAI and LLMs**
+> **Enterprise-grade trade confirmation matching powered by CrewAI and AWS Nova**
 
 ![Python](https://img.shields.io/badge/python-3.12+-blue.svg)
-![CrewAI](https://img.shields.io/badge/CrewAI-latest-green.svg)
-![TinyDB](https://img.shields.io/badge/TinyDB-local%20storage-orange.svg)
+![CrewAI](https://img.shields.io/badge/CrewAI-0.80+-green.svg)
+![AWS Nova](https://img.shields.io/badge/AWS-Nova%20Pro-orange.svg)
+![TinyDB](https://img.shields.io/badge/TinyDB-local%20storage-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-An intelligent, production-ready system that automatically processes derivative trade confirmations, extracting data from PDFs and performing sophisticated matching with real-world asynchronous processing.
+An intelligent system that automatically processes derivative trade confirmations using AWS Nova model for PDF extraction and multi-agent workflows for sophisticated trade matching.
 
 ## ⚠️ Disclaimer
 
@@ -15,13 +16,13 @@ An intelligent, production-ready system that automatically processes derivative 
 
 ## ✨ Key Features
 
-- **📄 AI-Powered PDF Extraction** - Uses AWS Nova model to extract trade data from any format
-- **🤖 Multi-Agent Architecture** - Specialized AI agents for extraction, storage, and matching
-- **⚡ Real-time Matching** - Automatic matching when confirmations arrive asynchronously
-- **💾 Local-First** - TinyDB for storage, no cloud dependencies required
-- **⏳ Pending Management** - Trades wait intelligently for their counterparts
+- **📄 AI-Powered PDF Processing** - AWS Nova Pro model with multimodal capabilities for document analysis
+- **🖼️ PDF-to-Image Pipeline** - High-quality image conversion for optimal OCR processing
+- **🤖 Multi-Agent Architecture** - 4 specialized agents: Document Processor, Researcher, Reporting Analyst, Matching Analyst
+- **💾 TinyDB Storage** - Lightweight local database with separate bank/counterparty tables
+- **🔍 Intelligent Matching** - Professional-grade matching logic with tolerance handling
 - **📊 Comprehensive Reports** - Detailed matching analysis with break identification
-- **🔧 Production Ready** - Handles real-world edge cases and errors gracefully
+- **⚙️ Rate Limiting** - Built-in API rate limiting and execution timeouts
 
 ## 🚀 Quick Start
 
@@ -29,7 +30,7 @@ An intelligent, production-ready system that automatically processes derivative 
 
 - Python 3.12 or higher
 - Poppler (for PDF processing)
-- AWS credentials (for Nova model)
+- AWS credentials configured (for Bedrock Nova model access)
 
 ### Installation
 
@@ -52,14 +53,19 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 # 4. Install Python dependencies
 pip install -r requirements.txt
 
-# 5. Configure environment
+# 5. Run setup script (creates directories and databases)
+python setup.py
+
+# 6. Configure environment
 cp .env.example .env
 # Edit .env and add your AWS credentials
 
-# 6. Run setup to create sample data
-python setup.py
+# 7. Add your PDF files to data/BANK/ and data/COUNTERPARTY/
 
-# 7. Run the system!
+# 8. Run the system!
+python -m src.latest_trade_matching_agent.main
+
+# Or using CrewAI CLI
 crewai run
 ```
 
@@ -73,17 +79,18 @@ ai-trade-matching/
 │       │   ├── agents.yaml          # AI agent definitions
 │       │   └── tasks.yaml           # Task workflows
 │       ├── tools/
-│       │   └── trade_tools.py       # Custom CrewAI tools
+│       │   ├── __init__.py
+│       │   ├── custom_tool.py       # Custom CrewAI tools
+│       │   └── pdf_to_image.py      # PDF conversion tool
 │       ├── crew_fixed.py            # Main orchestration
 │       └── main.py                  # Entry point
 ├── data/
-│   ├── BANK/                        # Bank confirmations
-│   └── COUNTERPARTY/                # Counterparty confirmations
-├── storage/                         # Local databases
+│   ├── BANK/                        # Bank confirmations (PDFs)
+│   └── COUNTERPARTY/                # Counterparty confirmations (PDFs)
+├── storage/                         # TinyDB databases (created at runtime)
 ├── tests/                           # Test suite
 ├── .env.example                     # Environment template
 ├── requirements.txt                 # Dependencies
-├── setup.py                         # Setup script
 └── README.md                        # Documentation
 ```
 
@@ -106,89 +113,86 @@ Afternoon (2:45 PM):
 → Match report generated
 ```
 
-### The Magic Behind the Scenes
+### The Processing Pipeline
 
-1. **PDF arrives** → AI extracts all trade details
-2. **Data stored** → TinyDB with automatic deduplication  
-3. **Matching attempted** → Searches for counterpart
-4. **Status updated** → Either "MATCHED" or "PENDING"
-5. **Report generated** → Comprehensive matching analysis
+1. **PDF Processing** → Document Processor converts PDF to high-quality images
+2. **Data Extraction** → Researcher uses OCR and Nova model to extract trade details
+3. **Data Storage** → Reporting Analyst stores structured data in TinyDB
+4. **Trade Matching** → Matching Analyst performs intelligent matching with professional logic
+5. **Report Generation** → Comprehensive matching analysis with break identification
 
 ## 🎯 Usage Examples
 
 ### Basic Usage
 ```bash
 # Process trade confirmations
+python -m src.latest_trade_matching_agent.main
+
+# Or using CrewAI CLI
 crewai run
 ```
 
 ### Custom Document Processing
 ```python
 # In src/latest_trade_matching_agent/main.py
-inputs = {
-    'document_path': './data/BANK/your_trade.pdf'
-}
-```
-
-### Test with Samples
-```bash
-# Generate and process sample trades
-python test_matching.py
+def run():
+    document_path = './data/BANK/your_trade.pdf'
+    unique_identifier = Path(document_path).stem + '_'
+    
+    inputs = {
+        'document_path': document_path,
+        'unique_identifier': unique_identifier
+    }
+    LatestTradeMatchingAgent().crew().kickoff(inputs=inputs)
 ```
 
 ## 🛠️ Configuration
 
 ### Environment Variables (.env)
 ```bash
-# Required AWS (for Nova model)
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
+# Required AWS (for Bedrock Nova model)
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
 AWS_DEFAULT_REGION=us-east-1
 
-# Optional OpenAI
-OPENAI_API_KEY=sk-...your-key-here
-
-# Optional Anthropic
-ANTHROPIC_API_KEY=...
+# Optional (for alternative LLM providers)
+OPENAI_API_KEY=sk-your-key-here
+ANTHROPIC_API_KEY=your-anthropic-key
 ```
 
 ### Agent Roles
 
 | Agent | Role | Tools |
 |-------|------|-------|
-| **Researcher** | Extracts data from PDFs | PDFExtractorTool |
-| **Reporting Analyst** | Stores in database | TradeStorageTool |
-| **Matching Analyst** | Matches trades | TradeRetrievalTool, MatchingStatusTool |
+| **Document Processor** | Converts PDFs to images | PDFToImageTool, FileWriterTool |
+| **Researcher** | Extracts trade data using OCR | OCRTool, FileReadTool, FileWriterTool |
+| **Reporting Analyst** | Stores data in TinyDB | FileReadTool, FileWriterTool |
+| **Matching Analyst** | Performs intelligent matching | FileReadTool, FileWriterTool |
 
 ## 📊 Sample Output
 
+The system generates detailed matching reports with professional analysis:
+
 ```
-TRADE MATCHING STATUS REPORT
-============================
-Generated: 2024-09-15 14:45:22
+✅ PDF Conversion Successful!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 Source: ./data/BANK/FAB_26933659.pdf
+📊 Total Pages: 3
+🎯 DPI: 200
+📸 Format: PNG
+💾 Local Files: 3 files
+   Folder: ./pdf_images
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ready for OCR processing
 
-SUMMARY:
---------
-Bank Trades:
-  Total: 5
-  Matched: 4
-  Pending: 1
+Successfully created ./data/trade_data_FAB_26933659.json with comprehensive trade data
 
-Counterparty Trades:
-  Total: 5
-  Matched: 4
-  Pending: 1
+Stored trade FAB-26933659 in bank_trade_data.db
+Action: inserted
+Database record count: 1
 
-Match Rate: 80.0%
-
-PENDING TRADES:
---------------
-  • BANK: FAB-2024-78901 - PENDING - Awaiting counterparty
-  • COUNTERPARTY: GS-2024-45678 - PENDING - Awaiting bank
-
-RECOMMENDATIONS:
-• Monitor for incoming confirmations
-• Follow up on aged pending trades (>24 hours)
+Matching report saved to ./data/FAB_26933659_matching_report.md
+Match rate: 85% (within expected range based on counterparty and data quality)
 ```
 
 ## 🧪 Testing
@@ -197,10 +201,11 @@ RECOMMENDATIONS:
 # Run all tests
 pytest tests/
 
-# Test specific components
-pytest tests/test_extraction.py  # PDF extraction
-pytest tests/test_matching.py    # Matching logic
-pytest tests/test_storage.py     # Database operations
+# Test basic functionality
+pytest tests/test_basic.py
+
+# Run with coverage
+pytest --cov=src tests/
 ```
 
 ## 🚨 Troubleshooting
@@ -208,35 +213,41 @@ pytest tests/test_storage.py     # Database operations
 | Issue | Solution |
 |-------|----------|
 | **Poppler not found** | Install: `brew install poppler` (macOS) or `apt-get install poppler-utils` (Linux) |
-| **API key error** | Check .env file has valid OPENAI_API_KEY |
-| **PDF extraction fails** | Ensure PDF is not password-protected |
+| **AWS credentials error** | Configure AWS CLI or set environment variables in .env |
+| **PDF conversion fails** | Ensure PDF is not password-protected and poppler is installed |
 | **Import errors** | Run `pip install -r requirements.txt` |
+| **Rate limiting** | Built-in rate limiting (2 RPM) - increase if needed in crew_fixed.py |
 
 ## 🎨 Customization
 
-### Add Custom Fields
+### Modify Document Path
 ```python
-# In tools/trade_tools.py
-def extract_custom_fields(self, trade_data):
-    # Add your fields
-    trade_data['custom_field'] = 'value'
-    return trade_data
+# In src/latest_trade_matching_agent/main.py
+def run():
+    document_path = './data/BANK/your_custom_file.pdf'  # Change this
+    # ... rest of the function
 ```
 
-### New Matching Rules
+### Adjust Rate Limits
 ```python
-# In tools/trade_tools.py
-def custom_matching_logic(self, trade1, trade2):
-    # Your matching algorithm
-    return confidence_score
+# In src/latest_trade_matching_agent/crew_fixed.py
+@agent
+def researcher(self) -> Agent:
+    return Agent(
+        # ...
+        max_rpm=5,  # Increase from 2 if needed
+        max_execution_time=900,  # Adjust timeout
+        # ...
+    )
 ```
 
 ## 📈 Performance
 
-- ⚡ 5-10 seconds per PDF page
-- 🎯 <1 second matching time
-- 💾 Handles 10,000+ trades efficiently
-- 🔄 Concurrent processing supported
+- ⚡ PDF conversion: ~2-3 seconds per page at 200 DPI
+- 🤖 OCR extraction: 30-60 seconds per document (AWS Nova)
+- 💾 TinyDB storage: <1 second per trade
+- 🔍 Matching analysis: 10-30 seconds depending on complexity
+- 🚦 Rate limiting: 2 RPM (configurable)
 
 ## 🤝 Contributing
 
@@ -255,9 +266,10 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 ## 🙏 Acknowledgments
 
 - [CrewAI](https://www.crewai.com/) - Multi-agent framework
-- [AWS Bedrock](https://aws.amazon.com/bedrock/) - Nova model API
+- [AWS Bedrock](https://aws.amazon.com/bedrock/) - Nova Pro model API
 - [TinyDB](https://tinydb.readthedocs.io/) - Lightweight database
-- [pdf2image](https://github.com/Belval/pdf2image) - PDF processing
+- [pdf2image](https://github.com/Belval/pdf2image) - PDF to image conversion
+- [Pillow](https://pillow.readthedocs.io/) - Image processing
 
 ## 📧 Contact
 
