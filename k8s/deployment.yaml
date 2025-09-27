@@ -1,0 +1,193 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trade-matching-system
+  namespace: trade-matching
+  labels:
+    app: trade-matching-system
+    version: v1
+spec:
+  replicas: 2
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: trade-matching-system
+  template:
+    metadata:
+      labels:
+        app: trade-matching-system
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: trade-matching-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: trade-matching
+        image: 401552979575.dkr.ecr.us-east-1.amazonaws.com/trade-matching-system:v4-amd64
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: trade-matching-config
+        env:
+        - name: SNS_TOPIC_ARN
+          valueFrom:
+            secretKeyRef:
+              name: trade-matching-secrets
+              key: sns-topic-arn
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CREWAI_STORAGE_DIR
+          value: "/tmp/processing/crewai"
+        - name: XDG_DATA_HOME
+          value: "/tmp/processing"
+        - name: XDG_CONFIG_HOME
+          value: "/tmp/processing"
+        - name: HOME
+          value: "/tmp/processing"
+        - name: CREWAI_TELEMETRY
+          value: "false"
+        - name: CREWAI_DISABLE_TELEMETRY
+          value: "1"
+        - name: HOME
+          value: "/tmp/processing"
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+            ephemeral-storage: "5Gi"
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+            ephemeral-storage: "10Gi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: tmp-storage
+          mountPath: /tmp/processing
+        - name: logs
+          mountPath: /app/logs
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: tmp-storage
+        emptyDir:
+          sizeLimit: 20Gi
+      - name: logs
+        emptyDir:
+          sizeLimit: 5Gi
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - trade-matching-system
+              topologyKey: kubernetes.io/hostname
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: trade-matching-hpa
+  namespace: trade-matching
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: trade-matching-system
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 60
+      - type: Pods
+        value: 4
+        periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Min
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: trade-matching-pdb
+  namespace: trade-matching
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: trade-matching-system

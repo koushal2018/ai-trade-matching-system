@@ -1,0 +1,14 @@
+2025-09-27 13:08:46,405 - INFO - Found credentials in shared credentials file: ~/.aws/credentials
+2025-09-27 13:08:46,473 - INFO - 🔒 Starting comprehensive security audit...
+2025-09-27 13:08:47,329 - INFO - 🔐 Current AWS Identity: arn:aws:iam::401552979575:user/koushald
+2025-09-27 13:08:47,329 - WARNING - 🚨 Using IAM User instead of IAM Role - consider using roles for better security
+2025-09-27 13:08:48,445 - INFO - 📋 Attached Policies: 10
+2025-09-27 13:08:48,445 - INFO - 📋 Inline Policies: 5
+2025-09-27 13:08:49,102 - ERROR - ❌ S3 security audit failed: <botocore.errorfactory.S3Exceptions object at 0x103927380> object has no attribute NoSuchBucketPolicy. Valid exceptions are: BucketAlreadyExists, BucketAlreadyOwnedByYou, EncryptionTypeMismatch, IdempotencyParameterMismatch, InvalidObjectState, InvalidRequest, InvalidWriteOffset, NoSuchBucket, NoSuchKey, NoSuchUpload, ObjectAlreadyInActiveTierError, ObjectNotInActiveTierError, TooManyParts
+2025-09-27 13:12:23,604 - INFO - Found credentials in shared credentials file: ~/.aws/credentials
+2025-09-27 13:12:23,680 - INFO - 🔒 Starting comprehensive security audit...
+2025-09-27 13:12:24,541 - INFO - 🔐 Current AWS Identity: arn:aws:iam::401552979575:user/koushald
+2025-09-27 13:12:24,541 - WARNING - 🚨 Using IAM User instead of IAM Role - consider using roles for better security
+2025-09-27 13:12:25,668 - INFO - 📋 Attached Policies: 10
+2025-09-27 13:12:25,668 - INFO - 📋 Inline Policies: 5
+2025-09-27 13:12:26,358 - ERROR - ❌ S3 security audit failed: <botocore.errorfactory.S3Exceptions object at 0x100e4b380> object has no attribute NoSuchBucketPolicy. Valid exceptions are: BucketAlreadyExists, BucketAlreadyOwnedByYou, EncryptionTypeMismatch, IdempotencyParameterMismatch, InvalidObjectState, InvalidRequest, InvalidWriteOffset, NoSuchBucket, NoSuchKey, NoSuchUpload, ObjectAlreadyInActiveTierError, ObjectNotInActiveTierError, TooManyParts

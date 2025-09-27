@@ -34,3 +34,8 @@ pytest-cov>=5.0.0
 black>=24.0.0
 flake8>=7.0.0
 mypy>=1.0.0
+
+#MCP
+
+mcp[cli]
+crewai-tools[mcp]

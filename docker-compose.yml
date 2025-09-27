@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  trade-matching-app:
+    image: 401552979575.dkr.ecr.us-east-1.amazonaws.com/trade-matching-system:latest
+    container_name: trade-matching-system
+    ports:
+      - "8080:8080"
+    environment:
+      - AWS_REGION=us-east-1
+      - S3_BUCKET_NAME=fab-otc-reconciliation-deployment
+      - DYNAMODB_BANK_TABLE=BankTradeData
+      - DYNAMODB_COUNTERPARTY_TABLE=CounterpartyTradeData
+      - MAX_RPM=10
+      - MAX_EXECUTION_TIME=1200
+      - PYTHONPATH=/app/src
+    volumes:
+      - ~/.aws:/root/.aws:ro
+      - /tmp/processing:/tmp/processing
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - trade-network
+
+  # Prometheus for monitoring
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - trade-network
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - trade-network
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  trade-network:
+    driver: bridge

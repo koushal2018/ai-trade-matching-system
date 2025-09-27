@@ -1,0 +1,22 @@
+# EKS-specific dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+prometheus-client>=0.19.0
+structlog>=23.2.0
+kubernetes>=28.1.0
+
+# Enhanced monitoring (simplified for compatibility)
+# opentelemetry packages can be added later when needed
+
+# Enhanced security
+cryptography>=41.0.0
+python-multipart>=0.0.6
+
+# JSON logging
+python-json-logger>=2.0.0
+
+# Testing (optional for production, but included for completeness)
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-cov>=5.0.0
+httpx>=0.25.0

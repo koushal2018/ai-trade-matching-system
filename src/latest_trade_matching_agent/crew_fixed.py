@@ -1,15 +1,26 @@
 from crewai import Agent, Crew, Process, Task, LLM
 from crewai.project import CrewBase, agent, crew, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from .tools import PDFToImageTool
-from crewai_tools import OCRTool, DirectoryReadTool,FileReadTool,FileWriterTool
+from crewai_tools import DirectoryReadTool,FileReadTool,FileWriterTool
+# OCRTool removed for EKS deployment - only works locally
+try:
+    from crewai_tools import OCRTool
+    ocr_available = True
+except ImportError:
+    ocr_available = False
 import os
 from dotenv import load_dotenv
 import logging
-import openlit
 
-openlit.init()
+# Optional OpenLit integration
+# try:
+#     import openlit
+#     openlit.init()
+# except ImportError:
+#     # OpenLit not available, continue without it
+#     pass
 
 load_dotenv()
 
@@ -28,25 +39,51 @@ llm = LLM(
 pdf_tool = PDFToImageTool()
 file_reader = FileReadTool()
 file_writer = FileWriterTool()
-ocr_tool = OCRTool(llm)
-directory_read_tool = DirectoryReadTool()  # Add this if needed
+directory_read_tool = DirectoryReadTool()
+
+# Initialize OCR tool only if available (for local development)
+if ocr_available:
+    try:
+        ocr_tool = OCRTool(llm)
+    except Exception as e:
+        logger.warning(f"OCR tool initialization failed: {e}")
+        ocr_tool = None
+        ocr_available = False
+else:
+    ocr_tool = None
 
 @CrewBase
 class LatestTradeMatchingAgent:
-    """LatestTradeMatchingAgent crew"""
+    """Enhanced LatestTradeMatchingAgent crew for EKS deployment"""
     agents: List[BaseAgent]
     tasks: List[Task]
-    
-    def __init__(self, dynamodb_tools: Optional[List] = None):
+
+    def __init__(self, dynamodb_tools: Optional[List] = None, request_context: Optional[Dict[str, Any]] = None):
         """
-        Initialize the crew with optional DynamoDB tools.
-        
+        Initialize the crew with optional DynamoDB tools and request context.
+
         Args:
             dynamodb_tools: List of MCP tools from the DynamoDB adapter
+            request_context: Request context from EKS API containing dynamic parameters
         """
         self.dynamodb_tools = dynamodb_tools or []
+        self.request_context = request_context or {}
+
+        # Environment-based configuration with dynamic overrides
+        self.config = {
+            's3_bucket': os.getenv('S3_BUCKET_NAME',
+                                  self.request_context.get('s3_bucket', 'trade-documents-production')),
+            'dynamodb_bank_table': os.getenv('DYNAMODB_BANK_TABLE', 'BankTradeData'),
+            'dynamodb_counterparty_table': os.getenv('DYNAMODB_COUNTERPARTY_TABLE', 'CounterpartyTradeData'),
+            'max_rpm': int(os.getenv('MAX_RPM', '10')),
+            'max_execution_time': int(os.getenv('MAX_EXECUTION_TIME', '1200')),
+            'aws_region': os.getenv('AWS_REGION', 'us-east-1')
+        }
+
         if self.dynamodb_tools:
             logger.info(f"Initialized with {len(self.dynamodb_tools)} DynamoDB tools")
+        if self.request_context:
+            logger.info(f"Initialized with request context: {list(self.request_context.keys())}")
 
     @agent
     def document_processor(self) -> Agent:
@@ -55,22 +92,27 @@ class LatestTradeMatchingAgent:
             llm=llm,
             tools=[pdf_tool, file_writer],
             verbose=True,
-            max_rpm=2,
+            max_rpm=self.config['max_rpm'],
             max_iter=3,
-            max_execution_time=180,
+            max_execution_time=self.config['max_execution_time'],
             multimodal=True
         )
     
     @agent
     def trade_entity_extractor(self) -> Agent:
+        # Build tools list conditionally
+        tools_list = [file_writer, file_reader, directory_read_tool]
+        if ocr_tool is not None:
+            tools_list.insert(0, ocr_tool)  # Add OCR first if available
+
         return Agent(
             config=self.agents_config['trade_entity_extractor'],
             llm=llm,
-            tools=[ocr_tool, file_writer, file_reader, directory_read_tool],
+            tools=tools_list,
             verbose=True,
-            max_rpm=2,
+            max_rpm=self.config['max_rpm'],
             max_iter=5,
-            max_execution_time=600,
+            max_execution_time=self.config['max_execution_time'],
             multimodal=True
         )
 
@@ -81,15 +123,15 @@ class LatestTradeMatchingAgent:
         # Add DynamoDB tools if available
         if self.dynamodb_tools:
             tools_list.extend(self.dynamodb_tools)
-        
+
         return Agent(
             config=self.agents_config['reporting_analyst'],
             llm=llm,
             tools=tools_list,
             verbose=True,
-            max_rpm=2,
+            max_rpm=self.config['max_rpm'],
             max_iter=5,
-            max_execution_time=300,
+            max_execution_time=self.config['max_execution_time'],
             multimodal=True
         )
 
@@ -100,15 +142,15 @@ class LatestTradeMatchingAgent:
         # Add DynamoDB tools if available
         if self.dynamodb_tools:
             tools_list.extend(self.dynamodb_tools)
-        
+
         return Agent(
             config=self.agents_config['matching_analyst'],
             llm=llm,
             tools=tools_list,
             verbose=True,
-            max_rpm=2,
+            max_rpm=self.config['max_rpm'],
             max_iter=8,
-            max_execution_time=600,
+            max_execution_time=self.config['max_execution_time'],
             multimodal=True
         )
 
@@ -140,15 +182,29 @@ class LatestTradeMatchingAgent:
             agent=self.matching_analyst()  # Add agent assignment
         )
 
+    def set_request_context(self, context: Dict[str, Any]):
+        """Update request context for dynamic task configuration"""
+        self.request_context = context
+
+    def _step_callback(self, step):
+        """Callback for monitoring step execution"""
+        logger.info(f"Crew step executed: {step}")
+
+    def _task_callback(self, task):
+        """Callback for monitoring task completion"""
+        logger.info(f"Task completed: {task.description[:100] if hasattr(task, 'description') else str(task)[:100]}...")
+
     @crew
     def crew(self) -> Crew:
-        """Creates the LatestTradeMatchingAgent crew"""
+        """Creates the enhanced LatestTradeMatchingAgent crew"""
         return Crew(
             agents=self.agents,
             tasks=self.tasks,
             process=Process.sequential,
             memory=False,
             verbose=True,
-            max_rpm=3,
-            share_crew=False
+            max_rpm=self.config['max_rpm'],
+            share_crew=False,
+            step_callback=self._step_callback,
+            task_callback=self._task_callback
         )

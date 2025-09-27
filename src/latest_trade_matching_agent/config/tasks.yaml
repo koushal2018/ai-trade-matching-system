@@ -1,115 +1,86 @@
 document_processing_task:
   description: >
     Convert the PDF document at {document_path} to high-quality images.
-    
-    **CRITICAL: Determine output location from source PDF path:**
-    - IF PDF is in .../BANK/... folder → Save images to s3://YOUR_S3_BUCKET/PDFIMAGES/BANK/[document_name]_[timestamp]/
-    - IF PDF is in .../COUNTERPARTY/... folder → Save images to s3://YOUR_S3_BUCKET/PDFIMAGES/COUNTERPARTY/[document_name]_[timestamp]/
-    - IF PDF location is unclear → Save to s3://YOUR_S3_BUCKET/PDFIMAGES/TEMP/[document_name]_[timestamp]/
-    
+
+    **CRITICAL: Use dynamic S3 bucket and paths from request parameters:**
+    - S3 Bucket: {s3_bucket}
+    - Source PDF S3 Key: {s3_key}
+    - Source Type: {source_type}
+    - Output S3 prefix: {s3_bucket}/PDFIMAGES/{source_type}/{unique_identifier}/
+
     **WORKFLOW:**
-    1. Parse the {document_path} to identify if it contains /BANK/ or /COUNTERPARTY/
-    2. Set output S3 prefix based on source folder
-    3. Convert PDF to high-resolution JPEG images (300 DPI)
-    4. Save to S3 AND MUST also save locally to ./pdf_images/{unique_identifier}/ for next agent
-    5. Use unique_identifier parameter to create separate folder per trade
-    
+    1. PDF already downloaded locally to {document_path}
+    2. Convert PDF to high-resolution JPEG images (300 DPI)
+    3. Save to S3: {s3_bucket}/PDFIMAGES/{source_type}/{unique_identifier}/
+    4. Also save locally to /tmp/processing/{unique_identifier}/pdf_images/ for next agent
+    5. Use unique_identifier: {unique_identifier} for folder naming
+
     **OUTPUT REQUIREMENTS:**
     - Convert each page to high-resolution JPEG images for S3
-    - MUST also save JPEG images locally to ./pdf_images/{unique_identifier}/ folder
-    - Use save_locally: true and unique_identifier: {unique_identifier} parameters
-    - Use 3-digit padding for page numbers: page_001.jpg, page_002.jpg, etc.
+    - MUST save JPEG images locally to /tmp/processing/{unique_identifier}/pdf_images/
+    - Use 3-digit padding: page_001.jpg, page_002.jpg, etc.
     - Create metadata.json with file list and conversion details
-    - Provide the S3 folder path containing the images for the next agent
-    
+    - Return S3 folder path for next agent
+
   expected_output: >
     Confirmation of successful conversion:
-    - "Source PDF type: [BANK/COUNTERPARTY/UNKNOWN]"
-    - "Images saved to: s3://YOUR_S3_BUCKET/PDFIMAGES/[BANK/COUNTERPARTY/TEMP]/[folder_name]/"
+    - "Source PDF type: {source_type}"
+    - "Images saved to: {s3_bucket}/PDFIMAGES/{source_type}/{unique_identifier}/"
+    - "Local images saved to: /tmp/processing/{unique_identifier}/pdf_images/"
     - "Total pages converted: [X]"
-    - S3 folder path for next agent
-    
+
   agent: document_processor
 
 trade_entity_extractor_task:
   description: >
-    **CRITICAL DATA PRESERVATION & SOURCE IDENTIFICATION:** Extract comprehensive trade data from converted images.
-    Document Path: {document_path}
-    
+    **CRITICAL DATA EXTRACTION WITH S3 INTEGRATION:**
+    Source Type: {source_type}
+    S3 Bucket: {s3_bucket}
+    S3 Key: {s3_key}
+
     **MANDATORY WORKFLOW:**
-    
-    1. **ACCESS IMAGES:** 
-       - Previous agent saved images locally to ./pdf_images/{unique_identifier}/ folder
-       - Images are JPEG format with names like {unique_identifier}_page_001.jpg, {unique_identifier}_page_002.jpg, etc.
-       - Use OCR tool to extract text from each local image file
-       - CRITICAL: Use the exact path format: ./pdf_images/{unique_identifier}/{unique_identifier}_page_001.jpg
-    
-    2. **EXTRACT TEXT FROM IMAGES:**
-       - Use OCR tool on local JPEG image files in ./pdf_images/{unique_identifier}/ folder
-       - Ensure high accuracy in text extraction, preserving formatting and special characters  
-    
-    3. **IDENTIFY AND VALIDATE TRADE SOURCE:**
-       Based on the folder where the images are saved (by the previous agent):
-       - If in .../BANK/... folder → TRADE_SOURCE = "BANK"
-       - If in .../COUNTERPARTY/... folder → TRADE_SOURCE = "COUN
-      
 
-    4. **SAVE JSON TO S3:**
-       Create JSON with available data:
+    1. **ACCESS LOCAL IMAGES:**
+       - Images saved locally to /tmp/processing/{unique_identifier}/pdf_images/
+       - Use OCR tool on local JPEG files
 
-       Save the JSON file to  s3://YOUR_S3_BUCKET/extracted/
-         - Folder based on TRADE_SOURCE (BANK or COUNTERPARTY)
-         - Filename format: trade_[trade_id]_[timestamp].json
-       
-       - All extracted fields
-     
-   
-       Use S3 Writer Tool to save the JSON file
-    
-  
-   
+    2. **EXTRACT AND VALIDATE TRADE SOURCE:**
+       - TRADE_SOURCE = {source_type} (from request parameters)
+       - Validate source type is either "BANK" or "COUNTERPARTY"
+
+    3. **EXTRACT TEXT FROM IMAGES:**
+       - Use OCR tool on JPEG image files in /tmp/processing/{unique_identifier}/pdf_images/ folder
+       - Ensure high accuracy in text extraction, preserving formatting and special characters
+
+    4. **SAVE EXTRACTED DATA TO S3:**
+       - Save JSON to: {s3_bucket}/extracted/{source_type}/trade_{unique_identifier}_{timestamp}.json
+       - Include all extracted trade data
+       - Include metadata: s3_source_key, processing_timestamp, source_type
+
   expected_output: >
-    Save the JSON file to S3 and confirm:
-    - "Extracted trade data saved to depending on the source: s3://YOUR_S3_BUCKET/extracted/[BANK/COUNTERPARTY]/trade_[trade_id]_[timestamp].json"
-    - "TRADE_SOURCE identified as: [BANK/COUNTERPARTY]"
-    - "Total fields extracted: [X]"
-    - S3 path for next agent
-   
+    "Extracted trade data saved to: {s3_bucket}/extracted/{source_type}/trade_{unique_identifier}_{timestamp}.json"
+    "TRADE_SOURCE confirmed as: {source_type}"
+    "S3 path for next agent: {s3_bucket}/extracted/{source_type}/trade_{unique_identifier}_{timestamp}.json"
+
   agent: trade_entity_extractor
 
 reporting_task:
   description: >
-    **CRITICAL TASK: Store trade data in the CORRECT DynamoDB table based on TRADE_SOURCE field**
-    
-    **IMPORTANT: The actual table names are:**
-    - BankTradeData (for BANK trades)
-    - CounterpartyTradeData (for COUNTERPARTY trades)
-    
-    **TABLE SELECTION RULES (MANDATORY):**
-    - IF TRADE_SOURCE = "BANK" → Store in BankTradeData table
-    - IF TRADE_SOURCE = "COUNTERPARTY" → Store in CounterpartyTradeData table
-    - IF TRADE_SOURCE is missing or unclear → STOP and request clarification from previous agent
-    
-    **STRICT WORKFLOW (NO DEVIATIONS):**
-    1. Get JSON file from S3 path provided by previous agent
-    2. Parse the JSON string into a dictionary
-    3. Parse the JSON string into a dictionary
-    4. **CRITICAL STEP: Check TRADE_SOURCE field IMMEDIATELY**
-       - Extract the TRADE_SOURCE field from the JSON
-       - Validate it equals either "BANK" or "COUNTERPARTY" exactly
-       - If missing or invalid, STOP and report error
-    
-    5. **TABLE SELECTION LOGIC (NEVER DEVIATE):**
-       Pseudocode for table selection:
-       - if TRADE_SOURCE == "BANK": use table_name = "BankTradeData"
-       - elif TRADE_SOURCE == "COUNTERPARTY": use table_name = "CounterpartyTradeData"  
-       - else: RAISE ERROR: "Invalid TRADE_SOURCE: [actual_value]. Must be BANK or COUNTERPARTY"
-    
-    6. **VERIFICATION BEFORE STORAGE:**
-       - Log: "Preparing to store [source_type] trade in [table_name]"
-       - Double-check the table selection is correct
-       - If any doubt, STOP and ask for clarification
-    
+    **CRITICAL: Store in correct DynamoDB table based on source type**
+
+    **TABLE SELECTION (MANDATORY):**
+    - Source Type: {source_type}
+    - IF source_type = "BANK" → Store in table: {dynamodb_bank_table}
+    - IF source_type = "COUNTERPARTY" → Store in table: {dynamodb_counterparty_table}
+
+    **WORKFLOW:**
+    1. Get JSON from S3 path provided by previous agent
+    2. Parse trade data from JSON
+    3. Validate source_type matches {source_type}
+    4. Store in correct DynamoDB table based on source_type
+    5. Use Trade_ID as primary key
+    6. Include processing metadata (s3_source, processing_timestamp)
+
     **DATA STORAGE REQUIREMENTS:**
     - Use Trade_ID as the primary key for storage
     - If Trade_ID exists, update the record; if not, insert a new record
@@ -117,109 +88,66 @@ reporting_task:
     - Ensure idempotent operations to prevent duplicates
     - Maintain data integrity and accuracy during storage
     - Log each storage action with timestamp, TRADE_SOURCE, and table name
-    
+
     **ERROR HANDLING:**
-    - If TRADE_SOURCE is missing: "ERROR: TRADE_SOURCE field not found in JSON. Cannot determine correct table."
+    - If TRADE_SOURCE is missing: "ERROR: TRADE_SOURCE field not found. Cannot determine correct table."
     - If TRADE_SOURCE is invalid: "ERROR: Invalid TRADE_SOURCE value: [actual_value]. Expected BANK or COUNTERPARTY."
-    - If wrong table detected: "CRITICAL ERROR: Found [source_type] trade incorrectly stored in [wrong_table_name]."
-    
-    **CONFIRMATION MESSAGE FORMAT:**
-    "Successfully stored [source_type] trade [Trade_ID] in [table_name] table"
-    
+    - If wrong table detected: "CRITICAL ERROR: Found [source_type] trade incorrectly stored in wrong table."
+
   expected_output: >
-    Confirmation of successful storage containing:
-    - "Stored [source_type] trade [Trade_ID] in [table_name]"
-    - "Verification: BANK trades → BankTradeData, COUNTERPARTY trades → CounterpartyTradeData"
-    - "Action: [inserted/updated]"
-    - Database record count
-    - NO additional commentary or suggestions
-    
+    "Successfully stored {source_type} trade in correct DynamoDB table"
+    "Table used: {dynamodb_bank_table if source_type == 'BANK' else dynamodb_counterparty_table}"
+    "Record key: [Trade_ID]"
+
   agent: reporting_analyst
-  
+
 matching_task:
   description: >
-    **CRITICAL TRADE MATCHING TASK - VERIFY CORRECT DATABASE STORAGE FIRST**
-    
+    **ENHANCED MATCHING WITH CLOUD STORAGE:**
+
+    **TABLES TO MATCH:**
+    - Bank trades: {dynamodb_bank_table}
+    - Counterparty trades: {dynamodb_counterparty_table}
+
     **STEP 0: CRITICAL VERIFICATION (MUST DO FIRST)**
     Before ANY matching attempts, verify data integrity:
-    1. Check BankTradeData table - ALL records should have TRADE_SOURCE = "BANK"
-    2. Check CounterpartyTradeData table - ALL records should have TRADE_SOURCE = "COUNTERPARTY"
+    1. Check {dynamodb_bank_table} table - ALL records should have TRADE_SOURCE = "BANK"
+    2. Check {dynamodb_counterparty_table} table - ALL records should have TRADE_SOURCE = "COUNTERPARTY"
     3. If ANY trades are in wrong tables:
        - STOP IMMEDIATELY
        - Flag as CRITICAL ERROR
-       - Report: "CRITICAL: Found [source_type] trades in wrong table [table_name]"
+       - Report: "CRITICAL: Found trades in wrong table"
        - Demand correction before proceeding
-    
-    **ONLY PROCEED IF DATA IS CORRECTLY STORED**
-    
-    You need to match trades stored in DynamoDB Tables BankTradeData and CounterpartyTradeData
-    If the tables do not exist or are empty, return an error message indicating the issue or ask the previous agent to populate them.
-    
-    **USE YOUR VETERAN EXPERTISE TO:**
-    
-    1. **VERIFY DATA INTEGRITY FIRST:**
-       - Confirm ALL bank trades are in BankTradeData
-       - Confirm ALL counterparty trades are in CounterpartyTradeData
-       - Flag any misplaced trades as CRITICAL ERRORS
-       - DO NOT attempt matching if trades are in wrong tables
-    
-    2. **ANALYZE DATA STRUCTURES:**
-       - Examine both databases to understand their schemas and field naming conventions
-       - Identify which fields map between systems (e.g., "Trade ID" vs "Reference Number")
-       - Recognize counterparty-specific formatting patterns
-       - Document any data quality issues or missing critical fields
-    
-    3. **APPLY PROFESSIONAL MATCHING LOGIC:**
-       - Match ONLY between BankTradeData and CounterpartyTradeData (never within same table)
-       - Use knowledge of what constitutes a match vs a break in real trading operations
-       - Apply appropriate tolerances based on asset class and field type
-       - Recognize rounding differences vs real discrepancies
-       - Identify systematic booking problems vs one-off errors
-    
-    4. **PERFORM INTELLIGENT MATCHING (MUST COMPLETE):**
-       - Step 4a: Get all trades from BankTradeData table
-       - Step 4b: Get all trades from CounterpartyTradeData table
-       - Step 4c: For each bank trade, search for matching counterparty trade using:
-         * Trade ID/Reference Number matching
-         * Trade Date matching (within tolerance)
-         * Notional amount matching (within tolerance)
-         * Counterparty name matching
-       - Step 4d: Document all matches and breaks
-       - Apply professional matching standards
-       - Recognize when seeming differences are actually identical
-       - Flag true exceptions that need escalation
-    
-    5. **CLASSIFY MATCHES PROFESSIONALLY:**
-       Based on experience, categorize each trade comparison as:
-       - MATCHED: Bank and counterparty trades align within tolerances
-       - PROBABLE MATCH: Minor discrepancies between bank and counterparty versions
-       - REVIEW REQUIRED: Discrepancies need human investigation
-       - BREAK: Clear mismatch between bank and counterparty records
-       - DATA ERROR: Trades in wrong tables or missing source identification
-    
+
+    **WORKFLOW:**
+    1. Verify data integrity across both DynamoDB tables
+    2. Perform intelligent matching between bank and counterparty trades
+    3. Generate comprehensive matching report
+    4. Save report to S3: {s3_bucket}/reports/matching_report_{unique_identifier}_{timestamp}.md
+    5. Send summary via SNS if configured
+
+    **PERFORM INTELLIGENT MATCHING:**
+    - Get all trades from {dynamodb_bank_table} table
+    - Get all trades from {dynamodb_counterparty_table} table
+    - For each bank trade, search for matching counterparty trade using:
+      * Trade ID/Reference Number matching
+      * Trade Date matching (within tolerance)
+      * Notional amount matching (within tolerance)
+      * Counterparty name matching
+    - Document all matches and breaks
+    - Apply professional matching standards
+
+    **CLASSIFY MATCHES PROFESSIONALLY:**
+    Based on experience, categorize each trade comparison as:
+    - MATCHED: Bank and counterparty trades align within tolerances
+    - PROBABLE MATCH: Minor discrepancies between bank and counterparty versions
+    - REVIEW REQUIRED: Discrepancies need human investigation
+    - BREAK: Clear mismatch between bank and counterparty records
+    - DATA ERROR: Trades in wrong tables or missing source identification
+
   expected_output: >
-    **PROFESSIONAL MATCHING REPORT DELIVERABLES:**
-    
-    1. **DATA INTEGRITY CHECK:**
-       - Confirmation that all BANK trades are in BankTradeData
-       - Confirmation that all COUNTERPARTY trades are in CounterpartyTradeData
-       - Any data integrity issues found and corrected
-    
-    2. **EXECUTIVE SUMMARY:**
-       - Overall match rate between bank and counterparty trades
-       - Key concerns or systematic issues identified
-       - Comparison to typical match rates (70-95% expected)
-    
-    3. **DETAILED ANALYSIS REPORT:**
-       Save to ./data/{unique_identifier}_matching_report.md containing:
-       - Matched bank-to-counterparty trade pairs
-       - Unmatched bank trades (no counterparty confirmation)
-       - Unmatched counterparty trades (no bank record)
-       - Field-level break analysis
-       - Pattern recognition findings
-       - Professional recommendations
-    
-    Message: "Matching completed between BankTradeData and CounterpartyTradeData. 
-    Match rate: [X%]. Report saved to ./data/matching_report_[timestamp].md"
-    
+    "Matching completed between {dynamodb_bank_table} and {dynamodb_counterparty_table}"
+    "Report saved to: {s3_bucket}/reports/matching_report_{unique_identifier}_{timestamp}.md"
+    "Match rate: [X%]"
+
   agent: matching_analyst

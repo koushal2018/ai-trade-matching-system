@@ -1,0 +1,88 @@
+{
+  "mcpServers": {
+    "awslabs.frontend-mcp-server": {
+      "disabled": false,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "tool",
+        "run",
+        "--from",
+        "awslabs.frontend-mcp-server@latest",
+        "awslabs.frontend-mcp-server.exe"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "us-east-1"
+      }
+    },
+    "awslabs.aws-documentation-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_DOCUMENTATION_PARTITION": "aws"
+      },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "awslabs.finch-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.finch-mcp-server@latest"],
+      "env": {
+        "AWS_PROFILE": "default",
+        "AWS_REGION": "me-central-1",
+        "FASTMCP_LOG_LEVEL": "INFO"
+      },
+      "transportType": "stdio",
+      "disabled": false,
+      "autoApprove": []
+    },
+    "awslabs.core-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "awslabs.core-mcp-server@latest"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "aws-foundation": "true",
+        "solutions-architect": "true",
+        "dev-tools": "true",
+        "ci-cd-devops": "true",
+        "container-orchestration": "true",
+        "serverless-architecture": "true",
+        "analytics-warehouse": "true",
+        "data-platform-eng": "true",
+        "monitoring-observability": "true",
+        "security-identity": "true"
+
+      },
+      "autoApprove": [],
+      "disabled": false
+    },
+    "awslabs.cdk-mcp-server": {
+      "command": "uvx",
+      "args": ["awslabs.cdk-mcp-server@latest"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": []
+
+  },
+  
+    "vibe-coder-mcp": {
+      "command": "npx",
+      "args": ["vibe-coder-mcp"],
+      "env": {
+        "OPENROUTER_API_KEY": "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",
+        "VIBE_PROJECT_ROOT": "/Users/koushaldutt/ai-trade-matching-system",
+        "LOG_LEVEL": "info",
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
+

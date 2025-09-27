@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trade-matching
+  labels:
+    name: trade-matching
+    environment: production
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+# Network Policy for namespace isolation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: trade-matching
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+# Allow egress to AWS services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-aws-services
+  namespace: trade-matching
+spec:
+  podSelector:
+    matchLabels:
+      app: trade-matching-system
+  policyTypes:
+  - Egress
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443  # HTTPS to AWS services
+    - protocol: TCP
+      port: 53   # DNS
+    - protocol: UDP
+      port: 53   # DNS
+---
+# Allow ingress from ALB
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-from-alb
+  namespace: trade-matching
+spec:
+  podSelector:
+    matchLabels:
+      app: trade-matching-system
+  policyTypes:
+  - Ingress
+  ingress:
+  - from: []
+    ports:
+    - protocol: TCP
+      port: 8080  # Application port
+    - protocol: TCP
+      port: 9090  # Metrics port
