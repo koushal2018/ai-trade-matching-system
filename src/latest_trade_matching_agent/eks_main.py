@@ -378,15 +378,22 @@ async def process_document_async(
             )
 
             # Set up DynamoDB MCP server parameters
+            # Use pip-installed MCP server with IRSA credentials
+            mcp_env = {
+                "DDB_MCP_READONLY": "false",
+                "AWS_REGION": os.getenv("AWS_REGION", "us-east-1"),
+                "FASTMCP_LOG_LEVEL": "ERROR"
+            }
+
+            # Pass through IRSA credentials if available
+            for key in ["AWS_ROLE_ARN", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_STS_REGIONAL_ENDPOINTS"]:
+                if os.getenv(key):
+                    mcp_env[key] = os.getenv(key)
+
             dynamodb_params = StdioServerParameters(
-                command="uvx",
-                args=["awslabs.dynamodb-mcp-server@latest"],
-                env={
-                    "DDB-MCP-READONLY": "false",
-                    "AWS_PROFILE": "default",
-                    "AWS_REGION": os.getenv("AWS_REGION", "us-east-1"),
-                    "FASTMCP_LOG_LEVEL": "ERROR"
-                }
+                command="awslabs.dynamodb-mcp-server",
+                args=[],
+                env=mcp_env
             )
 
             # Use context manager to ensure proper cleanup with extended timeout

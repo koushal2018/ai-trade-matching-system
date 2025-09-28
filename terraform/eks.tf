@@ -52,7 +52,7 @@ module "eks" {
   # EKS Managed Node Groups
   eks_managed_node_groups = {
     main = {
-      name = "${var.project_name}-nodes"
+      name = "trade-nodes"
 
       instance_types = ["t3.medium"]
       capacity_type  = "ON_DEMAND"
@@ -70,7 +70,7 @@ module "eks" {
       }
 
       tags = merge(var.tags, {
-        Name = "${var.project_name}-node-group"
+        Name = "trade-node-group"
       })
     }
   }

@@ -25,13 +25,22 @@ RUN pip install --no-cache-dir -r requirements.txt --target /app/deps
 # Production stage
 FROM python:3.11-slim
 
-# Install runtime dependencies
+# Install runtime dependencies and build tools needed for MCP
 RUN apt-get update && apt-get install -y \
     poppler-utils \
     tesseract-ocr \
     libtesseract-dev \
     curl \
+    gcc \
+    g++ \
+    build-essential \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/*
+
+# Install pip packages globally including MCP server
+RUN pip install --no-cache-dir \
+    awslabs.dynamodb-mcp-server \
+    && rm -rf /root/.cache/pip
 
 # Copy Python packages from builder
 COPY --from=builder /app/deps /app/deps
