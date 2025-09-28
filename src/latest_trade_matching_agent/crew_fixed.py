@@ -201,7 +201,7 @@ class LatestTradeMatchingAgent:
             agents=self.agents,
             tasks=self.tasks,
             process=Process.sequential,
-            memory=False,
+            memory=True,
             verbose=True,
             max_rpm=self.config['max_rpm'],
             share_crew=False,

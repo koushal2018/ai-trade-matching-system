@@ -140,7 +140,7 @@ resource "aws_sqs_queue" "dlq" {
 resource "aws_ssm_parameter" "eks_api_endpoint" {
   name  = "/trade-matching/eks-api-endpoint"
   type  = "String"
-  value = "http://${kubernetes_service.trade_matching.status[0].load_balancer[0].ingress[0].hostname}"
+  value = "http://a73da16d612d4a49b03da519479fc1e-f54774935b2b938a.elb.us-east-1.amazonaws.com"
 
   tags = merge(var.tags, {
     Name = "EKS API Endpoint"
