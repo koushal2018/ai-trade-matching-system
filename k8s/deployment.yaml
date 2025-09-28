@@ -34,7 +34,7 @@ spec:
         fsGroup: 1000
       containers:
       - name: trade-matching
-        image: 401552979575.dkr.ecr.us-east-1.amazonaws.com/trade-matching-system:v4-amd64
+        image: 401552979575.dkr.ecr.us-east-1.amazonaws.com/trade-matching-system:v7
         imagePullPolicy: Always
         ports:
         - name: http

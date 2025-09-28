@@ -389,8 +389,8 @@ async def process_document_async(
                 }
             )
 
-            # Use context manager to ensure proper cleanup
-            with MCPServerAdapter(dynamodb_params) as dynamodb_tools:
+            # Use context manager to ensure proper cleanup with extended timeout
+            with MCPServerAdapter(dynamodb_params, connect_timeout=120) as dynamodb_tools:
                 logger.info(
                     "Connected to DynamoDB MCP server",
                     processing_id=processing_id,
