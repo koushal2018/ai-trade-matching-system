@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.production
+.env.staging
 
 # Python
 __pycache__/
@@ -49,6 +50,48 @@ data/temp/
 
 # AWS
 .aws/
+*.pem
+*.key
+
+# Kubernetes
+kubeconfig*
+.kube/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+
+# Docker
+.dockerignore
+
+# EKS and container logs
+container-logs/
+k8s-logs/
+
+# Sensitive deployment configs
+k8s/secrets/
+terraform/secrets/
+
+# Lambda deployment packages
+lambda-deploy/
+*.zip
+
+# MCP configuration (may contain sensitive data)
+.mcp.json
+*-config.json
+vibe-session.log
+
+# Monitoring and performance data
+monitoring/data/
+performance/reports/
+
+# Security scan results
+security/reports/
 
 # Temporary files
 *.tmp
@@ -70,3 +113,16 @@ htmlcov/
 
 # Documentation builds
 docs/_build/
+
+# Local test files
+test_*.json
+test_*.pdf
+test_app.py
+test_request.json
+test_suite.py
+
+# Deployment guides (may contain sensitive info)
+DEPLOYMENT_GUIDE.md
+DEPLOYMENT_SUMMARY.md
+MIGRATION_CHANGES.md
+COMPLETE_CHANGES_GUIDE.md

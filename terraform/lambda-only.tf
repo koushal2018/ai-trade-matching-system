@@ -31,7 +31,7 @@ resource "aws_iam_role_policy" "lambda_execution_simple" {
           "logs:CreateLogStream",
           "logs:PutLogEvents"
         ]
-        Resource = "arn:aws:logs:us-east-1:401552979575:*"
+        Resource = "arn:aws:logs:us-east-1:YOUR_AWS_ACCOUNT_ID:*"
       },
       {
         Effect = "Allow"
@@ -40,8 +40,8 @@ resource "aws_iam_role_policy" "lambda_execution_simple" {
           "s3:ListBucket"
         ]
         Resource = [
-          "arn:aws:s3:::fab-otc-reconciliation-deployment",
-          "arn:aws:s3:::fab-otc-reconciliation-deployment/*"
+          "arn:aws:s3:::your-trade-documents-bucket",
+          "arn:aws:s3:::your-trade-documents-bucket/*"
         ]
       },
       {
@@ -49,7 +49,7 @@ resource "aws_iam_role_policy" "lambda_execution_simple" {
         Action = [
           "ssm:GetParameter"
         ]
-        Resource = "arn:aws:ssm:us-east-1:401552979575:parameter/trade-matching/eks-api-endpoint"
+        Resource = "arn:aws:ssm:us-east-1:YOUR_AWS_ACCOUNT_ID:parameter/trade-matching/eks-api-endpoint"
       }
     ]
   })
@@ -90,7 +90,7 @@ resource "aws_lambda_permission" "allow_s3_simple" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.s3_event_processor_simple.function_name
   principal     = "s3.amazonaws.com"
-  source_arn    = "arn:aws:s3:::fab-otc-reconciliation-deployment"
+  source_arn    = "arn:aws:s3:::your-trade-documents-bucket"
 }
 
 # CloudWatch Log Group for Lambda
@@ -108,7 +108,7 @@ resource "aws_cloudwatch_log_group" "lambda_simple" {
 resource "aws_ssm_parameter" "eks_api_endpoint_simple" {
   name  = "/trade-matching/eks-api-endpoint"
   type  = "String"
-  value = "http://a73da16d612d4a49b03da519479fc1e-f54774935b2b938a.elb.us-east-1.amazonaws.com"
+  value = "http://YOUR-ELB-ENDPOINT.elb.us-east-1.amazonaws.com"
 
   tags = {
     Name = "EKS API Endpoint"
@@ -118,7 +118,7 @@ resource "aws_ssm_parameter" "eks_api_endpoint_simple" {
 
 # S3 Event Notification Configuration (using existing bucket)
 resource "aws_s3_bucket_notification" "trade_documents_simple" {
-  bucket = "fab-otc-reconciliation-deployment"
+  bucket = "your-trade-documents-bucket"
 
   lambda_function {
     lambda_function_arn = aws_lambda_function.s3_event_processor_simple.arn

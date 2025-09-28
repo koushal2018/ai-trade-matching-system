@@ -8,7 +8,7 @@ data:
   AWS_REGION: "us-east-1"
 
   # S3 Configuration
-  S3_BUCKET_NAME: "fab-otc-reconciliation-deployment"
+  S3_BUCKET_NAME: "your-trade-documents-bucket"
 
   # DynamoDB Configuration
   DYNAMODB_BANK_TABLE: "BankTradeData"

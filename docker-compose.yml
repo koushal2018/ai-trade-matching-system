@@ -2,13 +2,13 @@ version: '3.8'
 
 services:
   trade-matching-app:
-    image: 401552979575.dkr.ecr.us-east-1.amazonaws.com/trade-matching-system:latest
+    image: YOUR_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/trade-matching-system:latest
     container_name: trade-matching-system
     ports:
       - "8080:8080"
     environment:
       - AWS_REGION=us-east-1
-      - S3_BUCKET_NAME=fab-otc-reconciliation-deployment
+      - S3_BUCKET_NAME=your-trade-documents-bucket
       - DYNAMODB_BANK_TABLE=BankTradeData
       - DYNAMODB_COUNTERPARTY_TABLE=CounterpartyTradeData
       - MAX_RPM=10
@@ -54,7 +54,7 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_SECURITY_ADMIN_PASSWORD=change-me-in-production
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - grafana_data:/var/lib/grafana
