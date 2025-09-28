@@ -19,8 +19,8 @@ COPY requirements-eks.txt .
 # Combine requirements files
 RUN cat requirements-eks.txt >> requirements.txt
 
-# Install Python dependencies
-RUN pip install --user --no-cache-dir -r requirements.txt
+# Install Python dependencies to a specific location
+RUN pip install --no-cache-dir -r requirements.txt --target /app/deps
 
 # Production stage
 FROM python:3.11-slim
@@ -34,7 +34,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python packages from builder
-COPY --from=builder /root/.local /home/trader/.local
+COPY --from=builder /app/deps /app/deps
 
 # Set working directory
 WORKDIR /app
@@ -49,13 +49,13 @@ RUN mkdir -p /tmp/processing /app/logs /app/data
 
 # Create non-root user for security
 RUN useradd -m -u 1000 trader && \
-    chown -R trader:trader /app /tmp/processing /home/trader/.local
+    chown -R trader:trader /app /tmp/processing
 
 # Switch to non-root user
 USER trader
 
-# Add local bin to PATH
-ENV PATH=/home/trader/.local/bin:$PATH
+# Add deps to Python path
+ENV PYTHONPATH=/app/deps:$PYTHONPATH
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -63,7 +63,8 @@ ENV PYTHONUNBUFFERED=1 \
     FASTMCP_LOG_LEVEL=ERROR \
     LITELLM_LOG=ERROR \
     XDG_DATA_HOME=/tmp/processing \
-    XDG_CONFIG_HOME=/tmp/processing
+    XDG_CONFIG_HOME=/tmp/processing \
+    PATH=/app/deps/bin:$PATH
 
 # Expose ports
 EXPOSE 8080 9090

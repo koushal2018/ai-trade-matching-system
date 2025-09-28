@@ -20,6 +20,8 @@ from contextlib import asynccontextmanager
 
 try:
     from .crew_fixed import LatestTradeMatchingAgent
+    from mcp import StdioServerParameters
+    from crewai_tools import MCPServerAdapter
     CREWAI_AVAILABLE = True
 except ImportError as e:
     # CrewAI dependencies not available - continue with basic API functionality
@@ -370,40 +372,59 @@ async def process_document_async(
 
             result = f"Simulated processing result for {request.unique_identifier}"
         else:
-            # For EKS deployment, use native AWS SDK instead of MCP servers
             logger.info(
-                "Starting CrewAI processing with native AWS integration",
+                "Starting CrewAI processing with MCP DynamoDB integration",
                 processing_id=processing_id
             )
 
-            # Create crew instance with request context (no MCP tools needed)
-            crew_instance = LatestTradeMatchingAgent(
-                dynamodb_tools=None,  # Will use native AWS SDK in crew_fixed.py
-                request_context=request.dict()
+            # Set up DynamoDB MCP server parameters
+            dynamodb_params = StdioServerParameters(
+                command="uvx",
+                args=["awslabs.dynamodb-mcp-server@latest"],
+                env={
+                    "DDB-MCP-READONLY": "false",
+                    "AWS_PROFILE": "default",
+                    "AWS_REGION": os.getenv("AWS_REGION", "us-east-1"),
+                    "FASTMCP_LOG_LEVEL": "ERROR"
+                }
             )
 
-            # Prepare inputs for crew
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            inputs = {
-                'document_path': str(local_file_path),
-                'unique_identifier': request.unique_identifier,
-                's3_bucket': request.s3_bucket,
-                's3_key': request.s3_key,
-                'source_type': request.source_type,
-                'timestamp': timestamp,
-                'dynamodb_bank_table': os.getenv('DYNAMODB_BANK_TABLE', 'BankTradeData'),
-                'dynamodb_counterparty_table': os.getenv('DYNAMODB_COUNTERPARTY_TABLE', 'CounterpartyTradeData')
-            }
+            # Use context manager to ensure proper cleanup
+            with MCPServerAdapter(dynamodb_params) as dynamodb_tools:
+                logger.info(
+                    "Connected to DynamoDB MCP server",
+                    processing_id=processing_id,
+                    tool_count=len(list(dynamodb_tools))
+                )
 
-            # Update progress
-            processing_status[processing_id].update({
-                "status": "processing",
-                "message": "CrewAI agents processing document",
-                "progress": 60
-            })
+                # Create crew instance with DynamoDB tools
+                crew_instance = LatestTradeMatchingAgent(
+                    dynamodb_tools=list(dynamodb_tools),
+                    request_context=request.dict()
+                )
 
-            # Execute crew
-            result = crew_instance.crew().kickoff(inputs=inputs)
+                # Prepare inputs for crew
+                timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                inputs = {
+                    'document_path': str(local_file_path),
+                    'unique_identifier': request.unique_identifier,
+                    's3_bucket': request.s3_bucket,
+                    's3_key': request.s3_key,
+                    'source_type': request.source_type,
+                    'timestamp': timestamp,
+                    'dynamodb_bank_table': os.getenv('DYNAMODB_BANK_TABLE', 'BankTradeData'),
+                    'dynamodb_counterparty_table': os.getenv('DYNAMODB_COUNTERPARTY_TABLE', 'CounterpartyTradeData')
+                }
+
+                # Update progress
+                processing_status[processing_id].update({
+                    "status": "processing",
+                    "message": "CrewAI agents processing document",
+                    "progress": 60
+                })
+
+                # Execute crew
+                result = crew_instance.crew().kickoff(inputs=inputs)
 
             logger.info(
                 "CrewAI processing completed",

@@ -72,8 +72,6 @@ spec:
           value: "false"
         - name: CREWAI_DISABLE_TELEMETRY
           value: "1"
-        - name: HOME
-          value: "/tmp/processing"
         resources:
           requests:
             cpu: "500m"
