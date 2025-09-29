@@ -3,13 +3,8 @@ from crewai.project import CrewBase, agent, crew, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from typing import List, Optional, Dict, Any
 from .tools import PDFToImageTool
-from crewai_tools import DirectoryReadTool,FileReadTool,FileWriterTool
-# OCRTool removed for EKS deployment - only works locally
-try:
-    from crewai_tools import OCRTool
-    ocr_available = True
-except ImportError:
-    ocr_available = False
+from crewai_tools import DirectoryReadTool,FileReadTool,FileWriterTool,S3ReaderTool,S3WriterTool,OCRTool
+
 import os
 from dotenv import load_dotenv
 import logging
@@ -37,20 +32,15 @@ llm = LLM(
 
 # Initialize standard tools
 pdf_tool = PDFToImageTool()
+ocr_tool = OCRTool(llm)
 file_reader = FileReadTool()
 file_writer = FileWriterTool()
 directory_read_tool = DirectoryReadTool()
+s3_file_reader = S3ReaderTool(bucket_name=os.getenv('S3_BUCKET_NAME', 'fab-otc-reconciliation-deployment'))
+s3_file_writer = S3WriterTool(bucket_name=os.getenv('S3_BUCKET_NAME', 'fab-otc-reconciliation-deployment'))
 
-# Initialize OCR tool only if available (for local development)
-if ocr_available:
-    try:
-        ocr_tool = OCRTool(llm)
-    except Exception as e:
-        logger.warning(f"OCR tool initialization failed: {e}")
-        ocr_tool = None
-        ocr_available = False
-else:
-    ocr_tool = None
+
+
 
 @CrewBase
 class LatestTradeMatchingAgent:
@@ -72,7 +62,7 @@ class LatestTradeMatchingAgent:
         # Environment-based configuration with dynamic overrides
         self.config = {
             's3_bucket': os.getenv('S3_BUCKET_NAME',
-                                  self.request_context.get('s3_bucket', 'trade-documents-production')),
+                                  self.request_context.get('s3_bucket', 'fab-otc-reconciliation-deployment')),
             'dynamodb_bank_table': os.getenv('DYNAMODB_BANK_TABLE', 'BankTradeData'),
             'dynamodb_counterparty_table': os.getenv('DYNAMODB_COUNTERPARTY_TABLE', 'CounterpartyTradeData'),
             'max_rpm': int(os.getenv('MAX_RPM', '10')),
@@ -90,7 +80,7 @@ class LatestTradeMatchingAgent:
         return Agent(
             config=self.agents_config['document_processor'],
             llm=llm,
-            tools=[pdf_tool, file_writer],
+            tools=[pdf_tool, file_writer,s3_file_writer],
             verbose=True,
             max_rpm=self.config['max_rpm'],
             max_iter=3,
@@ -101,10 +91,8 @@ class LatestTradeMatchingAgent:
     @agent
     def trade_entity_extractor(self) -> Agent:
         # Build tools list conditionally
-        tools_list = [file_writer, file_reader, directory_read_tool]
-        if ocr_tool is not None:
-            tools_list.insert(0, ocr_tool)  # Add OCR first if available
-
+        tools_list = [ocr_tool,file_writer, file_reader, directory_read_tool,s3_file_reader,s3_file_writer]
+        
         return Agent(
             config=self.agents_config['trade_entity_extractor'],
             llm=llm,
@@ -119,7 +107,7 @@ class LatestTradeMatchingAgent:
     @agent
     def reporting_analyst(self) -> Agent:
         """Agent with DynamoDB access for storing trade data"""
-        tools_list = [file_reader, file_writer]
+        tools_list = [file_reader, file_writer,s3_file_reader,s3_file_writer]
         # Add DynamoDB tools if available
         if self.dynamodb_tools:
             tools_list.extend(self.dynamodb_tools)
@@ -138,7 +126,7 @@ class LatestTradeMatchingAgent:
     @agent
     def matching_analyst(self) -> Agent:
         """Agent with DynamoDB access for matching trades"""
-        tools_list = [file_reader, file_writer]
+        tools_list = [file_reader, file_writer,s3_file_writer,s3_file_reader]
         # Add DynamoDB tools if available
         if self.dynamodb_tools:
             tools_list.extend(self.dynamodb_tools)

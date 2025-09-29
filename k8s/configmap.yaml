@@ -26,6 +26,8 @@ data:
   MAX_EXECUTION_TIME: "1200"  # 20 minutes per agent
   CREW_MEMORY: "false"
   CREW_VERBOSE: "true"
+  CREWAI_DISABLE_TELEMETRY: "1"
+  CHROMA_OPENAI_API_KEY: "dummy-key-to-disable-memory"
 
   # LLM Configuration
   BEDROCK_MODEL: "bedrock/amazon.nova-pro-v1:0"

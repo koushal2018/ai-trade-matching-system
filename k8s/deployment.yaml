@@ -34,7 +34,7 @@ spec:
         fsGroup: 1000
       containers:
       - name: trade-matching
-        image: YOUR_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/trade-matching-system:latest
+        image: 401552979575.dkr.ecr.us-east-1.amazonaws.com/trade-matching-system:latest
         imagePullPolicy: Always
         ports:
         - name: http
