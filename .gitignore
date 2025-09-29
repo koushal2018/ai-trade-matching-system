@@ -111,6 +111,12 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate*
+terraform/*.tfvars
+
 # Documentation builds
 docs/_build/
 
