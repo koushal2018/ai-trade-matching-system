@@ -19,6 +19,10 @@ import logging
 
 load_dotenv()
 
+# Set dummy OpenAI API key to bypass CrewAI validation (we use AWS Bedrock)
+if not os.getenv("OPENAI_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = "sk-dummy-key-for-bedrock-usage"
+
 # Disable LiteLLM cost tracking
 os.environ["LITELLM_LOG"] = "ERROR"
 
