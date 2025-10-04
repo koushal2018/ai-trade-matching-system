@@ -1,6 +1,6 @@
 # Core CrewAI framework
 crewai>=0.201.0
-crewai-tools>=0.14.0
+crewai-tools[mcp]>=0.14.0
 
 # LLM providers
 anthropic>=0.69.0
