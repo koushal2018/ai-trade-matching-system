@@ -4,7 +4,8 @@ crewai-tools>=0.14.0
 
 # LLM providers
 anthropic>=0.69.0
-litellm>=1.76.0
+# litellm version pinned by crewai dependency
+litellm>=1.74.9
 
 # AWS services (required for Lambda, S3, Bedrock)
 boto3>=1.40.0
