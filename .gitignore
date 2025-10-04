@@ -53,10 +53,6 @@ data/temp/
 *.pem
 *.key
 
-# Kubernetes
-kubeconfig*
-.kube/
-
 # Terraform
 *.tfstate
 *.tfstate.*
@@ -66,15 +62,7 @@ kubeconfig*
 .terraform/
 .terraform.lock.hcl
 
-# Docker
-.dockerignore
-
-# EKS and container logs
-container-logs/
-k8s-logs/
-
 # Sensitive deployment configs
-k8s/secrets/
 terraform/secrets/
 
 # Lambda deployment packages
