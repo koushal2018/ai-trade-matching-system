@@ -72,7 +72,12 @@ lambda-deploy/
 # MCP configuration (may contain sensitive data)
 .mcp.json
 *-config.json
+
+# Vibe coding / AI-generated documentation
 vibe-session.log
+vibe*.log
+generated-docs/
+**/generated-docs/
 
 # Monitoring and performance data
 monitoring/data/
