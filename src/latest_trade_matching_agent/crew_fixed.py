@@ -26,8 +26,13 @@ os.environ["LITELLM_LOG"] = "ERROR"
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Configure AWS Bedrock LLM
+bedrock_model = os.getenv('BEDROCK_MODEL', 'anthropic.claude-sonnet-4-20250514-v1:0')
+aws_region = os.getenv('AWS_DEFAULT_REGION', 'us-east-1')
+
 llm = LLM(
-    model="bedrock/global.anthropic.claude-sonnet-4-20250514-v1:0"
+    model=f"bedrock/{bedrock_model}",
+    aws_region_name=aws_region
 )
 
 # Initialize standard tools
