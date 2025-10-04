@@ -1,8 +1,0 @@
-{
-  "s3_bucket": "fab-otc-reconciliation-deployment",
-  "s3_key": "BANK/FAB_26933659.pdf",
-  "source_type": "BANK",
-  "event_time": "2024-01-01T00:00:00Z",
-  "unique_identifier": "TEST123",
-  "metadata": {"test": "data"}
-}
