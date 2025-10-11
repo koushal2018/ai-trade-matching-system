@@ -16,26 +16,23 @@ document_processing_task:
 
 trade_entity_extractor_task:
   description: >
-    1. Use OCR to extract text from /tmp/processing/{unique_identifier}/pdf_images/
-    2. Parse into JSON with source_type={source_type}
-    3. Call S3 Writer Tool with: path={s3_bucket}/extracted/{source_type}/trade_{unique_identifier}_{timestamp}.json
-    4. CRITICAL: Return ONLY this exact format (do not include JSON content in output):
-       "S3_PATH: [exact_path_from_S3_tool] TRADE_SOURCE: {source_type}"
+    Extract trade data from images in /tmp/processing/{unique_identifier}/pdf_images/ using OCR.
+    Source type is {source_type} (validate: must be BANK or COUNTERPARTY).
+    Save extracted JSON to S3: {s3_bucket}/extracted/{source_type}/trade_{unique_identifier}_{timestamp}.json
+    Include metadata: s3_source_key, processing_timestamp, source_type.
 
   expected_output: >
-    "S3_PATH: s3://[bucket]/extracted/[source]/[filename].json TRADE_SOURCE: {source_type}"
+    "Trade data saved to S3: {s3_bucket}/extracted/{source_type}/trade_{unique_identifier}_{timestamp}.json.
+    TRADE_SOURCE: {source_type}. S3 path for next agent: [full_s3_path]"
 
   agent: trade_entity_extractor
 
 reporting_task:
   description: >
-    CRITICAL: Extract the S3 path from previous agent output (look for "S3_PATH: s3://...").
-    Read that exact JSON file from S3.
+    Read trade JSON from S3 path provided by previous agent.
     Store in DynamoDB: {dynamodb_bank_table} if source_type=BANK, else {dynamodb_counterparty_table}.
-    Use put_item tool with DynamoDB format - each attribute MUST be typed:
-    {{"Trade_ID": {{"S": "value"}}, "TRADE_SOURCE": {{"S": "{source_type}"}},
-    "s3_source": {{"S": "s3_path"}}, "processing_timestamp": {{"S": "ISO8601_timestamp"}}}}
-    Upsert if exists.
+    Use Trade_ID as primary key. Upsert if exists.
+    Include fields: TRADE_SOURCE={source_type}, s3_source, processing_timestamp.
 
   expected_output: >
     "Stored trade [Trade_ID] in table [table_name]. S3 source: [s3_path]"

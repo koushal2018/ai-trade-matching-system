@@ -1,0 +1,58 @@
+{
+  "dynamodb": {
+    "tables": {
+      "bank": {
+        "name": "BankTradeData",
+        "primary_key": "Trade_ID",
+        "required_fields": [
+          "Trade_ID",
+          "TRADE_SOURCE",
+          "s3_source",
+          "processing_timestamp"
+        ],
+        "source_validation": {
+          "field": "TRADE_SOURCE",
+          "expected_value": "BANK"
+        }
+      },
+      "counterparty": {
+        "name": "CounterpartyTradeData",
+        "primary_key": "Trade_ID",
+        "required_fields": [
+          "Trade_ID",
+          "TRADE_SOURCE",
+          "s3_source",
+          "processing_timestamp"
+        ],
+        "source_validation": {
+          "field": "TRADE_SOURCE",
+          "expected_value": "COUNTERPARTY"
+        }
+      }
+    },
+    "operations": {
+      "upsert": {
+        "description": "If Trade_ID exists, update record; otherwise insert new",
+        "idempotent": true
+      }
+    }
+  },
+  "s3": {
+    "bucket": "fab-otc-reconciliation-deployment",
+    "paths": {
+      "pdf_images": "PDFIMAGES/{source_type}/{unique_identifier}/",
+      "extracted_json": "extracted/{source_type}/trade_{unique_identifier}_{timestamp}.json",
+      "matching_reports": "reports/matching_report_{unique_identifier}_{timestamp}.md",
+      "scratchpad": "scratchpad/{unique_identifier}/",
+      "configs": "config/"
+    }
+  },
+  "local_storage": {
+    "base_path": "/tmp/processing/{unique_identifier}/",
+    "subdirectories": {
+      "pdf_images": "pdf_images/",
+      "extracted_text": "extracted_text/",
+      "validation_logs": "validation_logs/"
+    }
+  }
+}

@@ -7,42 +7,31 @@ from latest_trade_matching_agent.crew_fixed import LatestTradeMatchingAgent
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-from mcp import StdioServerParameters
-from crewai_tools import MCPServerAdapter
-
-
 
 def run():
     # Define your inputs
     inputs = {
-        'document_path': './data/COUNTERPARTY/GCS382857_V1.pdf',
+        'document_path': 's3://otc-menat-2025/COUNTERPARTY/GCS382857_V2.pdf',
         'unique_identifier': 'GCS382857',
+        'source_type': 'COUNTERPARTY',
+        's3_bucket': 'otc-menat-2025',
+        's3_key': 'COUNTERPARTY/GCS382857_V2',
+        'dynamodb_bank_table': 'BankTradeData',
+        'dynamodb_counterparty_table': 'CounterpartyTradeData',
+        'timestamp': datetime.now().strftime('%Y%m%d_%H%M%S')
     }
-    
-    # Set up DynamoDB MCP server parameters
-    dynamodb_params = StdioServerParameters(
-        command="uvx", 
-        args=["awslabs.dynamodb-mcp-server@latest"],
-        env={
-            "DDB-MCP-READONLY": "false",  # Set to false if you need write access
-            "AWS_PROFILE": "default",
-            "AWS_REGION": "us-east-1",
-            "FASTMCP_LOG_LEVEL": "ERROR"
-        }
-    )
-    
-    # Use context manager to ensure proper cleanup
-    with MCPServerAdapter(dynamodb_params) as dynamodb_tools:
-        print(f"Connected to DynamoDB MCP server with tools: {[tool.name for tool in dynamodb_tools]}")
-        
-        # Create crew instance with DynamoDB tools
-        crew_instance = LatestTradeMatchingAgent(dynamodb_tools=list(dynamodb_tools))
-        
-        # Run the crew
-        result = crew_instance.crew().kickoff(inputs=inputs)
-        
-        print("\nCrew execution completed successfully!")
-        return result
+
+    # Create crew instance - MCP lifecycle managed automatically by @CrewBase
+    crew_instance = LatestTradeMatchingAgent()
+
+    # Run the crew - MCP server will auto-start on first get_mcp_tools() call
+    # and auto-cleanup after kickoff completes
+    result = crew_instance.crew().kickoff(inputs=inputs)
+
+    print("\nCrew execution completed successfully!")
+    print(f"Usage metrics: {crew_instance.crew().usage_metrics}")
+
+    return result
 
 if __name__ == "__main__":
     run()
