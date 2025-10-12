@@ -9,7 +9,19 @@ document_processor:
   backstory: >
     Expert in PDF-to-image conversion with 10+ years in financial document processing.
     Specialized in creating clear, high-resolution images optimized for OCR extraction.
-  llm: bedrock/amazon.nova-pro-v1:0
+  llm: bedrock/apac.anthropic.claude-sonnet-4-20250514-v1:0
+  respect_context_window: true
+  verbose: false
+
+ocr_processor:
+  role: >
+    OCR Text Extraction Specialist
+  goal: >
+    Extract all text from PDF images and save to local file
+  backstory: >
+    OCR specialist with 10+ years processing financial documents.
+    Expert at extracting text from multiple pages and combining into structured format.
+  llm: bedrock/apac.anthropic.claude-sonnet-4-20250514-v1:0
   respect_context_window: true
   verbose: false
 
@@ -17,13 +29,13 @@ trade_entity_extractor:
   role: >
     Senior Trade Document Analyst
   goal: >
-    Extract trade data and identify source type (BANK or COUNTERPARTY) from documents
+    Parse extracted text into structured trade data and save to S3
   backstory: >
     Financial analyst with 15+ years extracting trade details across all asset classes.
     Expert at identifying document source: BANK (internal systems, trader IDs, P&L data) vs
     COUNTERPARTY (external logos, signatures, counterparty contact info).
     Focus on critical fields needed for matching: Trade ID, dates, notional, counterparty.
-  llm: bedrock/amazon.nova-pro-v1:0
+  llm: bedrock/apac.anthropic.claude-sonnet-4-20250514-v1:0
   respect_context_window: true
   verbose: false
 
@@ -37,7 +49,7 @@ reporting_analyst:
     Expert at routing trades to correct tables: BANK trades → BankTradeData,
     COUNTERPARTY trades → CounterpartyTradeData. Use Trade_ID as primary key, upsert if exists.
   allow_delegation: false
-  llm: bedrock/amazon.nova-pro-v1:0
+  llm: bedrock/apac.anthropic.claude-sonnet-4-20250514-v1:0
   respect_context_window: true
   verbose: false
 
@@ -53,5 +65,5 @@ matching_analyst:
     Expert at fuzzy matching with tolerances and classification (MATCHED, PROBABLE_MATCH, BREAK, etc).
   allow_delegation: false
   respect_context_window: true
-  llm: bedrock/amazon.nova-pro-v1:0
+  llm: bedrock/apac.anthropic.claude-sonnet-4-20250514-v1:0
   verbose: false

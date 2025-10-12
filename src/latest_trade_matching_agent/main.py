@@ -11,11 +11,11 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 def run():
     # Define your inputs
     inputs = {
-        'document_path': 's3://otc-menat-2025/COUNTERPARTY/GCS382857_V2.pdf',
-        'unique_identifier': 'GCS382857',
-        'source_type': 'COUNTERPARTY',
+        'document_path': 's3://otc-menat-2025/BANK/FAB_26933659.pdf',
+        'unique_identifier': 'FAB_26933659.pd',
+        'source_type': 'BANK',
         's3_bucket': 'otc-menat-2025',
-        's3_key': 'COUNTERPARTY/GCS382857_V2',
+        's3_key': 'BANK/FAB_26933659',
         'dynamodb_bank_table': 'BankTradeData',
         'dynamodb_counterparty_table': 'CounterpartyTradeData',
         'timestamp': datetime.now().strftime('%Y%m%d_%H%M%S')

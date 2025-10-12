@@ -2,7 +2,7 @@ from crewai import Agent, Crew, Process, Task, LLM
 from crewai.project import CrewBase, agent, crew, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from typing import List, Optional, Dict, Any
-from .tools import PDFToImageTool
+from .tools import PDFToImageTool, DynamoDBTool
 from crewai_tools import DirectoryReadTool,FileReadTool,FileWriterTool,S3ReaderTool,S3WriterTool,OCRTool
 from mcp import StdioServerParameters
 
@@ -10,7 +10,6 @@ import os
 from dotenv import load_dotenv
 import logging
 import time
-import boto3
 
 # Optional OpenLit integration
 # try:
@@ -33,12 +32,12 @@ os.environ["LITELLM_LOG"] = "ERROR"
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configure AWS Bedrock LLM
-bedrock_model = os.getenv('BEDROCK_MODEL', 'amazon.nova-pro-v1:0')
+# Configure AWS Bedrock LLM - Using Claude Sonnet 4 for better reliability
+bedrock_model = os.getenv('BEDROCK_MODEL', 'apac.anthropic.claude-sonnet-4-20250514-v1:0')
 aws_region = os.getenv('AWS_DEFAULT_REGION', 'me-central-1')
 
 llm = LLM(
-    model="bedrock/amazon.nova-pro-v1:0",
+    model="bedrock/apac.anthropic.claude-sonnet-4-20250514-v1:0",  # Claude Sonnet 4 (APAC region)
     temperature=0.7,
     max_tokens=4096  # Prevent response truncation
 )
@@ -52,6 +51,9 @@ directory_read_tool = DirectoryReadTool()
 s3_file_reader = S3ReaderTool(bucket_name=os.getenv('S3_BUCKET_NAME', 'otc-mentat-2025'))
 s3_file_writer = S3WriterTool(bucket_name=os.getenv('S3_BUCKET_NAME', 'otc-mentat-2025'))
 
+# Initialize DynamoDB tool
+dynamodb_tool = DynamoDBTool(region_name=os.getenv('AWS_REGION', 'me-central-1'))
+
 
 
 
@@ -61,17 +63,17 @@ class LatestTradeMatchingAgent:
     agents: List[BaseAgent]
     tasks: List[Task]
 
-    # MCP server configuration for DynamoDB tools
-    mcp_server_params = StdioServerParameters(
-        command="uvx",
-        args=["awslabs.dynamodb-mcp-server@latest"],
-        env={
-            "DDB-MCP-READONLY": "false",
-            "AWS_PROFILE": os.getenv("AWS_PROFILE", "default"),
-            "AWS_REGION": os.getenv("AWS_REGION", "us-east-1"),
-            "FASTMCP_LOG_LEVEL": "ERROR"
-        }
-    )
+    # AWS API MCP server configuration for DynamoDB and other AWS operations
+    mcp_server_params = [
+        StdioServerParameters(
+            command="uvx",
+            args=["awslabs.aws-api-mcp-server@latest"],
+            env={
+                "AWS_REGION": os.getenv("AWS_REGION", "me-central-1"),
+                "AWS_PROFILE": os.getenv("AWS_PROFILE", "default")
+            }
+        )
+    ]
     mcp_connect_timeout = 60  # 60 seconds timeout for MCP connections
 
     def __init__(self, request_context: Optional[Dict[str, Any]] = None):
@@ -112,9 +114,26 @@ class LatestTradeMatchingAgent:
         )
     
     @agent
+    def ocr_processor(self) -> Agent:
+        """Agent for OCR text extraction from images"""
+        tools_list = [ocr_tool, file_writer, directory_read_tool]
+
+        return Agent(
+            config=self.agents_config['ocr_processor'],
+            llm=llm,
+            tools=tools_list,
+            verbose=False,
+            max_rpm=self.config['max_rpm'],
+            max_retry_limit=1,
+            max_iter=10,  # list files(1) + OCR 5 pages(5) + combine(1) + write file(1) + formatting(2) = ~10 iterations
+            max_execution_time=self.config['max_execution_time'],
+            multimodal=True
+        )
+
+    @agent
     def trade_entity_extractor(self) -> Agent:
-        # Build tools list conditionally
-        tools_list = [ocr_tool,file_writer, file_reader, directory_read_tool,s3_file_reader,s3_file_writer]
+        """Agent for parsing OCR text into structured JSON"""
+        tools_list = [file_reader, s3_file_writer]  # Only needs to read local file and write to S3
 
         return Agent(
             config=self.agents_config['trade_entity_extractor'],
@@ -123,7 +142,7 @@ class LatestTradeMatchingAgent:
             verbose=False,  # Reduce token overhead
             max_rpm=self.config['max_rpm'],
             max_retry_limit=1,  # Reduced from 2
-            max_iter=8,  # Increased to 8 to ensure S3 write completes
+            max_iter=5,  # read file(1) + parse JSON(1) + write S3(1) + format output(2) = ~5 iterations
             max_execution_time=self.config['max_execution_time'],
             multimodal=True
         )
@@ -131,8 +150,8 @@ class LatestTradeMatchingAgent:
     @agent
     def reporting_analyst(self) -> Agent:
         """Agent with DynamoDB access for storing trade data"""
-        tools_list = [file_reader, file_writer, s3_file_reader, s3_file_writer]
-        # Add DynamoDB MCP tools using get_mcp_tools()
+        tools_list = [file_reader, file_writer, s3_file_reader, s3_file_writer, dynamodb_tool]
+        # Add AWS API MCP tools for DynamoDB operations
         tools_list.extend(self.get_mcp_tools())
 
         return Agent(
@@ -142,7 +161,7 @@ class LatestTradeMatchingAgent:
             verbose=False,  # Reduce token overhead
             max_rpm=self.config['max_rpm'],
             max_retry_limit=1,  # Reduced from 2
-            max_iter=2,  # Reduced from 5 (critical for token savings)
+            max_iter=8,  # Increased from 5 to allow error handling + S3 read + DynamoDB write + verification
             max_execution_time=self.config['max_execution_time'],
             multimodal=True
         )
@@ -150,8 +169,8 @@ class LatestTradeMatchingAgent:
     @agent
     def matching_analyst(self) -> Agent:
         """Agent with DynamoDB access for matching trades"""
-        tools_list = [file_reader, file_writer, s3_file_writer, s3_file_reader]
-        # Add DynamoDB MCP tools using get_mcp_tools()
+        tools_list = [file_reader, file_writer, s3_file_writer, s3_file_reader, dynamodb_tool]
+        # Add AWS API MCP tools for DynamoDB operations
         tools_list.extend(self.get_mcp_tools())
 
         return Agent(
@@ -161,7 +180,7 @@ class LatestTradeMatchingAgent:
             verbose=False,  # Reduce token overhead
             max_rpm=self.config['max_rpm'],
             max_retry_limit=1,  # Reduced from 2
-            max_iter=3,  # Reduced from 8 (critical for token savings)
+            max_iter=10,  # Increased from 6 to allow: scan 2 tables + integrity check + matching logic + report generation
             max_execution_time=self.config['max_execution_time'],
             multimodal=True
         )
@@ -172,7 +191,14 @@ class LatestTradeMatchingAgent:
             config=self.tasks_config['document_processing_task'],
             agent=self.document_processor()
         )
-    
+
+    @task
+    def ocr_processing_task(self) -> Task:
+        return Task(
+            config=self.tasks_config['ocr_processing_task'],
+            agent=self.ocr_processor()
+        )
+
     @task
     def research_task(self) -> Task:
         return Task(
@@ -211,25 +237,11 @@ class LatestTradeMatchingAgent:
     @crew
     def crew(self) -> Crew:
         """Creates the enhanced LatestTradeMatchingAgent crew"""
-        # Create boto3 session for Bedrock embeddings
-        bedrock_session = boto3.Session(
-            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-            region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1")
-        )
-
         return Crew(
             agents=self.agents,
             tasks=self.tasks,
             process=Process.sequential,
-            memory=True,
-            embedder={
-                "provider": "bedrock",
-                "config": {
-                    "model": "amazon.titan-embed-text-v2:0",
-                    "session": bedrock_session
-                }
-            },  # AWS Bedrock Titan embeddings with boto3 session
+            memory=False,  # DISABLED: ChromaDB has credential handling bug with AWS Bedrock
             verbose=False,  # Reduce token overhead from logging
             max_rpm=self.config['max_rpm'],
             share_crew=False,
