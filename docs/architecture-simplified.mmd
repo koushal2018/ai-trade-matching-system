@@ -1,0 +1,42 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#FF9900','primaryTextColor':'#fff','primaryBorderColor':'#232F3E','lineColor':'#232F3E','secondaryColor':'#527FFF','tertiaryColor':'#3F8624'}}}%%
+flowchart TD
+    Start([Trade PDF Upload]) --> S3
+
+    S3[("🗄️ Amazon S3<br/>otc-menat-2025")] --> Agent1
+
+    Agent1["🤖 Document Processor<br/>PDF → Images (300 DPI)"] --> Agent2
+
+    Agent2["🤖 OCR Processor<br/>Image → Text"] --> Bedrock1{{"🧠 AWS Bedrock<br/>Claude Sonnet 4"}}
+
+    Bedrock1 --> Agent3["🤖 Trade Entity Extractor<br/>Text → JSON"]
+
+    Agent3 --> S3_JSON[("📋 S3: extracted/<br/>trade_data.json")]
+
+    S3_JSON --> Agent4["🤖 Reporting Analyst<br/>JSON → DynamoDB"]
+
+    Agent4 --> DDB_Tool{{"⚙️ DynamoDB Tool<br/>+ MCP Server"}}
+
+    DDB_Tool --> DDB_Bank[("💾 BankTradeData")]
+    DDB_Tool --> DDB_CP[("💾 CounterpartyTradeData")]
+
+    DDB_Bank --> Agent5["🤖 Matching Analyst<br/>Trade Matching"]
+    DDB_CP --> Agent5
+
+    Agent5 --> Report[("📊 S3: reports/<br/>matching_report.md")]
+
+    Report --> End([Complete])
+
+    style Start fill:#00A4BD,stroke:#232F3E,color:#fff
+    style End fill:#00A4BD,stroke:#232F3E,color:#fff
+    style S3 fill:#FF9900,stroke:#232F3E,color:#fff
+    style S3_JSON fill:#FF9900,stroke:#232F3E,color:#fff
+    style Report fill:#FF9900,stroke:#232F3E,color:#fff
+    style Agent1 fill:#00A4BD,stroke:#232F3E,color:#fff
+    style Agent2 fill:#00A4BD,stroke:#232F3E,color:#fff
+    style Agent3 fill:#00A4BD,stroke:#232F3E,color:#fff
+    style Agent4 fill:#00A4BD,stroke:#232F3E,color:#fff
+    style Agent5 fill:#00A4BD,stroke:#232F3E,color:#fff
+    style Bedrock1 fill:#527FFF,stroke:#232F3E,color:#fff
+    style DDB_Tool fill:#DD344C,stroke:#232F3E,color:#fff
+    style DDB_Bank fill:#3F8624,stroke:#232F3E,color:#fff
+    style DDB_CP fill:#3F8624,stroke:#232F3E,color:#fff

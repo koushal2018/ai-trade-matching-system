@@ -1,0 +1,71 @@
+graph TB
+    subgraph "Input Layer"
+        PDF[📄 Trade Confirmation PDFs<br/>BANK / COUNTERPARTY]
+        S3[(Amazon S3<br/>otc-menat-2025)]
+        PDF --> S3
+    end
+
+    subgraph "AWS Bedrock"
+        Bedrock[🧠 Claude Sonnet 4<br/>apac.anthropic.claude-sonnet-4-20250514-v1:0<br/>Temperature: 0.7 | Max Tokens: 4096]
+    end
+
+    subgraph "Processing Layer - CrewAI Multi-Agent System"
+        A1[🤖 Agent 1: Document Processor<br/>PDF → JPEG 300 DPI<br/>max_iter: 5]
+        A2[🤖 Agent 2: OCR Processor<br/>Extract Text from Images<br/>max_iter: 10]
+        A3[🤖 Agent 3: Trade Entity Extractor<br/>Parse JSON from Text<br/>max_iter: 5]
+        A4[🤖 Agent 4: Reporting Analyst<br/>Store to DynamoDB<br/>max_iter: 8]
+        A5[🤖 Agent 5: Matching Analyst<br/>Trade Matching & Reports<br/>max_iter: 10]
+
+        A1 --> A2
+        A2 --> A3
+        A3 --> A4
+        A4 --> A5
+    end
+
+    subgraph "Data Layer"
+        DDB1[(DynamoDB<br/>BankTradeData<br/>PK: Trade_ID)]
+        DDB2[(DynamoDB<br/>CounterpartyTradeData<br/>PK: Trade_ID)]
+    end
+
+    subgraph "Integration Layer"
+        MCP[🔗 Model Context Protocol<br/>AWS API MCP Server<br/>awslabs.aws-api-mcp-server@latest]
+        DDB_TOOL[⚙️ Custom DynamoDB Tool<br/>boto3 direct access]
+    end
+
+    subgraph "Output Layer"
+        Reports[📊 Matching Reports<br/>S3: reports/]
+        Images[🖼️ PDF Images<br/>S3: PDFIMAGES/]
+        JSON[📋 Trade JSON<br/>S3: extracted/]
+    end
+
+    %% Connections
+    S3 --> A1
+    A1 --> Images
+    A1 --> Bedrock
+    A2 --> Bedrock
+    A3 --> Bedrock
+    A3 --> JSON
+    A4 --> MCP
+    A4 --> DDB_TOOL
+    A5 --> MCP
+    A5 --> DDB_TOOL
+
+    DDB_TOOL --> DDB1
+    DDB_TOOL --> DDB2
+    MCP --> DDB1
+    MCP --> DDB2
+
+    A5 --> Reports
+
+    %% Styling
+    classDef aws fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#fff
+    classDef agent fill:#00A4BD,stroke:#232F3E,stroke-width:2px,color:#fff
+    classDef bedrock fill:#527FFF,stroke:#232F3E,stroke-width:2px,color:#fff
+    classDef data fill:#3F8624,stroke:#232F3E,stroke-width:2px,color:#fff
+    classDef tool fill:#DD344C,stroke:#232F3E,stroke-width:2px,color:#fff
+
+    class S3,Images,JSON,Reports aws
+    class A1,A2,A3,A4,A5 agent
+    class Bedrock bedrock
+    class DDB1,DDB2 data
+    class MCP,DDB_TOOL tool
