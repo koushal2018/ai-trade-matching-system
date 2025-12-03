@@ -20,6 +20,31 @@ from pydantic import BaseModel, Field
 # REQUIRED: Import BedrockAgentCoreApp
 from bedrock_agentcore import BedrockAgentCoreApp
 
+# Memory integration (optional - graceful fallback if not available)
+try:
+    import sys
+    sys.path.insert(0, '/opt/agent/src')
+    from latest_trade_matching_agent.memory import store_processing_history
+    MEMORY_ENABLED = True
+except ImportError:
+    MEMORY_ENABLED = False
+    async def store_processing_history(*args, **kwargs):
+        pass
+
+# Observability integration (optional - graceful fallback if not available)
+try:
+    from latest_trade_matching_agent.observability import create_span, record_latency, record_throughput, record_error
+    OBSERVABILITY_ENABLED = True
+except ImportError:
+    OBSERVABILITY_ENABLED = False
+    from contextlib import contextmanager
+    @contextmanager
+    def create_span(*args, **kwargs):
+        yield None
+    def record_latency(*args, **kwargs): pass
+    def record_throughput(*args, **kwargs): pass
+    def record_error(*args, **kwargs): pass
+
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
@@ -109,6 +134,12 @@ def extract_text_from_pdf(
     # Use Bedrock Claude to extract text from PDF
     logger.info("Extracting text using Bedrock Claude...")
     
+    # Sanitize document name for Bedrock (only alphanumeric, hyphens, parentheses, brackets allowed)
+    import re
+    sanitized_name = re.sub(r'[^a-zA-Z0-9\-\(\)\[\]\s]', '-', document_id)
+    sanitized_name = re.sub(r'\s+', ' ', sanitized_name).strip()
+    sanitized_name = re.sub(r'\s+', ' ', sanitized_name)  # Collapse multiple spaces
+    
     response = bedrock_client.converse(
         modelId=BEDROCK_MODEL_ID,
         messages=[
@@ -118,7 +149,7 @@ def extract_text_from_pdf(
                     {
                         "document": {
                             "format": "pdf",
-                            "name": f"{document_id}.pdf",
+                            "name": sanitized_name,
                             "source": {
                                 "bytes": pdf_bytes
                             }
@@ -399,6 +430,25 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
             "processing_time_ms": processing_time_ms,
             "extracted_text_length": len(extracted_text)
         }
+        
+        # Step 6: Store processing history in AgentCore Memory
+        if MEMORY_ENABLED:
+            try:
+                import asyncio
+                asyncio.run(store_processing_history(
+                    event_type="PDF_PROCESSED",
+                    document_id=document_id,
+                    processing_result={
+                        "success": True,
+                        "source_type": source_type,
+                        "text_length": len(extracted_text),
+                        "processing_time_ms": processing_time_ms
+                    },
+                    correlation_id=correlation_id
+                ))
+                logger.info("Stored processing history in AgentCore Memory")
+            except Exception as mem_error:
+                logger.warning(f"Could not store to memory (non-fatal): {mem_error}")
         
         logger.info(f"Processing result: {json.dumps(result, default=str)}")
         return result

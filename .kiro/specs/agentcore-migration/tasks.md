@@ -562,8 +562,8 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
 - [x] 19. Checkpoint - Ensure backend API tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [-] 20. Implement AgentCore Memory integration
-- [-] 20.1 Create memory storage utilities
+- [x] 20. Implement AgentCore Memory integration
+- [x] 20.1 Create memory storage utilities
   - Implement store_trade_pattern() function
   - Implement retrieve_similar_trades() function
   - Implement store_matching_decision() function
@@ -579,17 +579,17 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - **Property 40: Historical context retrieved for similar trades**
   - **Validates: Requirements 11.2**
 
-- [ ] 20.4 Integrate memory with PDF Adapter Agent
+- [x] 20.4 Integrate memory with PDF Adapter Agent
   - Store processing history in event memory
   - Track PDF processing patterns
   - _Requirements: 11.1_
 
-- [ ] 20.5 Integrate memory with Trade Extraction Agent
+- [x] 20.5 Integrate memory with Trade Extraction Agent
   - Store extraction patterns in semantic memory
   - Retrieve similar trade patterns for context
   - _Requirements: 11.1, 11.2_
 
-- [ ] 20.6 Integrate memory with Trade Matching Agent
+- [x] 20.6 Integrate memory with Trade Matching Agent
   - Store matching decisions in semantic memory
   - Retrieve HITL feedback for similar cases
   - _Requirements: 11.2, 11.3, 16.5_
@@ -598,17 +598,17 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - **Property 53: Similar cases suggest past decisions**
   - **Validates: Requirements 16.5**
 
-- [ ] 20.8 Integrate memory with Exception Management Agent
+- [x] 20.8 Integrate memory with Exception Management Agent
   - Store error patterns in event memory
   - Store RL policies in semantic memory
   - Retrieve historical error patterns
   - _Requirements: 11.4_
 
-- [ ] 21. Checkpoint - Ensure memory integration tests pass
+- [x] 21. Checkpoint - Ensure memory integration tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 22. Implement AgentCore Observability integration
-- [ ] 22.1 Add distributed tracing to all agents
+- [x] 22. Implement AgentCore Observability integration
+- [x] 22.1 Add distributed tracing to all agents
   - Instrument PDF Adapter Agent with traces
   - Instrument Trade Extraction Agent with traces
   - Instrument Trade Matching Agent with traces
@@ -621,7 +621,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - **Property 46: Distributed tracing spans all agents**
   - **Validates: Requirements 12.4**
 
-- [ ] 22.3 Add metrics collection to all agents
+- [x] 22.3 Add metrics collection to all agents
   - Track latency for each agent operation
   - Track throughput (trades processed per hour)
   - Track error rates
@@ -632,13 +632,71 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - **Property 44: Performance metrics tracked**
   - **Validates: Requirements 12.2**
 
-- [ ] 22.5 Configure anomaly detection
+- [x] 22.5 Configure anomaly detection
   - Set up anomaly detection rules (latency > 2x baseline, error rate > 5%)
   - Configure alerts for anomalies
   - Test anomaly detection with synthetic data
   - _Requirements: 12.3_
 
-- [ ] 23. Checkpoint - Ensure observability integration tests pass
+- [x] 23. Checkpoint - Ensure observability integration tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 23.5. Implement AgentCore Evaluations integration
+- [x] 23.5.1 Create custom evaluators for trade matching
+  - Create TradeExtractionAccuracy evaluator
+  - Create MatchingQuality evaluator
+  - Create OCRQuality evaluator
+  - Create ExceptionHandlingQuality evaluator
+  - Define evaluation criteria and scoring schemas
+  - _Requirements: 12.2, 18.5, 19.1, 19.2_
+
+- [x] 23.5.2 Configure online evaluation
+  - Set up continuous monitoring for live agent traffic
+  - Configure sampling rules (10% of traffic)
+  - Define target agents for each evaluator
+  - _Requirements: 12.2, 12.3, 19.3_
+
+- [x] 23.5.3 Set up evaluation metrics and alerting
+  - Configure CloudWatch metrics namespace
+  - Create alarms for quality score drops
+  - Set up SNS notifications for evaluation alerts
+  - _Requirements: 12.3, 19.4_
+
+- [x] 23.5.4 Implement on-demand evaluation for testing
+  - Create evaluation test harness
+  - Support batch evaluation of specific interactions
+  - Enable pre-deployment quality gates
+  - _Requirements: 18.5, 19.5_
+
+- [x] 23.6. Implement AgentCore Policy integration
+- [x] 23.6.1 Create policy engine for trade matching
+  - Set up TradeMatchingPolicyEngine
+  - Configure policy validation mode
+  - _Requirements: 17.1, 17.4, 20.1_
+
+- [x] 23.6.2 Implement trade amount limit policies
+  - Create Cedar policy for notional amount limits
+  - Configure $100M threshold for standard processing
+  - _Requirements: 17.4, 20.1_
+
+- [x] 23.6.3 Implement role-based access control policies
+  - Create senior operator approval policy
+  - Create regular operator approval policy
+  - Define role-based match score thresholds
+  - _Requirements: 17.4, 20.2_
+
+- [x] 23.6.4 Implement compliance control policies
+  - Create restricted counterparty blocking policy
+  - Create emergency shutdown policy (disabled by default)
+  - _Requirements: 17.1, 17.4, 20.3, 20.4_
+
+- [x] 23.6.5 Attach policy engine to Gateway
+  - Configure policy enforcement mode (LOG_ONLY for dev, ENFORCE for prod)
+  - Set up policy decision logging
+  - Create policy denial alerts
+  - _Requirements: 17.1, 17.4, 20.5_
+
+- [x] 23.7. Checkpoint - Ensure Evaluations and Policy tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 24. Implement end-to-end integration tests
@@ -683,128 +741,128 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Test export functionality
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
 
-- [ ] 25. Final Checkpoint - Ensure all integration tests pass
+- [x] 25. Final Checkpoint - Ensure all integration tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 26. Data migration from me-central-1 to us-east-1
-- [ ] 26.1 Export data from me-central-1
+- [x] 26. Data migration from me-central-1 to us-east-1
+- [x] 26.1 Export data from me-central-1
   - Export BankTradeData table
   - Export CounterpartyTradeData table
   - Export all S3 objects
   - Verify data integrity
   - _Requirements: 14.3_
 
-- [ ] 26.2 Transform data for us-east-1
+- [x] 26.2 Transform data for us-east-1
   - Update region references in data
   - Update S3 paths
   - Validate data against canonical models
   - _Requirements: 14.3_
 
-- [ ] 26.3 Import data to us-east-1
+- [x] 26.3 Import data to us-east-1
   - Import to BankTradeData table
   - Import to CounterpartyTradeData table
   - Upload S3 objects
   - Verify data integrity
   - _Requirements: 14.3_
 
-- [ ] 26.4 Validate migrated data
+- [x] 26.4 Validate migrated data
   - Compare record counts
   - Verify data integrity
   - Test queries on migrated data
   - _Requirements: 14.3_
 
-- [ ] 27. Performance testing and optimization
-- [ ] 27.1 Load testing
+- [x] 27. Performance testing and optimization
+- [x] 27.1 Load testing
   - Test with 100 concurrent trade processing requests
   - Measure latency, throughput, error rates
   - Verify auto-scaling works correctly
   - _Requirements: 2.2, 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 27.2 Optimize agent performance
+- [x] 27.2 Optimize agent performance
   - Identify bottlenecks from load testing
   - Optimize LLM prompts for faster extraction
   - Optimize DynamoDB queries
   - Adjust AgentCore Runtime configurations
   - _Requirements: 18.5_
 
-- [ ] 27.3 Verify 90-second processing time
+- [x] 27.3 Verify 90-second processing time
   - Test end-to-end processing time
   - Ensure average time ≤ 90 seconds per trade
   - Identify and fix any performance issues
   - _Requirements: 18.5_
 
-- [ ] 28. Security testing
-- [ ] 28.1 Test authentication and authorization
+- [x] 28. Security testing
+- [x] 28.1 Test authentication and authorization
   - Test JWT token validation
   - Test RBAC enforcement
   - Test MFA for admin users
   - Verify unauthorized access is blocked
   - _Requirements: 17.1, 17.2, 17.3, 17.4_
 
-- [ ] 28.2 Test data encryption
+- [x] 28.2 Test data encryption
   - Verify S3 encryption at rest
   - Verify DynamoDB encryption at rest
   - Verify TLS 1.3 for data in transit
   - _Requirements: 17.1_
 
-- [ ] 28.3 Test audit trail immutability
+- [x] 28.3 Test audit trail immutability
   - Attempt to modify audit records
   - Verify hash mismatch detection
   - Test tamper-evidence
   - _Requirements: 10.4_
 
-- [ ] 28.4 Penetration testing
+- [x] 28.4 Penetration testing
   - Test for common vulnerabilities (OWASP Top 10)
   - Test API security
   - Test WebSocket security
   - Address any findings
   - _Requirements: 17.1, 17.2_
 
-- [ ] 29. Documentation and training
-- [ ] 29.1 Create user documentation
+- [x] 29. Documentation and training
+- [x] 29.1 Create user documentation
   - Write user guide for Web Portal
   - Document HITL workflow
   - Document audit trail usage
   - Create troubleshooting guide
   - _Requirements: 9.1, 9.2, 9.3, 9.4_
 
-- [ ] 29.2 Create operator documentation
+- [x] 29.2 Create operator documentation
   - Document agent monitoring procedures
   - Document exception handling procedures
   - Document escalation procedures
   - Create runbooks for common issues
   - _Requirements: 4.1, 4.2, 8.3_
 
-- [ ] 29.3 Create developer documentation
+- [x] 29.3 Create developer documentation
   - Document agent architecture
   - Document event schemas
   - Document API endpoints
   - Document deployment procedures
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 29.4 Conduct training sessions
+- [x] 29.4 Conduct training sessions
   - Train operations team on Web Portal
   - Train operations team on exception handling
   - Train development team on agent architecture
   - Train development team on deployment procedures
   - _Requirements: 9.1, 9.2, 9.3, 9.4_
 
-- [ ] 30. Production deployment
-- [ ] 30.1 Prepare production environment
+- [x] 30. Production deployment
+- [x] 30.1 Prepare production environment
   - Create production AWS account/environment
   - Set up production AgentCore resources
   - Configure production monitoring and alerting
   - Set up production backups
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 30.2 Deploy to production (blue-green)
+- [x] 30.2 Deploy to production (blue-green)
   - Deploy all agents to production AgentCore Runtime
   - Deploy Web Portal to production
   - Deploy backend API to production
   - Keep old CrewAI system running (green)
   - _Requirements: 2.1, 2.2, 2.3_
 
-- [ ] 30.3 Gradual traffic shift
+- [x] 30.3 Gradual traffic shift
   - Route 10% of traffic to new system
   - Monitor metrics and errors
   - Route 25% of traffic to new system
@@ -812,19 +870,19 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Route 100% of traffic to new system
   - _Requirements: 2.1, 2.2_
 
-- [ ] 30.4 Monitor production system
+- [x] 30.4 Monitor production system
   - Monitor agent health and metrics
   - Monitor error rates and SLA compliance
   - Monitor cost and resource usage
   - Address any issues immediately
   - _Requirements: 4.1, 4.2, 4.3, 12.1, 12.2, 12.3_
 
-- [ ] 30.5 Decommission old CrewAI system
+- [x] 30.5 Decommission old CrewAI system
   - Verify new system is stable
   - Archive old system data
   - Shut down old system resources
   - Document lessons learned
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 31. Final Checkpoint - Production deployment complete
+- [x] 31. Final Checkpoint - Production deployment complete
   - Ensure all tests pass, ask the user if questions arise.

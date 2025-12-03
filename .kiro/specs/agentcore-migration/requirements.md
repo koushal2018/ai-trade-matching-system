@@ -238,3 +238,28 @@ This document specifies the requirements for migrating the AI Trade Matching Sys
 3. WHEN trades are matched THEN the system SHALL use the same fuzzy matching algorithms and tolerances
 4. WHEN reports are generated THEN the system SHALL include all existing report sections
 5. WHEN performance is measured THEN the system SHALL process trades within 90 seconds per confirmation
+
+
+### Requirement 19
+
+**User Story:** As a quality assurance engineer, I want to use Amazon Bedrock AgentCore Evaluations, so that I can continuously monitor and assess agent performance quality.
+
+#### Acceptance Criteria
+
+1. WHEN agents process trades THEN the system SHALL evaluate extraction accuracy using custom evaluators
+2. WHEN matching decisions are made THEN the system SHALL assess matching quality with LLM-as-Judge
+3. WHEN online evaluation is configured THEN the system SHALL sample 10% of live traffic for assessment
+4. WHEN evaluation scores drop below threshold THEN the system SHALL trigger CloudWatch alarms
+5. WHEN on-demand evaluation is requested THEN the system SHALL support batch assessment of specific interactions
+
+### Requirement 20
+
+**User Story:** As a compliance officer, I want to use Amazon Bedrock AgentCore Policy, so that I can enforce fine-grained authorization controls on agent operations.
+
+#### Acceptance Criteria
+
+1. WHEN trades exceed $100M notional THEN the system SHALL require elevated authorization via Cedar policy
+2. WHEN operators approve matches THEN the system SHALL enforce role-based score thresholds (senior: ≥0.70, regular: ≥0.85)
+3. WHEN restricted counterparties are detected THEN the system SHALL block processing via compliance policy
+4. WHEN emergency shutdown is needed THEN the system SHALL support immediate policy-based blocking
+5. WHEN policy decisions are made THEN the system SHALL log all allow/deny decisions to CloudWatch

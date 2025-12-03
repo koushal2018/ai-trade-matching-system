@@ -4,7 +4,7 @@
 
 This document describes the architecture for migrating the AI Trade Matching System from CrewAI to Strands SDK with Amazon Bedrock AgentCore deployment. The new architecture transforms a monolithic multi-agent system into five independent, scalable agents with a React-based web portal for monitoring, human-in-the-loop interactions, and comprehensive audit trails.
 
-The system will leverage Amazon Bedrock AgentCore services including Runtime (serverless deployment), Memory (persistent context), Observability (monitoring and tracing), Gateway (MCP tool integration), and Identity (authentication and authorization).
+The system will leverage Amazon Bedrock AgentCore services including Runtime (serverless deployment), Memory (persistent context), Observability (monitoring and tracing), Gateway (MCP tool integration), Identity (authentication and authorization), Evaluations (quality assessment), and Policy (fine-grained authorization controls).
 
 ## Architecture
 
@@ -1327,3 +1327,368 @@ The system includes 57 correctness properties covering:
 - **Quality Maintenance** (Property 57): OCR accuracy preservation
 
 See [design_properties.md](design_properties.md) for complete property definitions, testing strategy, deployment plan, and operational details.
+
+## AgentCore Evaluations Integration
+
+### Overview
+
+Amazon Bedrock AgentCore Evaluations provides automated assessment tools to measure agent performance, handle edge cases, and maintain consistency. The system uses both built-in and custom evaluators with LLM-as-a-Judge techniques.
+
+### Evaluation Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    AgentCore Evaluations                             │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                   Online Evaluation                           │  │
+│  │  • Continuous monitoring of live agent traffic                │  │
+│  │  • Sampling rules for evaluation coverage                     │  │
+│  │  • Real-time quality scores in CloudWatch                     │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                  On-Demand Evaluation                         │  │
+│  │  • Batch evaluation of specific interactions                  │  │
+│  │  • Pre-deployment quality gates                               │  │
+│  │  • A/B testing of agent configurations                        │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                      │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐    │
+│  │ Built-in        │  │ Custom          │  │ Domain-Specific │    │
+│  │ Evaluators      │  │ Evaluators      │  │ Evaluators      │    │
+│  │ • Helpfulness   │  │ • Trade Accuracy│  │ • Compliance    │    │
+│  │ • Accuracy      │  │ • OCR Quality   │  │ • Regulatory    │    │
+│  │ • Coherence     │  │ • Match Quality │  │ • Audit Ready   │    │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Built-in Evaluators
+
+The system leverages pre-configured evaluators for common assessment needs:
+
+```python
+BUILTIN_EVALUATORS = {
+    "helpfulness": "arn:aws:bedrock-agentcore:::evaluator/Builtin.Helpfulness",
+    "accuracy": "arn:aws:bedrock-agentcore:::evaluator/Builtin.Accuracy",
+    "coherence": "arn:aws:bedrock-agentcore:::evaluator/Builtin.Coherence"
+}
+```
+
+### Custom Evaluators for Trade Matching
+
+```python
+from bedrock_agentcore.evaluations import EvaluationClient
+
+evaluation_client = EvaluationClient(region_name='us-east-1')
+
+# Custom evaluator for trade extraction accuracy
+trade_extraction_evaluator = evaluation_client.create_custom_evaluator(
+    name="TradeExtractionAccuracy",
+    description="Evaluates accuracy of trade field extraction from PDFs",
+    model_id="anthropic.claude-sonnet-4-20250514-v1:0",
+    evaluation_criteria="""
+    Evaluate the trade extraction based on:
+    1. Field Completeness: Are all mandatory fields extracted? (Trade_ID, trade_date, notional, currency, counterparty)
+    2. Field Accuracy: Do extracted values match the source document?
+    3. Format Correctness: Are dates, numbers, and currencies in correct format?
+    4. Source Classification: Is TRADE_SOURCE correctly identified as BANK or COUNTERPARTY?
+    
+    Score 1-5 where:
+    5 = All fields correct, complete, properly formatted
+    4 = Minor formatting issues, all fields present
+    3 = 1-2 fields missing or incorrect
+    2 = Multiple errors or missing mandatory fields
+    1 = Extraction failed or fundamentally incorrect
+    """,
+    scoring_schema={
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 5
+    }
+)
+
+# Custom evaluator for matching quality
+matching_quality_evaluator = evaluation_client.create_custom_evaluator(
+    name="MatchingQuality",
+    description="Evaluates quality of trade matching decisions",
+    model_id="anthropic.claude-sonnet-4-20250514-v1:0",
+    evaluation_criteria="""
+    Evaluate the matching decision based on:
+    1. Score Accuracy: Does the match score reflect actual similarity?
+    2. Classification Correctness: Is the classification (MATCHED, BREAK, etc.) appropriate?
+    3. Reason Code Relevance: Are reason codes accurate and helpful?
+    4. Tolerance Application: Were matching tolerances correctly applied?
+    
+    Score 1-5 where:
+    5 = Perfect matching decision with accurate scoring
+    4 = Correct decision with minor scoring variance
+    3 = Correct decision but inaccurate scoring or reason codes
+    2 = Questionable decision requiring review
+    1 = Incorrect matching decision
+    """,
+    scoring_schema={
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 5
+    }
+)
+```
+
+### Online Evaluation Configuration
+
+```python
+# Configure online evaluation for continuous monitoring
+online_evaluation_config = evaluation_client.create_online_evaluation(
+    name="TradeMatchingOnlineEval",
+    description="Continuous quality monitoring for trade matching agents",
+    data_source={
+        "cloudwatch_log_group": "/aws/agentcore/trade-matching",
+        "sampling_rate": 0.1  # Evaluate 10% of traffic
+    },
+    evaluators=[
+        {
+            "evaluator_arn": trade_extraction_evaluator["evaluatorArn"],
+            "target_agents": ["pdf_adapter_agent", "trade_extraction_agent"]
+        },
+        {
+            "evaluator_arn": matching_quality_evaluator["evaluatorArn"],
+            "target_agents": ["trade_matching_agent"]
+        },
+        {
+            "evaluator_arn": BUILTIN_EVALUATORS["accuracy"],
+            "target_agents": ["*"]  # All agents
+        }
+    ],
+    output_config={
+        "cloudwatch_metrics_namespace": "TradeMatching/Evaluations",
+        "cloudwatch_log_group": "/aws/agentcore/evaluations"
+    }
+)
+```
+
+### Evaluation Metrics and Alerting
+
+```python
+# CloudWatch metrics emitted by evaluations
+EVALUATION_METRICS = {
+    "TradeExtractionScore": {
+        "namespace": "TradeMatching/Evaluations",
+        "dimensions": ["AgentId", "EvaluatorId"],
+        "alarm_threshold": 3.5,  # Alert if average drops below 3.5
+        "alarm_action": "arn:aws:sns:us-east-1:account:evaluation-alerts"
+    },
+    "MatchingQualityScore": {
+        "namespace": "TradeMatching/Evaluations",
+        "dimensions": ["AgentId", "EvaluatorId"],
+        "alarm_threshold": 4.0,
+        "alarm_action": "arn:aws:sns:us-east-1:account:evaluation-alerts"
+    }
+}
+```
+
+## AgentCore Policy Integration
+
+### Overview
+
+AgentCore Policy enables fine-grained authorization controls for agent tool invocations using Cedar policy language. This ensures agents operate within defined boundaries and prevents unauthorized actions.
+
+### Policy Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      AgentCore Policy                                │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                    Policy Engine                              │  │
+│  │  • Stores and evaluates Cedar policies                        │  │
+│  │  • Intercepts all Gateway tool calls                          │  │
+│  │  • Enforces fine-grained access controls                      │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                             │                                        │
+│         ┌───────────────────┼───────────────────┐                   │
+│         ▼                   ▼                   ▼                   │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐            │
+│  │ Amount      │    │ Role-Based  │    │ Emergency   │            │
+│  │ Limits      │    │ Access      │    │ Controls    │            │
+│  │ Policies    │    │ Policies    │    │ Policies    │            │
+│  └─────────────┘    └─────────────┘    └─────────────┘            │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Policy Engine Setup
+
+```python
+from bedrock_agentcore.policy import PolicyClient
+
+policy_client = PolicyClient(region_name='us-east-1')
+
+# Create policy engine for trade matching system
+policy_engine = policy_client.create_or_get_policy_engine(
+    name='TradeMatchingPolicyEngine',
+    description='Policy engine for trade matching agent authorization'
+)
+```
+
+### Cedar Policies for Trade Matching
+
+#### 1. Trade Amount Limits Policy
+
+```cedar
+// Allow trade processing only for notional amounts under $100M
+permit(
+  principal is AgentCore::OAuthUser,
+  action == AgentCore::Action::\"TradeTarget___store_trade\",
+  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-east-1:ACCOUNT:gateway/trade-gateway\"
+)
+when {
+  principal.hasTag(\"role\") &&
+  [\"operator\", \"admin\"].contains(principal.getTag(\"role\")) &&
+  context.input.notional < 100000000
+};
+```
+
+#### 2. Role-Based Access Control Policy
+
+```cedar
+// Only senior operators can approve high-value matches
+permit(
+  principal is AgentCore::OAuthUser,
+  action == AgentCore::Action::\"HITLTarget___approve_match\",
+  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-east-1:ACCOUNT:gateway/hitl-gateway\"
+)
+when {
+  principal.hasTag(\"role\") &&
+  principal.getTag(\"role\") == \"senior_operator\" &&
+  context.input.match_score >= 0.70
+};
+
+// Regular operators can only approve low-risk matches
+permit(
+  principal is AgentCore::OAuthUser,
+  action == AgentCore::Action::\"HITLTarget___approve_match\",
+  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-east-1:ACCOUNT:gateway/hitl-gateway\"
+)
+when {
+  principal.hasTag(\"role\") &&
+  principal.getTag(\"role\") == \"operator\" &&
+  context.input.match_score >= 0.85
+};
+```
+
+#### 3. Compliance Controls Policy
+
+```cedar
+// Block processing of trades from restricted counterparties
+forbid(
+  principal is AgentCore::OAuthUser,
+  action == AgentCore::Action::\"TradeTarget___store_trade\",
+  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-east-1:ACCOUNT:gateway/trade-gateway\"
+)
+when {
+  context.input has counterparty &&
+  [\"RESTRICTED_ENTITY_1\", \"RESTRICTED_ENTITY_2\"].contains(context.input.counterparty)
+};
+```
+
+#### 4. Emergency Shutdown Policy
+
+```cedar
+// Emergency: Block all trade processing (can be enabled/disabled)
+forbid(
+  principal,
+  action == AgentCore::Action::\"TradeTarget___store_trade\",
+  resource == AgentCore::Gateway::\"arn:aws:bedrock-agentcore:us-east-1:ACCOUNT:gateway/trade-gateway\"
+);
+```
+
+### Policy Implementation
+
+```python
+# Create policies for trade matching system
+policies = {
+    "trade_amount_limit": {
+        "name": "TradeAmountLimit",
+        "description": "Limit trade processing to amounts under $100M",
+        "cedar": TRADE_AMOUNT_LIMIT_POLICY
+    },
+    "senior_operator_approval": {
+        "name": "SeniorOperatorApproval",
+        "description": "Senior operators can approve high-value matches",
+        "cedar": SENIOR_OPERATOR_POLICY
+    },
+    "operator_approval": {
+        "name": "OperatorApproval",
+        "description": "Regular operators approve low-risk matches only",
+        "cedar": OPERATOR_POLICY
+    },
+    "compliance_block": {
+        "name": "ComplianceBlock",
+        "description": "Block restricted counterparties",
+        "cedar": COMPLIANCE_BLOCK_POLICY
+    }
+}
+
+# Deploy policies to policy engine
+for policy_name, policy_config in policies.items():
+    policy_client.create_policy(
+        policy_engine_id=policy_engine['policyEngineId'],
+        name=policy_config['name'],
+        definition={'cedar': {'statement': policy_config['cedar']}},
+        description=policy_config['description'],
+        validation_mode='FAIL_ON_ANY_FINDINGS'
+    )
+
+# Attach policy engine to Gateway
+gateway_client.update_gateway_policy_engine(
+    gateway_identifier=trade_gateway["gatewayId"],
+    policy_engine_arn=policy_engine['policyEngineArn'],
+    mode="ENFORCE"  # Use "LOG_ONLY" for testing
+)
+```
+
+### Policy Enforcement Modes
+
+```python
+POLICY_MODES = {
+    "development": "LOG_ONLY",   # Log decisions without enforcing
+    "staging": "LOG_ONLY",       # Test policies before production
+    "production": "ENFORCE"      # Full enforcement
+}
+
+def set_policy_mode(environment: str):
+    """Set policy enforcement mode based on environment."""
+    mode = POLICY_MODES.get(environment, "LOG_ONLY")
+    gateway_client.update_gateway_policy_engine(
+        gateway_identifier=trade_gateway["gatewayId"],
+        policy_engine_arn=policy_engine['policyEngineArn'],
+        mode=mode
+    )
+```
+
+### Policy Monitoring and Audit
+
+```python
+# Policy decisions are logged to CloudWatch
+POLICY_LOG_CONFIG = {
+    "log_group": "/aws/agentcore/policy-decisions",
+    "metrics_namespace": "TradeMatching/Policy",
+    "metrics": [
+        "PolicyDecisions",      # Total decisions
+        "PolicyAllowed",        # Allowed requests
+        "PolicyDenied",         # Denied requests
+        "PolicyEvaluationTime"  # Evaluation latency
+    ]
+}
+
+# Alert on policy denials
+policy_denial_alarm = cloudwatch.create_alarm(
+    alarm_name="HighPolicyDenialRate",
+    metric_name="PolicyDenied",
+    namespace="TradeMatching/Policy",
+    threshold=10,  # Alert if >10 denials per minute
+    period=60,
+    evaluation_periods=3,
+    alarm_actions=["arn:aws:sns:us-east-1:account:policy-alerts"]
+)

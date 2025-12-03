@@ -623,3 +623,60 @@ describe('Dashboard Component', () => {
 5. **Cost**: Within estimated budget
 6. **Security**: Pass security audit
 7. **Compliance**: Audit trail meets regulatory requirements
+
+
+## AgentCore Evaluations Properties
+
+Property 58: Trade extraction quality evaluated
+*For any* trade extraction operation, the system should evaluate extraction accuracy using the TradeExtractionAccuracy evaluator and record scores
+**Validates: Requirements 19.1**
+
+Property 59: Matching quality evaluated
+*For any* matching decision, the system should assess matching quality using the MatchingQuality evaluator with LLM-as-Judge
+**Validates: Requirements 19.2**
+
+Property 60: Online evaluation samples traffic
+*For any* configured online evaluation, the system should sample approximately 10% of live agent traffic for quality assessment
+**Validates: Requirements 19.3**
+
+Property 61: Low quality scores trigger alarms
+*For any* evaluation score that drops below the configured threshold (3.5 for extraction, 4.0 for matching), the system should trigger a CloudWatch alarm
+**Validates: Requirements 19.4**
+
+Property 62: On-demand evaluation supported
+*For any* batch of agent traces, the system should support on-demand evaluation using specified evaluators
+**Validates: Requirements 19.5**
+
+## AgentCore Policy Properties
+
+Property 63: High-value trades require authorization
+*For any* trade with notional amount exceeding $100M, the system should require elevated authorization via Cedar policy enforcement
+**Validates: Requirements 20.1**
+
+Property 64: Role-based approval thresholds enforced
+*For any* HITL approval request, senior operators should be permitted to approve matches with score ≥0.70, while regular operators should only approve matches with score ≥0.85
+**Validates: Requirements 20.2**
+
+Property 65: Restricted counterparties blocked
+*For any* trade involving a counterparty on the restricted list, the system should block processing via compliance policy
+**Validates: Requirements 20.3**
+
+Property 66: Emergency shutdown effective
+*For any* emergency shutdown policy activation, the system should immediately block all trade processing operations
+**Validates: Requirements 20.4**
+
+Property 67: Policy decisions logged
+*For any* policy evaluation (allow or deny), the system should log the decision to CloudWatch with full context including principal, action, resource, and decision reason
+**Validates: Requirements 20.5**
+
+## Updated Success Criteria
+
+1. **Functional**: All 67 correctness properties pass (updated from 57)
+2. **Performance**: 90-second processing time maintained
+3. **Reliability**: 99.9% uptime for agents
+4. **Usability**: Web Portal accessible and responsive
+5. **Cost**: Within estimated budget
+6. **Security**: Pass security audit with Policy enforcement
+7. **Compliance**: Audit trail meets regulatory requirements
+8. **Quality**: Evaluation scores maintain average ≥4.0
+9. **Authorization**: Policy enforcement active in production

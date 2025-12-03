@@ -20,6 +20,33 @@ from pydantic import BaseModel, Field
 # REQUIRED: Import BedrockAgentCoreApp
 from bedrock_agentcore import BedrockAgentCoreApp
 
+# Memory integration (optional - graceful fallback if not available)
+try:
+    import sys
+    sys.path.insert(0, '/opt/agent/src')
+    from latest_trade_matching_agent.memory import store_matching_decision, retrieve_hitl_feedback
+    MEMORY_ENABLED = True
+except ImportError:
+    MEMORY_ENABLED = False
+    async def store_matching_decision(*args, **kwargs):
+        return {}
+    async def retrieve_hitl_feedback(*args, **kwargs):
+        return []
+
+# Observability integration
+try:
+    from latest_trade_matching_agent.observability import create_span, record_latency, record_throughput, record_error
+    OBSERVABILITY_ENABLED = True
+except ImportError:
+    OBSERVABILITY_ENABLED = False
+    from contextlib import contextmanager
+    @contextmanager
+    def create_span(*args, **kwargs):
+        yield None
+    def record_latency(*args, **kwargs): pass
+    def record_throughput(*args, **kwargs): pass
+    def record_error(*args, **kwargs): pass
+
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,

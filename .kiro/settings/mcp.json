@@ -69,7 +69,13 @@
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
-      "disabled": false
+      "disabled": false,
+      "autoApprove": [
+        "search_documentation",
+        "read_documentation",
+        "read_documentation",
+        "read_documentation"
+      ]
     },
     "brave-search": {
       "command": "npx",

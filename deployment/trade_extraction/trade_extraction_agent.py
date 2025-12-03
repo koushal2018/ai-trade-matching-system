@@ -20,6 +20,33 @@ from pydantic import BaseModel, Field
 # REQUIRED: Import BedrockAgentCoreApp
 from bedrock_agentcore import BedrockAgentCoreApp
 
+# Memory integration (optional - graceful fallback if not available)
+try:
+    import sys
+    sys.path.insert(0, '/opt/agent/src')
+    from latest_trade_matching_agent.memory import store_trade_pattern, retrieve_similar_trades
+    MEMORY_ENABLED = True
+except ImportError:
+    MEMORY_ENABLED = False
+    async def store_trade_pattern(*args, **kwargs):
+        return {}
+    async def retrieve_similar_trades(*args, **kwargs):
+        return []
+
+# Observability integration
+try:
+    from latest_trade_matching_agent.observability import create_span, record_latency, record_throughput, record_error
+    OBSERVABILITY_ENABLED = True
+except ImportError:
+    OBSERVABILITY_ENABLED = False
+    from contextlib import contextmanager
+    @contextmanager
+    def create_span(*args, **kwargs):
+        yield None
+    def record_latency(*args, **kwargs): pass
+    def record_throughput(*args, **kwargs): pass
+    def record_error(*args, **kwargs): pass
+
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
@@ -109,6 +136,14 @@ class CanonicalTradeModel(BaseModel):
                 item[field_name] = {"L": [{"S": str(v)} for v in value]}
             elif isinstance(value, dict):
                 item[field_name] = {"M": {k: {"S": str(v)} for k, v in value.items()}}
+        
+        # Add trade_id and internal_reference as primary keys (DynamoDB schema)
+        if "Trade_ID" in item:
+            item["trade_id"] = item["Trade_ID"]
+            # Use Trade_ID as internal_reference if not present
+            if "internal_reference" not in item:
+                item["internal_reference"] = item["Trade_ID"]
+        
         return item
 
 
