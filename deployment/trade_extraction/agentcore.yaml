@@ -1,0 +1,47 @@
+# AgentCore configuration for Trade Data Extraction Agent
+
+agent:
+  name: trade-extraction-agent
+  description: Extracts structured trade data from OCR text using LLM
+  version: 1.0.0
+  
+runtime:
+  type: PYTHON_3_11
+  entry_point: trade_extraction_agent.py
+  handler: invoke
+  timeout: 600  # 10 minutes for LLM extraction
+  memory_mb: 4096
+  
+environment:
+  AWS_REGION: us-east-1
+  S3_BUCKET_NAME: trade-matching-bucket
+  BEDROCK_MODEL: apac.anthropic.claude-sonnet-4-20250514-v1:0
+  DYNAMODB_BANK_TABLE: BankTradeData
+  DYNAMODB_COUNTERPARTY_TABLE: CounterpartyTradeData
+  LOG_LEVEL: INFO
+  
+memory:
+  enabled: true
+  strategy: semantic
+  retention_days: 90
+  
+scaling:
+  min_instances: 1
+  max_instances: 20
+  target_utilization: 0.7
+  
+sla:
+  processing_time_seconds: 45
+  throughput_per_hour: 80
+  error_rate_threshold: 0.05
+  
+event_subscriptions:
+  - queue: extraction-events
+    batch_size: 1
+    visibility_timeout: 600
+    
+event_publications:
+  - queue: matching-events
+    event_type: TRADE_EXTRACTED
+  - queue: exception-events
+    event_type: EXTRACTION_FAILED

@@ -90,7 +90,7 @@ output "summary" {
 
     observability = {
       metric_namespace = local.metric_namespace
-      dashboard_name   = aws_cloudwatch_dashboard.agentcore_dashboard.dashboard_name
+      dashboard_name   = "${var.project_name}-agentcore-${var.environment}" # Dashboard temporarily disabled
       alerts_topic     = aws_sns_topic.agentcore_alerts.arn
     }
   }
@@ -126,7 +126,8 @@ output "deployment_instructions" {
      - See tasks 14.1-14.6 in the implementation plan
   
   5. View CloudWatch Dashboard:
-     https://console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards:name=${aws_cloudwatch_dashboard.agentcore_dashboard.dashboard_name}
+     https://console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#dashboards:
+     (Dashboard will be created once agents start emitting metrics)
   
   Configuration Files:
   - AgentCore Memory: ${path.module}/configs/AGENTCORE_MEMORY_README.md

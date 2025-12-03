@@ -1,0 +1,44 @@
+# AgentCore configuration for PDF Adapter Agent
+
+agent:
+  name: pdf-adapter-agent
+  description: Converts trade confirmation PDFs to canonical format with OCR extraction
+  version: 1.0.0
+  
+runtime:
+  type: PYTHON_3_11
+  entry_point: pdf_adapter_agent.py
+  handler: invoke
+  timeout: 300  # 5 minutes for PDF processing
+  memory_mb: 2048
+  
+environment:
+  AWS_REGION: us-east-1
+  S3_BUCKET_NAME: trade-matching-bucket
+  LOG_LEVEL: INFO
+  
+memory:
+  enabled: true
+  strategy: event
+  retention_days: 90
+  
+scaling:
+  min_instances: 1
+  max_instances: 10
+  target_utilization: 0.7
+  
+sla:
+  processing_time_seconds: 30
+  throughput_per_hour: 120
+  error_rate_threshold: 0.05
+  
+event_subscriptions:
+  - queue: document-upload-events
+    batch_size: 1
+    visibility_timeout: 300
+    
+event_publications:
+  - queue: extraction-events
+    event_type: PDF_PROCESSED
+  - queue: exception-events
+    event_type: PDF_PROCESSING_ERROR

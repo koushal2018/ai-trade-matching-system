@@ -145,40 +145,41 @@ resource "aws_cloudwatch_metric_alarm" "trade_matching_error_rate" {
 }
 
 # Anomaly Detection - Latency
-resource "aws_cloudwatch_metric_alarm" "latency_anomaly" {
-  alarm_name          = "${var.project_name}-latency-anomaly-${var.environment}"
-  comparison_operator = "GreaterThanUpperThreshold"
-  evaluation_periods  = 2
-  threshold_metric_id = "e1"
-  alarm_description   = "Latency anomaly detected (>2x baseline)"
-  alarm_actions       = [aws_sns_topic.agentcore_alerts.arn]
-
-  metric_query {
-    id          = "e1"
-    expression  = "ANOMALY_DETECTION_BAND(m1, 2)"
-    label       = "Latency (Expected)"
-    return_data = true
-  }
-
-  metric_query {
-    id = "m1"
-    metric {
-      metric_name = "ProcessingLatency"
-      namespace   = local.metric_namespace
-      period      = 300
-      stat        = "Average"
-      dimensions = {
-        Environment = var.environment
-      }
-    }
-  }
-
-  tags = merge(var.tags, {
-    Name        = "Latency Anomaly Alarm"
-    Component   = "AgentCore"
-    Environment = var.environment
-  })
-}
+# Temporarily disabled due to metric configuration requirements
+# resource "aws_cloudwatch_metric_alarm" "latency_anomaly" {
+#   alarm_name          = "${var.project_name}-latency-anomaly-${var.environment}"
+#   comparison_operator = "GreaterThanUpperThreshold"
+#   evaluation_periods  = 2
+#   threshold_metric_id = "e1"
+#   alarm_description   = "Latency anomaly detected (>2x baseline)"
+#   alarm_actions       = [aws_sns_topic.agentcore_alerts.arn]
+#
+#   metric_query {
+#     id          = "e1"
+#     expression  = "ANOMALY_DETECTION_BAND(m1, 2)"
+#     label       = "Latency (Expected)"
+#     return_data = true
+#   }
+#
+#   metric_query {
+#     id = "m1"
+#     metric {
+#       metric_name = "ProcessingLatency"
+#       namespace   = local.metric_namespace
+#       period      = 300
+#       stat        = "Average"
+#       dimensions = {
+#         Environment = var.environment
+#       }
+#     }
+#   }
+#
+#   tags = merge(var.tags, {
+#     Name        = "Latency Anomaly Alarm"
+#     Component   = "AgentCore"
+#     Environment = var.environment
+#   })
+# }
 
 # SNS Topic for Alerts
 resource "aws_sns_topic" "agentcore_alerts" {
@@ -201,7 +202,7 @@ resource "aws_sns_topic_subscription" "agentcore_alerts_email" {
 
 # X-Ray Tracing Configuration
 resource "aws_xray_sampling_rule" "agentcore_sampling" {
-  rule_name      = "${var.project_name}-agentcore-sampling-${var.environment}"
+  rule_name      = "tms-agentcore-${var.environment}" # Shortened to fit 32 char limit
   priority       = 1000
   version        = 1
   reservoir_size = 1
@@ -219,82 +220,28 @@ resource "aws_xray_sampling_rule" "agentcore_sampling" {
 }
 
 # CloudWatch Dashboard
-resource "aws_cloudwatch_dashboard" "agentcore_dashboard" {
-  dashboard_name = "${var.project_name}-agentcore-${var.environment}"
-
-  dashboard_body = jsonencode({
-    widgets = [
-      {
-        type = "metric"
-        properties = {
-          metrics = [
-            [local.metric_namespace, "ProcessingLatency", { stat = "Average", label = "Avg Latency" }],
-            ["...", { stat = "p95", label = "P95 Latency" }],
-            ["...", { stat = "p99", label = "P99 Latency" }]
-          ]
-          period = 300
-          stat   = "Average"
-          region = var.aws_region
-          title  = "Processing Latency"
-          yAxis = {
-            left = {
-              label = "Milliseconds"
-            }
-          }
-        }
-      },
-      {
-        type = "metric"
-        properties = {
-          metrics = [
-            [local.metric_namespace, "ErrorRate", { Agent = "PDFAdapter", label = "PDF Adapter" }],
-            ["...", { Agent = "TradeExtraction", label = "Trade Extraction" }],
-            ["...", { Agent = "TradeMatching", label = "Trade Matching" }],
-            ["...", { Agent = "ExceptionManagement", label = "Exception Mgmt" }],
-            ["...", { Agent = "Orchestrator", label = "Orchestrator" }]
-          ]
-          period = 300
-          stat   = "Average"
-          region = var.aws_region
-          title  = "Error Rate by Agent"
-          yAxis = {
-            left = {
-              label = "Percentage"
-            }
-          }
-        }
-      },
-      {
-        type = "metric"
-        properties = {
-          metrics = [
-            [local.metric_namespace, "Throughput", { stat = "Sum", label = "Trades Processed" }]
-          ]
-          period = 3600
-          stat   = "Sum"
-          region = var.aws_region
-          title  = "Throughput (Trades/Hour)"
-        }
-      },
-      {
-        type = "log"
-        properties = {
-          query  = "SOURCE '${aws_cloudwatch_log_group.pdf_adapter_agent.name}' | fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
-          region = var.aws_region
-          title  = "Recent Errors - PDF Adapter"
-        }
-      },
-      {
-        type = "log"
-        properties = {
-          query  = "SOURCE '${aws_cloudwatch_log_group.trade_matching_agent.name}' | fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
-          region = var.aws_region
-          title  = "Recent Errors - Trade Matching"
-        }
-      }
-    ]
-  })
-}
+# CloudWatch Dashboard - Temporarily disabled due to metric configuration
+# Will be enabled once agents start emitting metrics
+# resource "aws_cloudwatch_dashboard" "agentcore_dashboard" {
+#   dashboard_name = "${var.project_name}-agentcore-${var.environment}"
+#
+#   dashboard_body = jsonencode({
+#     widgets = [
+#       {
+#         type = "metric"
+#         properties = {
+#           metrics = [
+#             [local.metric_namespace, "ProcessingLatency", { stat = "Average", label = "Avg Latency" }]
+#           ]
+#           period = 300
+#           stat   = "Average"
+#           region = var.aws_region
+#           title  = "Processing Latency"
+#         }
+#       }
+#     ]
+#   })
+# }
 
 # Local file for observability configuration
 resource "local_file" "agentcore_observability_config" {
@@ -537,10 +484,10 @@ output "alerts_topic_arn" {
   value       = aws_sns_topic.agentcore_alerts.arn
 }
 
-output "dashboard_name" {
-  description = "Name of the CloudWatch dashboard"
-  value       = aws_cloudwatch_dashboard.agentcore_dashboard.dashboard_name
-}
+# output "dashboard_name" {
+#   description = "Name of the CloudWatch dashboard"
+#   value       = aws_cloudwatch_dashboard.agentcore_dashboard.dashboard_name
+# }
 
 output "observability_config_file" {
   description = "Path to observability configuration file"

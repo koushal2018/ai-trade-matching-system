@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "12 Rules for Agents Reference",
+  "description": "Provides the 12-Factor Agents principles as context when editing agent configuration files, crew definitions, or task files to ensure best practices are followed",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "src/latest_trade_matching_agent/config/agents.yaml",
+      "src/latest_trade_matching_agent/config/tasks.yaml",
+      "src/latest_trade_matching_agent/crew_fixed.py",
+      "src/latest_trade_matching_agent/main.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the changes made to this agent-related file against the 12 Rules for Building Agents:\n\n1. Natural Language to Tool Calls - Are tool calls properly structured?\n2. Own Your Prompts - Are prompts treated as first-class code?\n3. Own Your Context Window - Is context optimized for token efficiency?\n4. Tools Are Just Structured Outputs - Is there clean separation between LLM decisions and execution?\n5. Unify Execution State and Business State - Is state management simplified?\n6. Launch-Pause-Resume - Can the agent be easily paused and resumed?\n7. Contact Humans with Tool Calls - Are human-in-the-loop patterns clear?\n8. Own Your Control Flow - Is control flow appropriate for the use case?\n9. Compact Errors into Context Window - Are errors formatted for self-healing?\n10. Small, Focused Agents - Is the agent doing 3-20 steps max?\n11. Trigger from Anywhere - Can the agent be triggered from multiple channels?\n12. Make Your Agent a Stateless Reducer - Is the agent architecture predictable and testable?\n\nProvide specific feedback on how the changes align with or violate these principles, and suggest improvements if needed."
+  }
+}
