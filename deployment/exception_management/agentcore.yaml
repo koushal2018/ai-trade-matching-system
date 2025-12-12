@@ -1,0 +1,49 @@
+# AgentCore configuration for Exception Management Agent
+
+agent:
+  name: exception-management-agent
+  description: Handles errors with intelligent triage, delegation, and RL-based routing
+  version: 1.0.0
+  
+runtime:
+  type: PYTHON_3_11
+  entry_point: exception_management_agent.py
+  handler: invoke
+  timeout: 300  # 5 minutes for exception handling
+  memory_mb: 3072
+  
+environment:
+  AWS_REGION: us-east-1
+  S3_BUCKET_NAME: trade-matching-bucket
+  DYNAMODB_EXCEPTIONS_TABLE: ExceptionsTable
+  LOG_LEVEL: INFO
+  
+memory:
+  enabled: true
+  strategy: event,semantic
+  retention_days: 90
+  
+scaling:
+  min_instances: 2
+  max_instances: 20
+  target_utilization: 0.7
+  
+sla:
+  processing_time_seconds: 15
+  throughput_per_hour: 200
+  error_rate_threshold: 0.02
+  
+event_subscriptions:
+  - queue: exception-events
+    batch_size: 5
+    visibility_timeout: 300
+    
+event_publications:
+  - queue: ops-desk-queue
+    event_type: EXCEPTION_TRIAGED
+  - queue: senior-ops-queue
+    event_type: EXCEPTION_ESCALATED
+  - queue: compliance-queue
+    event_type: COMPLIANCE_EXCEPTION
+  - queue: engineering-queue
+    event_type: SYSTEM_ERROR

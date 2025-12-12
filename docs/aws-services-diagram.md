@@ -4,13 +4,13 @@
 
 ```mermaid
 graph TB
-    subgraph "AWS Cloud - Region: me-central-1"
+    subgraph "AWS Cloud - Region: us-east-1"
         subgraph "Storage Services"
-            S3[("Amazon S3<br/>otc-menat-2025<br/>────────────<br/>Folders:<br/>• BANK/<br/>• COUNTERPARTY/<br/>• PDFIMAGES/<br/>• extracted/<br/>• reports/")]
+            S3[("Amazon S3<br/>trade-matching-system-<br/>agentcore-production<br/>────────────<br/>Folders:<br/>• BANK/<br/>• COUNTERPARTY/<br/>• extracted/<br/>• reports/")]
         end
 
         subgraph "AI/ML Services"
-            Bedrock["AWS Bedrock<br/>────────────<br/>Model: Claude Sonnet 4<br/>apac.anthropic.claude-<br/>sonnet-4-20250514-v1:0<br/>────────────<br/>Temperature: 0.7<br/>Max Tokens: 4096<br/>Rate Limit: 2 RPM"]
+            Bedrock["AWS Bedrock<br/>────────────<br/>Model: Claude Sonnet 4<br/>us.anthropic.claude-<br/>sonnet-4-20250514-v1:0<br/>────────────<br/>Temperature: 0.1<br/>Max Tokens: 4096<br/>Framework: Strands SDK"]
         end
 
         subgraph "Database Services"
@@ -20,13 +20,13 @@ graph TB
         end
 
         subgraph "Compute & Application"
-            CrewAI["CrewAI Application<br/>────────────<br/>5 Specialized Agents:<br/>1. Document Processor<br/>2. OCR Processor<br/>3. Trade Entity Extractor<br/>4. Reporting Analyst<br/>5. Matching Analyst<br/>────────────<br/>Framework: CrewAI 0.175+<br/>Runtime: Python 3.11+"]
+            AgentCore["Amazon Bedrock<br/>AgentCore Runtime<br/>────────────<br/>5 Specialized Agents:<br/>1. PDF Adapter<br/>2. Trade Extraction<br/>3. Trade Matching<br/>4. Exception Management<br/>5. Orchestrator<br/>────────────<br/>Framework: Strands SDK<br/>Runtime: Serverless"]
         end
 
         subgraph "Integration Layer"
-            MCP["Model Context Protocol<br/>────────────<br/>Server: awslabs.aws-api-<br/>mcp-server@latest<br/>────────────<br/>Provides AWS CLI<br/>commands as MCP tools"]
+            SQS["Amazon SQS<br/>────────────<br/>Event-driven<br/>communication<br/>────────────<br/>10+ queues for<br/>agent coordination"]
 
-            Boto3["Custom boto3 Tool<br/>────────────<br/>Direct DynamoDB API<br/>• put_item()<br/>• scan()"]
+            Strands["Strands SDK<br/>────────────<br/>use_aws tool<br/>────────────<br/>S3, DynamoDB,<br/>Bedrock operations"]
         end
 
         subgraph "Security & IAM"
@@ -65,10 +65,10 @@ graph TB
     classDef user fill:#666,stroke:#232F3E,stroke-width:3px,color:#fff
 
     class S3 storage
-    class CrewAI compute
+    class AgentCore compute
     class Bedrock ai
     class DDB1,DDB2 database
-    class MCP,Boto3 integration
+    class SQS,Strands integration
     class IAM security
     class User user
 ```
@@ -77,11 +77,13 @@ graph TB
 
 | Service | Configuration | Purpose |
 |---------|--------------|---------|
-| **Amazon S3** | Bucket: `otc-menat-2025`<br/>Region: `me-central-1`<br/>Encryption: At rest | Document storage, image storage, report storage |
-| **AWS Bedrock** | Model: Claude Sonnet 4 (APAC)<br/>ID: `apac.anthropic.claude-sonnet-4-20250514-v1:0`<br/>Temp: 0.7, Max Tokens: 4096 | AI-powered document processing, OCR, entity extraction |
-| **Amazon DynamoDB** | Tables: 2 (BankTradeData, CounterpartyTradeData)<br/>Billing: PAY_PER_REQUEST<br/>PK: Trade_ID (String) | Trade data persistence with typed attributes |
-| **AWS IAM** | Credentials: Environment variables<br/>Permissions: S3, DynamoDB, Bedrock | Authentication and authorization |
-| **MCP Server** | Package: `awslabs.aws-api-mcp-server@latest`<br/>Runtime: uvx | AWS service integration via Model Context Protocol |
+| **Amazon S3** | Bucket: `trade-matching-system-agentcore-production`<br/>Region: `us-east-1`<br/>Encryption: At rest | Document storage, canonical outputs, report storage |
+| **AWS Bedrock** | Model: Claude Sonnet 4 (US East)<br/>ID: `us.anthropic.claude-sonnet-4-20250514-v1:0`<br/>Temp: 0.1, Max Tokens: 4096 | AI-powered document processing, text extraction, entity extraction |
+| **Amazon DynamoDB** | Tables: 4 (BankTradeData, CounterpartyTradeData, ExceptionsTable, AgentRegistry)<br/>Billing: PAY_PER_REQUEST<br/>PK: trade_id or agent_id | Trade data persistence, exception tracking, agent registry |
+| **Amazon SQS** | 10+ queues for event-driven communication<br/>FIFO and Standard queues | Agent coordination, event routing, HITL workflows |
+| **Bedrock AgentCore** | Runtime: Serverless<br/>Scaling: Auto (1-10 instances)<br/>Memory: 2-4GB per agent | Agent execution platform with managed infrastructure |
+| **Strands SDK** | Tool: `use_aws`<br/>Operations: S3, DynamoDB, Bedrock | LLM-powered agents with built-in AWS operations |
+| **AWS IAM** | Credentials: IAM roles (preferred)<br/>Permissions: S3, DynamoDB, Bedrock, SQS | Authentication and authorization |
 
 ## Data Flow Summary
 
@@ -118,21 +120,24 @@ sequenceDiagram
 
 | Service | Estimated Monthly Cost | Notes |
 |---------|----------------------|-------|
-| **AWS Bedrock** | $50-$100 | Based on ~120K tokens per trade, ~100-200 trades/month |
-| **Amazon S3** | $5-$10 | Storage + requests for PDFs, images, reports |
-| **DynamoDB** | $5-$15 | PAY_PER_REQUEST billing, ~100-200 writes/reads per trade |
+| **AWS Bedrock** | $50-$150 | Based on token usage per trade, ~100-200 trades/month |
+| **Bedrock AgentCore** | $20-$50 | Serverless agent execution, pay per invocation |
+| **Amazon S3** | $5-$10 | Storage + requests for PDFs, canonical outputs, reports |
+| **DynamoDB** | $10-$20 | PAY_PER_REQUEST billing, 4 tables |
+| **Amazon SQS** | $2-$5 | Message processing across 10+ queues |
 | **Data Transfer** | $2-$5 | Within same region (minimal) |
-| **Total** | **$62-$130/month** | For ~100-200 trade confirmations |
+| **Total** | **$89-$240/month** | For ~100-200 trade confirmations |
 
 ## Performance Metrics
 
 | Metric | Value | Optimization |
 |--------|-------|--------------|
-| **Processing Time** | 60-90 seconds per trade | Sequential agent processing |
-| **Token Usage** | ~120K tokens per trade | 85% reduction via scratchpad pattern |
-| **S3 Operations** | ~15 operations per trade | Efficient folder structure |
-| **DynamoDB Operations** | ~3-5 operations per trade | Put + Scan operations |
-| **Bedrock API Calls** | ~20-25 per trade | Rate limited to 2 RPM |
+| **Processing Time** | 40-70 seconds per trade | Event-driven parallel processing |
+| **Token Usage** | Varies by document | LLM-driven field extraction |
+| **S3 Operations** | ~10 operations per trade | Canonical output pattern |
+| **DynamoDB Operations** | ~3-5 operations per trade | Strands use_aws tool |
+| **SQS Messages** | ~5-10 per trade | Event-driven coordination |
+| **Bedrock API Calls** | ~10-15 per trade | Direct PDF processing (no images) |
 
 ## Security Best Practices
 
@@ -158,6 +163,6 @@ sequenceDiagram
 
 ---
 
-**Last Updated**: October 2025
-**Region**: me-central-1 (Middle East - UAE)
-**Architecture Version**: 1.0
+**Last Updated**: December 2024
+**Region**: us-east-1 (US East)
+**Architecture Version**: 2.0 (AgentCore + Strands)

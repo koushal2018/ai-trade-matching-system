@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "AWS Documentation Verification",
+  "description": "Automatically consult AWS documentation via MCP server when AWS service files are edited to ensure accurate implementation based on latest AWS service information",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "terraform/*.tf",
+      "lambda/*.py",
+      "src/latest_trade_matching_agent/tools/dynamodb_tool.py",
+      "src/latest_trade_matching_agent/crew_fixed.py",
+      ".env.example",
+      "llm_config.json"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "The user has edited a file that involves AWS services. Use the AWS documentation MCP server to verify the implementation against the latest AWS service documentation. Check for:\n\n1. Correct service API usage and parameters\n2. Best practices for the AWS services being used (S3, DynamoDB, Bedrock, Lambda, etc.)\n3. Any deprecated features or recommended alternatives\n4. Security and IAM considerations\n5. Regional availability and service limits\n\nProvide specific, actionable feedback based on the actual AWS documentation, not assumptions. If the implementation looks correct, confirm it. If there are issues or improvements, explain them with references to the AWS documentation."
+  }
+}

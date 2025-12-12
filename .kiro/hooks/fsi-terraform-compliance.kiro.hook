@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "name": "FSI Terraform Compliance Check",
+  "description": "Monitors Terraform files for FSI PACE compliance requirements including Checkov scanning, proper exception suppression at resource level, and ensures no FAILED checks remain before customer handover",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "terraform/*.tf",
+      "*.tf"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the modified Terraform file for FSI PACE compliance:\n\n1. Check if Checkov scanning comments or suppressions are present\n2. Verify that any IaC scan exceptions are suppressed at the resource level (not globally)\n3. Look for any security misconfigurations that would cause FAILED checks\n4. Ensure resources follow FSI security best practices (encryption, logging, least privilege)\n5. Flag any resources that might require ProtoSec review before customer handover\n\nProvide specific recommendations for:\n- Missing Checkov suppressions that need justification\n- Security improvements needed before PSR (Prototyping Security Review)\n- Resources that may fail automated scanning\n- Compliance gaps that could block customer handover via Content Portal or WorkDocs\n\nBe concise and actionable in your feedback."
+  }
+}

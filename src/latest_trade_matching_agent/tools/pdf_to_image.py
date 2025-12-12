@@ -28,8 +28,8 @@ class PDFToImageInput(BaseModel):
         description="S3 prefix/folder for output images (e.g., PDFIMAGES/TEMP)"
     )
     dpi: int = Field(
-        200, 
-        description="DPI for image quality (200 for OCR, 150 for thumbnails)"
+        300, 
+        description="DPI for image quality (300 DPI required per requirements 5.1, 18.1)"
     )
     output_format: str = Field(
         "JPEG", 
@@ -70,7 +70,7 @@ class PDFToImageTool(BaseTool):
         pdf_path: str,
         s3_output_bucket: str = None,
         s3_output_prefix: str = "PDFIMAGES/TEMP",
-        dpi: int = 200,
+        dpi: int = 300,
         output_format: str = "JPEG",
         first_page: Optional[int] = None,
         last_page: Optional[int] = None,

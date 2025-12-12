@@ -1,0 +1,51 @@
+default_agent: pdf_adapter_agent
+agents:
+  pdf_adapter_agent:
+    name: pdf_adapter_agent
+    entrypoint: pdf_adapter_agent.py
+    deployment_type: container
+    runtime_type: null
+    platform: linux/arm64
+    container_runtime: none
+    source_path: null
+    aws:
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-d49ec2442f
+      execution_role_auto_create: false
+      account: '401552979575'
+      region: us-east-1
+      ecr_repository: 401552979575.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-pdf_adapter_agent
+      ecr_auto_create: false
+      s3_path: null
+      s3_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+        network_mode_config: null
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+      lifecycle_configuration:
+        idle_runtime_session_timeout: null
+        max_lifetime: null
+    bedrock_agentcore:
+      agent_id: pdf_adapter_agent-Az72YP53FJ
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/pdf_adapter_agent-Az72YP53FJ
+      agent_session_id: fad53fc5-6a0c-4254-a59c-8baa77eee6ee
+    codebuild:
+      project_name: bedrock-agentcore-pdf_adapter_agent-builder
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-d49ec2442f
+      source_bucket: bedrock-agentcore-codebuild-sources-401552979575-us-east-1
+    memory:
+      mode: NO_MEMORY
+      memory_id: null
+      memory_arn: null
+      memory_name: null
+      event_expiry_days: 30
+      first_invoke_memory_check_done: false
+      was_created_by_toolkit: false
+    identity:
+      credential_providers: []
+      workload: null
+    authorizer_configuration: null
+    request_header_configuration: null
+    oauth_configuration: null

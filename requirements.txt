@@ -25,3 +25,6 @@ structlog>=25.4.0
 
 # MCP for DynamoDB integration
 mcp>=1.16.0
+
+# Property-based testing
+hypothesis>=6.0.0

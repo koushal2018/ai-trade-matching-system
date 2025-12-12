@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "name": "Strands Agents SDK Helper",
+  "description": "When developing agents using the SDK, automatically consults strands-agents-mcp-server documentation using search_docs for intelligent ranking, fetch_doc for full content retrieval, and leverages auto-indexed curated content from llms.txt files.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*agent*.py",
+      "**/*strands*.py",
+      "**/deployment/**/*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A file related to agent development has been modified. Use the strands-agents-mcp-server to assist:\n\n1. Use search_docs to find relevant documentation with intelligent ranking for the concepts being implemented\n2. Use fetch_doc to retrieve full content from specific URLs when deeper context is needed\n3. The server automatically indexes curated content from llms.txt files\n\nReview the changes and provide guidance based on Strands Agents SDK best practices and documentation."
+  }
+}

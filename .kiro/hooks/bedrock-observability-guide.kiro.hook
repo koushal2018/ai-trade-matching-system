@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "name": "Bedrock AgentCore Observability",
+  "description": "Provides guidance on observability and evaluation best practices when editing Bedrock AgentCore agent files - including instrumentation, naming conventions, verbosity settings, and A/B testing approaches",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/observability/**/*.py",
+      "**/evaluations/**/*.py",
+      "deployment/**/*agent*.py",
+      "**/agentcore*.yaml",
+      "**/agentcore*.tf"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "The user is working on Bedrock AgentCore observability or evaluation code. Review their changes and provide guidance based on these best practices:\n\n**Observability Setup:**\n- Start simple: Begin with default automatic instrumentation that captures model calls and token usage\n- Add custom spans only as needed for specific debugging or monitoring requirements\n- Configure for development stage: Use high verbosity and detailed logging during early development\n\n**Naming Conventions:**\n- Use consistent naming for services (e.g., trade-extraction-agent, orchestrator-agent)\n- Use descriptive span names that indicate the operation (e.g., pdf_processing, entity_extraction)\n- Use standardized attribute names across all agents for easier analysis\n\n**Development Workflow:**\n- Regularly review observability data as part of the development process\n- Check token usage metrics to identify optimization opportunities\n- Monitor latency patterns to find bottlenecks\n\n**Evaluation & Testing:**\n- Use versioning and aliases to enable A/B testing of agent configurations\n- Leverage Agent Evaluation frameworks to assess agent behavior against predefined criteria\n- Define clear success metrics for each agent's performance\n\nReview the edited file and suggest any improvements related to these observability and evaluation practices."
+  }
+}

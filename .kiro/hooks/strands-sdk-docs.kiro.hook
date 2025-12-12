@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "name": "Strands SDK Documentation Guide",
+  "description": "Provides guidance on Strands Agents SDK best practices, patterns, and implementation details when working with agent files. References official documentation and community examples.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*_strands.py",
+      "**/strands*.py",
+      "**/*agent*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "The user is working on a Strands Agents SDK file. Review the code and provide guidance based on Strands SDK best practices:\n\n1. **Agent Definition**: Ensure agents are properly defined with clear system prompts, appropriate tools, and correct model configuration\n2. **Tool Integration**: Verify tools are correctly decorated with @tool and have proper type hints and docstrings\n3. **Model Configuration**: Check that the model provider (e.g., Bedrock, OpenAI) is correctly configured\n4. **Conversation Management**: Review how conversation history and context are handled\n5. **Error Handling**: Ensure proper error handling patterns are implemented\n6. **Async Patterns**: Check if async/await is used correctly where applicable\n\nKey Strands SDK patterns to follow:\n- Use `from strands import Agent, tool` for imports\n- Define tools with `@tool` decorator and clear docstrings\n- Initialize agents with `Agent(system_prompt=..., tools=[...], model=...)`\n- Use `agent(prompt)` or `agent.stream(prompt)` for invocation\n- For Bedrock: `from strands.models import BedrockModel`\n\nRefer to: https://github.com/strands-agents/sdk-python for official examples and documentation.\n\nAnalyze the current file and suggest improvements aligned with Strands SDK conventions."
+  }
+}

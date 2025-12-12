@@ -15,22 +15,23 @@ The AI Trade Matching System is an intelligent, cloud-native solution that autom
 **Key Problem Solved**: Manual trade confirmation matching is time-consuming, error-prone, and doesn't scale with trading volumes. This system automates the entire process from PDF ingestion to intelligent matching, reducing settlement risk and operational overhead.
 
 **Technology Stack**:
-- **AI/ML**: AWS Bedrock Claude Sonnet 4 (APAC region), CrewAI 0.175+ multi-agent framework
-- **Data Storage**: Amazon DynamoDB with custom boto3 tools + AWS API MCP Server
-- **Document Storage**: Amazon S3 with lifecycle management
-- **Backend**: Python 3.11+ with FastAPI
-- **Integration**: Model Context Protocol (MCP) for AWS operations
-- **Document Processing**: Poppler, pdf2image, PIL for 300 DPI conversion
+- **AI/ML**: AWS Bedrock Claude Sonnet 4 (US East region), Strands Agents Framework
+- **Agent Framework**: Amazon Bedrock AgentCore Runtime with Strands SDK
+- **Data Storage**: Amazon DynamoDB with boto3 direct access
+- **Document Storage**: Amazon S3
+- **Backend**: Python 3.11+ with FastAPI (for web portal)
+- **Integration**: Strands AWS tools for S3, DynamoDB, and Bedrock operations
+- **Document Processing**: AWS Bedrock multimodal for PDF text extraction
 
 ## Features
 
 - **🤖 AI-Powered Document Processing**: AWS Bedrock Claude Sonnet 4 with multimodal capabilities for accurate PDF text extraction
-- **📄 Advanced PDF Pipeline**: High-quality PDF-to-image conversion (300 DPI) optimized for OCR processing
-- **🎯 Multi-Agent Architecture**: 5 specialized agents handling document processing, OCR extraction, entity parsing, data storage, and matching
-- **☁️ Dual DynamoDB Integration**: Custom boto3 tool + AWS API MCP Server for maximum reliability
+- **� Swarm Adrchitecture**: 4 specialized agents (PDF Adapter, Trade Extractor, Trade Matcher, Exception Handler) that autonomously hand off tasks
+- **🎯 Emergent Collaboration**: Agents decide when to hand off based on task context, not hardcoded workflows
+- **☁️ Direct AWS Integration**: boto3 for DynamoDB operations, Strands AWS tools for S3 and Bedrock
 - **🗄️ Intelligent Data Storage**: DynamoDB with separate tables for bank and counterparty trades
-- **🔍 Professional Trade Matching**: Sophisticated matching logic with fuzzy matching, tolerance handling, and break analysis
-- **📊 Token-Optimized Design**: 85% token reduction through scratchpad pattern and aggressive optimization
+- **🔍 Professional Trade Matching**: Attribute-based matching (trades have different IDs across systems)
+- **📊 Canonical Output Pattern**: Standardized adapter output format for downstream processing
 - **🔐 Security-First Design**: IAM roles with least-privilege access, credential management via environment variables
 - **📈 Production Ready**: Comprehensive error handling, logging, and monitoring capabilities
 
@@ -40,9 +41,9 @@ The AI Trade Matching System is an intelligent, cloud-native solution that autom
 
 **AWS Account Requirements**:
 - AWS CLI configured with appropriate permissions
-- Access to AWS Bedrock (Claude Sonnet 4 model in APAC region: `apac.anthropic.claude-sonnet-4-20250514-v1:0`)
+- Access to AWS Bedrock (Claude Sonnet 4 model in US East region: `us.anthropic.claude-sonnet-4-20250514-v1:0`)
 - DynamoDB, S3, and IAM permissions
-- AWS region: `me-central-1` (Middle East - UAE)
+- AWS region: `us-east-1` (US East - N. Virginia)
 
 **AWS Services Used**:
 ```bash
@@ -72,20 +73,11 @@ pip >= 23.0 or uv (recommended)
 **Python Dependencies**:
 ```bash
 # Core framework
-crewai>=0.175.0
-crewai-tools>=0.14.0
-
-# AI/ML
-anthropic>=0.39.0
-litellm>=1.0.0
+strands>=0.1.0
+strands-tools>=0.1.0
 
 # AWS integration
 boto3>=1.34.0
-mcp[cli]
-
-# Document processing
-pdf2image>=1.17.0
-Pillow>=10.0.0
 
 # Utilities
 python-dotenv
@@ -100,74 +92,61 @@ pydantic>=2.0.0
 graph TB
     subgraph "Input Layer"
         PDF[📄 Trade Confirmation PDFs<br/>BANK / COUNTERPARTY]
-        S3[(Amazon S3<br/>otc-menat-2025)]
+        S3[(Amazon S3<br/>trade-matching-system-agentcore-production)]
         PDF --> S3
     end
 
     subgraph "AWS Bedrock"
-        Bedrock[🧠 Claude Sonnet 4<br/>apac.anthropic.claude-sonnet-4-20250514-v1:0<br/>Temperature: 0.7 | Max Tokens: 4096]
+        Bedrock[🧠 Claude Sonnet 4<br/>us.anthropic.claude-sonnet-4-20250514-v1:0<br/>Temperature: 0.1 | Max Tokens: 4096]
     end
 
-    subgraph "Processing Layer - CrewAI Multi-Agent System"
-        A1[🤖 Agent 1: Document Processor<br/>PDF → JPEG 300 DPI<br/>max_iter: 5]
-        A2[🤖 Agent 2: OCR Processor<br/>Extract Text from Images<br/>max_iter: 10]
-        A3[🤖 Agent 3: Trade Entity Extractor<br/>Parse JSON from Text<br/>max_iter: 5]
-        A4[🤖 Agent 4: Reporting Analyst<br/>Store to DynamoDB<br/>max_iter: 8]
-        A5[🤖 Agent 5: Matching Analyst<br/>Trade Matching & Reports<br/>max_iter: 10]
+    subgraph "Processing Layer - Strands Swarm"
+        A1[🤖 PDF Adapter<br/>Download & Extract Text<br/>Canonical Output]
+        A2[🤖 Trade Extractor<br/>Parse & Store Trade Data]
+        A3[🤖 Trade Matcher<br/>Match by Attributes<br/>Generate Reports]
+        A4[🤖 Exception Handler<br/>Triage & Track Issues]
 
-        A1 --> A2
-        A2 --> A3
-        A3 --> A4
-        A4 --> A5
+        A1 -->|Hand off| A2
+        A2 -->|Hand off| A3
+        A3 -->|If issues| A4
+        A1 -->|If error| A4
+        A2 -->|If error| A4
     end
 
     subgraph "Data Layer"
-        DDB1[(DynamoDB<br/>BankTradeData<br/>PK: Trade_ID)]
-        DDB2[(DynamoDB<br/>CounterpartyTradeData<br/>PK: Trade_ID)]
-    end
-
-    subgraph "Integration Layer"
-        MCP[🔗 Model Context Protocol<br/>AWS API MCP Server<br/>awslabs.aws-api-mcp-server@latest]
-        DDB_TOOL[⚙️ Custom DynamoDB Tool<br/>boto3 direct access]
+        DDB1[(DynamoDB<br/>BankTradeData<br/>PK: trade_id)]
+        DDB2[(DynamoDB<br/>CounterpartyTradeData<br/>PK: trade_id)]
+        DDB3[(DynamoDB<br/>ExceptionsTable<br/>PK: exception_id)]
     end
 
     subgraph "Output Layer"
         Reports[📊 Matching Reports<br/>S3: reports/]
-        Images[🖼️ PDF Images<br/>S3: PDFIMAGES/]
-        JSON[📋 Trade JSON<br/>S3: extracted/]
+        Canonical[📋 Canonical Output<br/>S3: extracted/]
+        Exceptions[⚠️ Exception Records<br/>DynamoDB]
     end
 
     %% Connections
     S3 --> A1
-    A1 --> Images
     A1 --> Bedrock
-    A2 --> Bedrock
-    A3 --> Bedrock
-    A3 --> JSON
-    A4 --> MCP
-    A4 --> DDB_TOOL
-    A5 --> MCP
-    A5 --> DDB_TOOL
-
-    DDB_TOOL --> DDB1
-    DDB_TOOL --> DDB2
-    MCP --> DDB1
-    MCP --> DDB2
-
-    A5 --> Reports
+    A1 --> Canonical
+    A2 --> DDB1
+    A2 --> DDB2
+    A3 --> DDB1
+    A3 --> DDB2
+    A3 --> Reports
+    A4 --> DDB3
+    A4 --> Exceptions
 
     %% Styling
     classDef aws fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#fff
     classDef agent fill:#00A4BD,stroke:#232F3E,stroke-width:2px,color:#fff
     classDef bedrock fill:#527FFF,stroke:#232F3E,stroke-width:2px,color:#fff
     classDef data fill:#3F8624,stroke:#232F3E,stroke-width:2px,color:#fff
-    classDef tool fill:#DD344C,stroke:#232F3E,stroke-width:2px,color:#fff
 
-    class S3,Images,JSON,Reports aws
-    class A1,A2,A3,A4,A5 agent
+    class S3,Canonical,Reports,Exceptions aws
+    class A1,A2,A3,A4 agent
     class Bedrock bedrock
-    class DDB1,DDB2 data
-    class MCP,DDB_TOOL tool
+    class DDB1,DDB2,DDB3 data
 ```
 
 > **Note**: GitHub automatically renders Mermaid diagrams. For the complete detailed architecture with all layers, see [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -177,37 +156,32 @@ graph TB
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
 | **Input** | Amazon S3 | Trade PDF storage (BANK/COUNTERPARTY folders) |
-| **AI Engine** | AWS Bedrock Claude Sonnet 4 | Document processing, OCR, entity extraction |
-| **Orchestration** | CrewAI 0.175+ | Multi-agent workflow management |
-| **Data Storage** | DynamoDB (2 tables) | Trade data persistence with typed attributes |
-| **Integration** | MCP + boto3 | Dual approach for DynamoDB operations |
+| **AI Engine** | AWS Bedrock Claude Sonnet 4 | PDF text extraction via multimodal API |
+| **Orchestration** | Strands Swarm | Autonomous agent collaboration with handoffs |
+| **Data Storage** | DynamoDB (3 tables) | Trade data + exceptions with typed attributes |
+| **Integration** | boto3 + Strands tools | Direct AWS SDK access for reliability |
 | **Output** | S3 (reports/) | Matching analysis and reconciliation reports |
 
 ### Data Flow
 
 1. **Document Upload**: Trade PDFs uploaded to S3 bucket with source classification (BANK/COUNTERPARTY)
-2. **PDF Processing**: Document Processor agent converts PDF to high-resolution JPEG images (300 DPI)
-3. **OCR Extraction**: OCR Processor agent extracts text from all pages using AWS Bedrock multimodal
-4. **Entity Extraction**: Trade Entity Extractor parses OCR text into structured JSON and saves to S3
-5. **Data Storage**: Reporting Analyst reads JSON from S3 and stores in appropriate DynamoDB table
-6. **Matching Analysis**: Matching Analyst scans both tables, performs intelligent matching, generates reports
-7. **Results**: Matching reports stored in S3 with detailed analysis and classifications
+2. **PDF Adapter**: Downloads PDF from S3, extracts text using Bedrock multimodal, saves canonical output
+3. **Trade Extraction**: Parses extracted text, identifies trade fields, stores in appropriate DynamoDB table
+4. **Trade Matching**: Scans both tables, matches by attributes (NOT Trade_ID), calculates confidence scores
+5. **Exception Handling**: Analyzes breaks/mismatches, determines severity, tracks with SLA deadlines
+6. **Results**: Matching reports and exception records stored for operations team review
 
-### Token Optimization Strategy
+### Swarm Configuration
 
-The system implements **85% token reduction** through:
+The system uses **Strands Swarm** for autonomous collaboration:
 
-1. **Scratchpad Pattern**: Agents save detailed data to S3, pass only summaries/paths between tasks
-2. **Concise Configurations**: `agents.yaml` and `tasks.yaml` use minimal backstories
-3. **Reduced Iterations**:
-   - Document Processor: `max_iter=5`
-   - OCR Processor: `max_iter=10`
-   - Trade Entity Extractor: `max_iter=5`
-   - Reporting Analyst: `max_iter=8`
-   - Matching Analyst: `max_iter=10`
-4. **Rate Limiting**: `max_rpm=2` (conservative to avoid AWS throttling)
-5. **Task Delays**: 15-second pause between tasks
-6. **Verbose Disabled**: `verbose=False` on all agents to reduce logging overhead
+1. **Entry Point**: PDF Adapter agent starts the workflow
+2. **Max Handoffs**: 10 (prevents infinite loops)
+3. **Max Iterations**: 20 (total across all agents)
+4. **Execution Timeout**: 600 seconds (10 minutes)
+5. **Node Timeout**: 180 seconds (3 minutes per agent)
+6. **Repetitive Handoff Detection**: 6-window with 2 minimum unique agents
+7. **Temperature**: 0.1 (deterministic behavior for financial operations)
 
 ## Quick Start
 
@@ -246,71 +220,92 @@ Required environment variables:
 # AWS Credentials
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
-AWS_DEFAULT_REGION=me-central-1
-AWS_PROFILE=default
+AWS_REGION=us-east-1
 
 # S3 Configuration
-S3_BUCKET_NAME=otc-menat-2025
+S3_BUCKET_NAME=trade-matching-system-agentcore-production
 
 # DynamoDB Tables
 DYNAMODB_BANK_TABLE=BankTradeData
 DYNAMODB_COUNTERPARTY_TABLE=CounterpartyTradeData
+DYNAMODB_EXCEPTIONS_TABLE=ExceptionsTable
 
 # Bedrock Configuration
-BEDROCK_MODEL=apac.anthropic.claude-sonnet-4-20250514-v1:0
-
-# Dummy OpenAI key (required by CrewAI, not used)
-OPENAI_API_KEY=sk-dummy-key-not-used
+BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-20250514-v1:0
 ```
 
 ### 3. Run the System
 
 ```bash
-# Run the crew with default inputs
-python src/latest_trade_matching_agent/main.py
+# Run the swarm with CLI arguments
+python deployment/swarm/trade_matching_swarm.py \
+  data/BANK/FAB_26933659.pdf \
+  --source-type BANK \
+  --document-id FAB_26933659 \
+  --verbose
 
-# Or using CrewAI CLI
-crewai run
-
-# Or using uv
-uv run latest_trade_matching_agent
+# Or process a counterparty trade
+python deployment/swarm/trade_matching_swarm.py \
+  s3://trade-matching-system-agentcore-production/COUNTERPARTY/GCS381315_V1.pdf \
+  --source-type COUNTERPARTY
 ```
 
 ### 4. Input Format
 
-The system expects this input structure (see `main.py`):
+The `process_trade_confirmation()` function accepts:
 
 ```python
-inputs = {
-    'document_path': 's3://bucket/SOURCE_TYPE/filename.pdf',  # S3 URI or local path
-    'unique_identifier': 'TRADE_ID',                          # Used for folder naming
-    'source_type': 'BANK' or 'COUNTERPARTY',                  # CRITICAL for routing
-    's3_bucket': 'bucket-name',
-    's3_key': 'SOURCE_TYPE/filename',
-    'dynamodb_bank_table': 'BankTradeData',
-    'dynamodb_counterparty_table': 'CounterpartyTradeData',
-    'timestamp': 'YYYYMMDD_HHMMSS'
-}
+result = process_trade_confirmation(
+    document_path="s3://bucket/key or just key",  # S3 path to PDF
+    source_type="BANK" or "COUNTERPARTY",         # CRITICAL for routing
+    document_id="optional_doc_id",                # Auto-generated if not provided
+    correlation_id="optional_corr_id"             # For tracing
+)
 ```
 
 ## Project Structure
 
 ```
 ai-trade-matching-system/
-├── src/
-│   └── latest_trade_matching_agent/
-│       ├── crew_fixed.py              # Main crew definition with 5 agents
-│       ├── main.py                    # Entry point
-│       ├── config/
-│       │   ├── agents.yaml            # Agent configurations
-│       │   └── tasks.yaml             # Task definitions
-│       └── tools/
-│           ├── pdf_to_image.py        # PDF conversion tool
-│           └── dynamodb_tool.py       # Custom DynamoDB operations
+├── deployment/swarm/                  # Strands Swarm implementation
+│   ├── trade_matching_swarm.py        # Main swarm with 4 agents
+│   └── requirements.txt               # Swarm dependencies
+├── src/latest_trade_matching_agent/   # Legacy CrewAI code (being migrated)
+│   ├── agents/                        # Event-driven agents
+│   ├── config/                        # Agent and task YAML configurations
+│   ├── exception_handling/            # Exception management with RL
+│   ├── matching/                      # Fuzzy matching, scoring, classification
+│   ├── memory/                        # AgentCore memory integration
+│   ├── models/                        # Pydantic models (trade, events, registry)
+│   ├── observability/                 # Metrics and tracing
+│   ├── orchestrator/                  # SLA monitoring, compliance, control
+│   ├── policy/                        # Policy management
+│   ├── tools/                         # Custom tools (PDF, DynamoDB, OCR, LLM)
+│   ├── crew_fixed.py                  # CrewAI crew definition
+│   ├── main.py                        # Entry point
+│   └── eks_main.py                    # FastAPI server for EKS
+├── deployment/                        # AgentCore deployment packages
+│   ├── pdf_adapter/                   # PDF Adapter Agent deployment
+│   ├── trade_extraction/              # Trade Extraction Agent deployment
+│   ├── trade_matching/                # Trade Matching Agent deployment
+│   ├── exception_management/          # Exception Management Agent deployment
+│   ├── orchestrator/                  # Orchestrator Agent deployment
+│   └── deploy_all.sh                  # Master deployment script
+├── terraform/                         # Infrastructure as Code
+│   ├── agentcore/                     # AgentCore infrastructure (SQS, DynamoDB, etc.)
+│   └── *.tf                           # Core AWS resources
+├── tests/                             # Test suites
+│   └── e2e/                           # End-to-end tests
+├── web-portal/                        # React frontend
+├── web-portal-api/                    # FastAPI backend
+├── config/                            # Application configuration
+├── data/                              # Sample trade PDFs
+├── docs/                              # Documentation
+├── lambda/                            # Lambda functions
+├── scripts/                           # Utility scripts
 ├── .env.example                       # Environment template
 ├── requirements.txt                   # Python dependencies
 ├── pyproject.toml                     # Project metadata
-├── CLAUDE.md                          # Development guidelines
 └── README.md                          # This file
 ```
 
@@ -357,23 +352,23 @@ aws s3 cp test_trade.pdf s3://otc-menat-2025/COUNTERPARTY/
 
 ## Key Implementation Details
 
+### Agent Handoff Pattern
+
+The swarm uses **autonomous handoffs** where agents decide when to pass control:
+
+1. **PDF Adapter** → **Trade Extractor**: After successful text extraction and canonical output saved
+2. **Trade Extractor** → **Trade Matcher**: After storing trade data in DynamoDB
+3. **Trade Matcher** → **Exception Handler**: If match classification is REVIEW_REQUIRED or BREAK
+4. **Any Agent** → **Exception Handler**: On errors or processing failures
+
 ### DynamoDB Integration
 
-The system uses a **dual approach** for maximum reliability:
+The system uses **direct boto3 access** via Strands tools:
 
-1. **Custom DynamoDB Tool** ([tools/dynamodb_tool.py](src/latest_trade_matching_agent/tools/dynamodb_tool.py)):
-   - Direct boto3 implementation
-   - Supports `put_item` and `scan` operations
-   - Handles DynamoDB typed format (e.g., `{"S": "value"}`)
-   - No external dependencies
-
-2. **AWS API MCP Server**:
-   - Package: `awslabs.aws-api-mcp-server@latest`
-   - Provides comprehensive AWS CLI commands as MCP tools
-   - Supports all AWS services
-   - Auto-managed lifecycle
-
-**Important Note**: The `awslabs.dynamodb-mcp-server` package (v2.0.0+) only provides data modeling guidance, NOT operational tools. Use `awslabs.aws-api-mcp-server` for actual DynamoDB operations.
+- **store_trade_in_dynamodb**: Stores extracted trade data with proper typing
+- **scan_trades_table**: Retrieves all trades from BANK or COUNTERPARTY table
+- **store_exception_record**: Tracks exceptions with SLA deadlines
+- All operations use DynamoDB typed format (e.g., `{"S": "value"}`, `{"N": "123"}`)
 
 ### DynamoDB Item Format
 
@@ -392,28 +387,21 @@ When using DynamoDB operations, ALL attributes must be typed:
 ### S3 Folder Structure
 
 ```
-s3://otc-menat-2025/
-├── BANK/                              # Bank trade PDFs
-├── COUNTERPARTY/                      # Counterparty trade PDFs
-├── PDFIMAGES/                         # Converted images
-│   ├── BANK/{trade_id}/
-│   └── COUNTERPARTY/{trade_id}/
-├── extracted/                         # Structured JSON data
-│   ├── BANK/
-│   └── COUNTERPARTY/
+s3://trade-matching-system-agentcore-production/
+├── BANK/                              # Bank trade PDFs (input)
+├── COUNTERPARTY/                      # Counterparty trade PDFs (input)
+├── extracted/                         # Canonical adapter output
+│   ├── BANK/{document_id}.json
+│   └── COUNTERPARTY/{document_id}.json
 └── reports/                           # Matching analysis reports
+    └── matching_report_{trade_id}_{timestamp}.md
 ```
 
 ### Local Processing Directory
 
 ```
-/tmp/processing/{unique_identifier}/
-├── pdf_images/
-│   └── {unique_identifier}/
-│       ├── {filename}_page_001.jpg
-│       ├── {filename}_page_002.jpg
-│       └── ...
-└── ocr_text.txt
+/tmp/
+└── {document_id}.pdf                  # Temporary PDF download
 ```
 
 ## Troubleshooting
@@ -422,11 +410,14 @@ s3://otc-menat-2025/
 
 **PDF Processing Errors**:
 ```bash
-# Error: Poppler not found
-# Solution: Install poppler-utils
-brew install poppler  # macOS
-apt-get install poppler-utils  # Ubuntu/Debian
-yum install poppler-utils  # RHEL/CentOS
+# Error: Failed to extract text with Bedrock
+# Solution: Verify Bedrock model access
+aws bedrock list-foundation-models --region us-east-1 | grep claude-sonnet-4
+
+# Ensure you have access to the model
+aws bedrock get-foundation-model \
+  --model-identifier us.anthropic.claude-sonnet-4-20250514-v1:0 \
+  --region us-east-1
 ```
 
 **AWS Authentication Issues**:
@@ -447,38 +438,43 @@ export AWS_DEFAULT_REGION=me-central-1
 # Solution: Create DynamoDB tables
 aws dynamodb create-table \
   --table-name BankTradeData \
-  --attribute-definitions AttributeName=Trade_ID,AttributeType=S \
-  --key-schema AttributeName=Trade_ID,KeyType=HASH \
+  --attribute-definitions AttributeName=trade_id,AttributeType=S \
+  --key-schema AttributeName=trade_id,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST \
-  --region me-central-1
+  --region us-east-1
 
 aws dynamodb create-table \
   --table-name CounterpartyTradeData \
-  --attribute-definitions AttributeName=Trade_ID,AttributeType=S \
-  --key-schema AttributeName=Trade_ID,KeyType=HASH \
+  --attribute-definitions AttributeName=trade_id,AttributeType=S \
+  --key-schema AttributeName=trade_id,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST \
-  --region me-central-1
+  --region us-east-1
+
+aws dynamodb create-table \
+  --table-name ExceptionsTable \
+  --attribute-definitions AttributeName=exception_id,AttributeType=S \
+  --key-schema AttributeName=exception_id,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
 ```
 
-**MCP Server Issues**:
+**Strands Installation Issues**:
 ```bash
-# Error: MCP server not found
-# Solution: Install the MCP package
-pip install mcp[cli]
-# Or using uv
-uv pip install mcp[cli]
+# Error: strands module not found
+# Solution: Install Strands SDK
+pip install strands strands-tools
 
-# Test MCP server
-uvx awslabs.aws-api-mcp-server@latest
+# Or using uv
+uv pip install strands strands-tools
 ```
 
 **Rate Limiting**:
 ```bash
 # Error: Rate limit exceeded
-# Solution: The system is configured for 2 RPM to AWS Bedrock
-# Increase delays in crew_fixed.py if needed:
-# - Line 209: Task delay (currently 15 seconds)
-# - Line 96: max_rpm=2 (can be increased if your limits allow)
+# Solution: The swarm has built-in timeouts:
+# - execution_timeout: 600 seconds (10 minutes total)
+# - node_timeout: 180 seconds (3 minutes per agent)
+# Adjust these in create_trade_matching_swarm() if needed
 ```
 
 ## Performance Optimization
@@ -506,35 +502,41 @@ Typical processing times per trade confirmation:
 
 ### Adding New Features
 
-1. **New Agent**: Add to `config/agents.yaml` and implement in `crew_fixed.py`
-2. **New Task**: Define in `config/tasks.yaml` and link to agent
-3. **New Tool**: Create in `tools/` directory and register in `__init__.py`
+1. **New Agent**: Create agent factory function in `trade_matching_swarm.py`
+2. **New Tool**: Define with `@tool` decorator and add to agent's tools list
+3. **New Handoff**: Update agent system prompts with handoff conditions
 
 ### Testing
 
 ```bash
 # Run with test data
-python src/latest_trade_matching_agent/main.py
+python deployment/swarm/trade_matching_swarm.py \
+  data/BANK/FAB_26933659.pdf \
+  --source-type BANK \
+  --verbose
 
 # Check DynamoDB for results
-aws dynamodb scan --table-name CounterpartyTradeData --region me-central-1
+aws dynamodb scan --table-name BankTradeData --region us-east-1
 
 # View S3 outputs
-aws s3 ls s3://otc-menat-2025/reports/ --recursive
+aws s3 ls s3://trade-matching-system-agentcore-production/reports/ --recursive
 ```
 
 ### Debugging
 
-Enable verbose mode in `crew_fixed.py`:
-```python
-# Change verbose=False to verbose=True for debugging
-verbose=True
+Enable verbose logging:
+```bash
+python deployment/swarm/trade_matching_swarm.py \
+  your_document.pdf \
+  --source-type BANK \
+  --verbose
 ```
 
 View detailed logs:
 ```bash
 # The system logs all operations to console
 # Check for INFO, WARNING, and ERROR messages
+# Swarm execution includes node_history showing agent handoffs
 ```
 
 ## License

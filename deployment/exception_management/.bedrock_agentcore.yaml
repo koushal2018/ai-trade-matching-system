@@ -1,0 +1,51 @@
+default_agent: exception_management_agent
+agents:
+  exception_management_agent:
+    name: exception_management_agent
+    entrypoint: /Users/koushald/ai-trade-matching-system-2/deployment/exception_management/exception_management_agent.py
+    deployment_type: direct_code_deploy
+    runtime_type: PYTHON_3_11
+    platform: linux/arm64
+    container_runtime: null
+    source_path: /Users/koushald/ai-trade-matching-system-2/deployment/exception_management
+    aws:
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-b05accea6c
+      execution_role_auto_create: false
+      account: '401552979575'
+      region: us-east-1
+      ecr_repository: null
+      ecr_auto_create: false
+      s3_path: s3://bedrock-agentcore-codebuild-sources-401552979575-us-east-1
+      s3_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+        network_mode_config: null
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+      lifecycle_configuration:
+        idle_runtime_session_timeout: null
+        max_lifetime: null
+    bedrock_agentcore:
+      agent_id: exception_management_agent-QrSzPSChxP
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/exception_management_agent-QrSzPSChxP
+      agent_session_id: ef45bb50-e3c1-4d8c-9538-badd61f7ed75
+    codebuild:
+      project_name: null
+      execution_role: null
+      source_bucket: null
+    memory:
+      mode: STM_ONLY
+      memory_id: exception_management_agent_mem-GVHALbBeKr
+      memory_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:memory/exception_management_agent_mem-GVHALbBeKr
+      memory_name: exception_management_agent_mem
+      event_expiry_days: 30
+      first_invoke_memory_check_done: true
+      was_created_by_toolkit: true
+    identity:
+      credential_providers: []
+      workload: null
+    authorizer_configuration: null
+    request_header_configuration: null
+    oauth_configuration: null
