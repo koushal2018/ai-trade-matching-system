@@ -111,11 +111,11 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Implement event serialization/deserialization
   - _Requirements: 3.1, 12.4_
 
-- [ ]* 2.7 Write property test for canonical models
+- [x] 2.7 Write property test for canonical models
   - **Property 17: Trade source classification validity**
   - **Validates: Requirements 6.2**
 
-- [ ]* 2.8 Write property test for audit trail immutability
+- [ ] 2.8 Write property test for audit trail immutability
   - **Property 37: Audit records are immutable**
   - **Validates: Requirements 10.4**
 
@@ -155,7 +155,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Handle multi-page PDFs
   - _Requirements: 5.1, 18.1_
 
-- [ ]* 4.2 Write property test for PDF DPI
+- [ ] 4.2 Write property test for PDF DPI
   - **Property 11: PDF conversion maintains 300 DPI**
   - **Validates: Requirements 5.1, 18.1**
 
@@ -166,7 +166,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Save extracted text to S3
   - _Requirements: 5.2, 5.3_
 
-- [ ]* 4.4 Write property test for OCR completeness
+- [ ] 4.4 Write property test for OCR completeness
   - **Property 12: OCR extraction completeness**
   - **Validates: Requirements 5.2**
 
@@ -179,11 +179,11 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Register agent in AgentRegistry
   - _Requirements: 3.2, 5.1, 5.2, 5.3, 5.4, 5.5_
 
-- [ ]* 4.6 Write property test for PDF processing errors
+- [ ] 4.6 Write property test for PDF processing errors
   - **Property 14: PDF processing errors reported**
   - **Validates: Requirements 5.4**
 
-- [ ]* 4.7 Write property test for canonical output schema
+- [ ] 4.7 Write property test for canonical output schema
   - **Property 13: OCR results saved to S3**
   - **Validates: Requirements 5.3**
 
@@ -198,7 +198,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Validate extracted data against canonical trade model
   - _Requirements: 6.1, 6.2_
 
-- [ ]* 6.2 Write property test for field extraction
+- [ ] 6.2 Write property test for field extraction
   - **Property 16: All trade fields extracted**
   - **Validates: Requirements 6.1**
 
@@ -209,7 +209,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Validate classification result
   - _Requirements: 6.2_
 
-- [ ]* 6.4 Write property test for trade routing
+- [ ] 6.4 Write property test for trade routing
   - **Property 19: Trade routing to correct DynamoDB table**
   - **Validates: Requirements 6.4**
 
@@ -224,7 +224,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Register agent in AgentRegistry
   - _Requirements: 3.3, 6.1, 6.2, 6.3, 6.4, 6.5_
 
-- [ ]* 6.6 Write property test for extraction errors
+- [ ] 6.6 Write property test for extraction errors
   - **Property 20: Extraction errors include context**
   - **Validates: Requirements 6.5**
 
@@ -240,7 +240,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Return match result with differences
   - _Requirements: 7.1, 18.3_
 
-- [ ]* 8.2 Write property test for fuzzy matching tolerances
+- [ ] 8.2 Write property test for fuzzy matching tolerances
   - **Property 21: Fuzzy matching applies tolerances**
   - **Validates: Requirements 7.1, 18.3**
 
@@ -251,7 +251,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Include confidence metrics
   - _Requirements: 7.1, 7.2_
 
-- [ ]* 8.4 Write property test for match scoring
+- [ ] 8.4 Write property test for match scoring
   - **Property 22: Match classification validity**
   - **Validates: Requirements 7.2**
 
@@ -269,7 +269,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Save to S3
   - _Requirements: 7.3, 7.4, 18.4_
 
-- [ ]* 8.7 Write property test for report completeness
+- [ ] 8.7 Write property test for report completeness
   - **Property 23: Matching reports are complete**
   - **Validates: Requirements 7.3, 18.4**
 
@@ -284,7 +284,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Register agent in AgentRegistry
   - _Requirements: 3.4, 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ]* 8.9 Write property test for misplaced trades
+- [ ] 8.9 Write property test for misplaced trades
   - **Property 25: Misplaced trades flagged as DATA_ERROR**
   - **Validates: Requirements 7.5**
 
@@ -298,7 +298,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Support all exception types
   - _Requirements: 8.1_
 
-- [ ]* 10.2 Write property test for error logging
+- [ ] 10.2 Write property test for error logging
   - **Property 26: All errors logged with context**
   - **Validates: Requirements 8.1**
 
@@ -334,7 +334,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Store RL model in AgentCore Memory
   - _Requirements: 8.2, 8.3, 8.4, 8.5_
 
-- [ ]* 10.7 Write property test for exponential backoff
+- [ ] 10.7 Write property test for exponential backoff
   - **Property 27: Exponential backoff for transient errors**
   - **Validates: Requirements 8.2**
 
@@ -348,7 +348,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Register agent in AgentRegistry
   - _Requirements: 3.5, 8.1, 8.2, 8.3, 8.4, 8.5_
 
-- [ ]* 10.9 Write property test for error pattern detection
+- [ ] 10.9 Write property test for error pattern detection
   - **Property 30: Error pattern detection triggers alerts**
   - **Validates: Requirements 8.5**
 
@@ -387,11 +387,11 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Register agent in AgentRegistry
   - _Requirements: 3.1, 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ]* 12.5 Write property test for orchestrator coordination
+- [ ] 12.5 Write property test for orchestrator coordination
   - **Property 9: Orchestrator coordinates handoffs**
   - **Validates: Requirements 4.4**
 
-- [ ]* 12.6 Write property test for metrics aggregation
+- [ ] 12.6 Write property test for metrics aggregation
   - **Property 10: Orchestrator aggregates metrics**
   - **Validates: Requirements 4.5**
 
@@ -462,7 +462,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Add color-coded health indicators
   - _Requirements: 9.1, 15.1, 15.2, 15.3_
 
-- [ ]* 16.3 Write unit tests for Dashboard component
+- [ ] 16.3 Write unit tests for Dashboard component
   - Test agent health status display
   - Test metrics rendering
   - Test color-coded indicators
@@ -474,7 +474,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Show pending reviews list
   - _Requirements: 9.3, 16.1, 16.2, 16.3, 16.4_
 
-- [ ]* 16.5 Write unit tests for HITL Panel component
+- [ ] 16.5 Write unit tests for HITL Panel component
   - Test trade comparison display
   - Test decision submission
   - Test pending reviews list
@@ -486,7 +486,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Add export functionality
   - _Requirements: 9.4, 10.1, 10.2, 10.3, 10.5_
 
-- [ ]* 16.7 Write unit tests for Audit Trail component
+- [ ] 16.7 Write unit tests for Audit Trail component
   - Test filtering logic
   - Test pagination
   - Test export functionality
@@ -499,7 +499,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Implement reconnection logic
   - _Requirements: 9.2, 9.3, 15.2_
 
-- [ ]* 16.9 Write property test for WebSocket updates
+- [ ] 16.9 Write property test for WebSocket updates
   - **Property 31: Web Portal shows live progress**
   - **Validates: Requirements 9.2**
 
@@ -510,7 +510,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Add error handling and retries
   - _Requirements: 9.3, 9.4, 17.3_
 
-- [ ]* 16.11 Write property test for API authentication
+- [ ] 16.11 Write property test for API authentication
   - **Property 54: JWT tokens validated for API calls**
   - **Validates: Requirements 17.3**
 
@@ -549,7 +549,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Validate JWT token and enforce RBAC
   - _Requirements: 10.3, 10.5, 17.4_
 
-- [ ]* 18.5 Write property test for RBAC enforcement
+- [ ] 18.5 Write property test for RBAC enforcement
   - **Property 55: RBAC enforced for permissions**
   - **Validates: Requirements 17.4**
 
@@ -571,11 +571,11 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Use AgentCore Memory semantic strategy
   - _Requirements: 11.1, 11.2, 11.3, 11.4_
 
-- [ ]* 20.2 Write property test for memory storage
+- [ ] 20.2 Write property test for memory storage
   - **Property 39: Trade patterns stored in memory**
   - **Validates: Requirements 11.1**
 
-- [ ]* 20.3 Write property test for memory retrieval
+- [ ] 20.3 Write property test for memory retrieval
   - **Property 40: Historical context retrieved for similar trades**
   - **Validates: Requirements 11.2**
 
@@ -594,7 +594,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Retrieve HITL feedback for similar cases
   - _Requirements: 11.2, 11.3, 16.5_
 
-- [ ]* 20.7 Write property test for HITL decision suggestions
+- [ ] 20.7 Write property test for HITL decision suggestions
   - **Property 53: Similar cases suggest past decisions**
   - **Validates: Requirements 16.5**
 
@@ -617,7 +617,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Use correlation_id for trace propagation
   - _Requirements: 12.1, 12.4_
 
-- [ ]* 22.2 Write property test for distributed tracing
+- [ ] 22.2 Write property test for distributed tracing
   - **Property 46: Distributed tracing spans all agents**
   - **Validates: Requirements 12.4**
 
@@ -628,7 +628,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Emit metrics to AgentCore Observability
   - _Requirements: 12.2_
 
-- [ ]* 22.4 Write property test for metrics tracking
+- [ ] 22.4 Write property test for metrics tracking
   - **Property 44: Performance metrics tracked**
   - **Validates: Requirements 12.2**
 
@@ -699,18 +699,18 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
 - [x] 23.7. Checkpoint - Ensure Evaluations and Policy tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 24. Implement end-to-end integration tests
-- [ ] 24.1 Create test data generator
+- [x] 24. Implement end-to-end integration tests
+- [x] 24.1 Create test data generator
   - Generate synthetic trade PDFs (BANK and COUNTERPARTY)
   - Generate trades with various matching scenarios
   - Generate trades with intentional mismatches
   - _Requirements: 18.1, 18.2, 18.3_
 
-- [ ]* 24.2 Write property test for functional parity
+- [ ] 24.2 Write property test for functional parity
   - **Property 1: Functional parity with CrewAI implementation**
   - **Validates: Requirements 1.5**
 
-- [ ] 24.3 Test complete workflow (PDF to matching report)
+- [x] 24.3 Test complete workflow (PDF to matching report)
   - Upload test PDF to S3
   - Verify PDF Adapter processes it
   - Verify Trade Extraction stores data
@@ -884,5 +884,157 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Document lessons learned
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [x] 31. Final Checkpoint - Production deployment complete
+- [ ] 32. Implement missing property-based tests
+- [ ] 32.1 Set up property-based testing framework
+  - Install hypothesis library for Python property testing
+  - Create test generators for trade data, PDFs, and matching scenarios
+  - Configure test runners with minimum 100 iterations per property
+  - _Requirements: 18.5_
+
+- [ ] 32.2 Implement core correctness properties
+  - **Property 1: Functional parity with CrewAI implementation**
+  - **Property 17: Trade source classification validity**
+  - **Property 37: Audit records are immutable**
+  - **Property 11: PDF conversion maintains 300 DPI**
+  - **Property 21: Fuzzy matching applies tolerances**
+  - **Validates: Requirements 1.5, 6.2, 10.4, 5.1, 7.1**
+
+- [ ] 32.3 Implement memory and observability properties
+  - **Property 39: Trade patterns stored in memory**
+  - **Property 46: Distributed tracing spans all agents**
+  - **Property 44: Performance metrics tracked**
+  - **Validates: Requirements 11.1, 12.4, 12.2**
+
+- [ ] 32.4 Implement security and HITL properties
+  - **Property 54: JWT tokens validated for API calls**
+  - **Property 53: Similar cases suggest past decisions**
+  - **Property 31: Web Portal shows live progress**
+  - **Validates: Requirements 17.3, 16.5, 9.2**
+
+- [ ] 33. Complete AgentCore Evaluations integration
+- [ ] 33.1 Implement custom evaluators for quality assessment
+  - Create TradeExtractionAccuracy evaluator with LLM-as-Judge
+  - Create MatchingQuality evaluator for decision assessment
+  - Create OCRQuality evaluator for text extraction assessment
+  - Configure evaluation criteria and scoring schemas (1-5 scale)
+  - _Requirements: 19.1, 19.2_
+
+- [ ] 33.2 Configure online evaluation monitoring
+  - Set up continuous monitoring for 10% of live agent traffic
+  - Configure sampling rules and target agent selection
+  - Create CloudWatch metrics namespace for evaluation scores
+  - Set up alarms for quality score drops below thresholds
+  - _Requirements: 19.3, 19.4_
+
+- [ ] 33.3 Implement on-demand evaluation capabilities
+  - Create evaluation test harness for batch assessment
+  - Support pre-deployment quality gates
+  - Enable A/B testing of agent configurations
+  - _Requirements: 19.5_
+
+- [ ] 34. Complete AgentCore Policy integration
+- [ ] 34.1 Implement Cedar policies for authorization
+  - Create trade amount limit policy ($100M threshold)
+  - Create role-based access control policies (senior vs regular operators)
+  - Create compliance control policies (restricted counterparties)
+  - Create emergency shutdown policy (disabled by default)
+  - _Requirements: 20.1, 20.2, 20.3, 20.4_
+
+- [ ] 34.2 Configure policy enforcement and monitoring
+  - Attach policy engine to AgentCore Gateway
+  - Configure enforcement mode (LOG_ONLY for dev, ENFORCE for prod)
+  - Set up policy decision logging to CloudWatch
+  - Create alerts for policy denials and violations
+  - _Requirements: 20.5_
+
+- [ ] 35. Implement comprehensive error handling and recovery
+- [ ] 35.1 Enhance exception classification and triage
+  - Implement severity scoring system with RL integration
+  - Create delegation system for routing to appropriate teams
+  - Implement exponential backoff for transient errors
+  - Add error pattern detection and alerting
+  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
+
+- [ ] 35.2 Complete reinforcement learning integration
+  - Implement RLExceptionHandler with episode recording
+  - Add reward computation based on resolution outcomes
+  - Integrate supervised learning from human decisions
+  - Store RL models in AgentCore Memory
+  - _Requirements: 8.2, 8.3, 8.4, 8.5_
+
+- [ ] 36. Complete HITL workflow implementation
+- [ ] 36.1 Implement HITL decision endpoints
+  - Create POST /api/hitl/{review_id}/decision endpoint
+  - Implement decision validation and recording
+  - Add decision publishing to SQS for agent processing
+  - Update audit trail with HITL decisions
+  - _Requirements: 16.3, 16.4_
+
+- [ ] 36.2 Integrate HITL with AgentCore Memory
+  - Store HITL decisions in semantic memory
+  - Implement similar case suggestion based on past decisions
+  - Add decision context retrieval for matching scenarios
+  - _Requirements: 16.5_
+
+- [ ] 37. Complete audit trail implementation
+- [ ] 37.1 Implement immutable audit logging
+  - Add SHA-256 hash computation for tamper-evidence
+  - Implement audit record validation and verification
+  - Create audit trail query endpoints with filtering
+  - Add export functionality (JSON, CSV, XML formats)
+  - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
+
+- [ ] 37.2 Integrate audit trail with all agents
+  - Add audit logging to all agent operations
+  - Include user identity in authenticated operations
+  - Track agent handoffs and decision points
+  - Record performance metrics and error events
+  - _Requirements: 10.1, 10.2_
+
+- [ ] 38. Implement SQS event-driven architecture
+- [ ] 38.1 Create SQS queue infrastructure
+  - Create document-upload-events queue (FIFO)
+  - Create extraction-events, matching-events, exception-events queues
+  - Create HITL review queue and delegation queues
+  - Configure dead letter queues and retry policies
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+
+- [ ] 38.2 Implement event publishing and subscription
+  - Add SQS event publishing to all agents
+  - Implement event message schemas with correlation IDs
+  - Add event subscription handlers for agent coordination
+  - Implement orchestrator monitoring queue (fanout)
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
+
+- [ ] 39. Complete Web Portal real-time features
+- [ ] 39.1 Implement WebSocket real-time updates
+  - Create WebSocket connection management
+  - Implement agent status update broadcasting
+  - Add trade processing progress updates
+  - Implement HITL request notifications
+  - _Requirements: 9.2, 9.3_
+
+- [ ] 39.2 Complete dashboard components
+  - Implement AgentHealthPanel with color-coded indicators
+  - Add ProcessingMetrics with real-time charts
+  - Create MatchingResults panel with statistics
+  - Add drill-down capabilities for detailed views
+  - _Requirements: 15.1, 15.2, 15.3_
+
+- [ ] 40. Final integration and validation
+- [ ] 40.1 Complete system integration testing
+  - Test complete workflow from PDF upload to matching report
+  - Validate error handling and recovery scenarios
+  - Test HITL workflow end-to-end
+  - Verify audit trail completeness and immutability
+  - _Requirements: 1.5, 8.1, 16.1, 10.4_
+
+- [ ] 40.2 Performance and security validation
+  - Verify 90-second processing time requirement
+  - Test authentication and authorization (JWT, RBAC, MFA)
+  - Validate data encryption (S3, DynamoDB, TLS 1.3)
+  - Run penetration testing and address findings
+  - _Requirements: 18.5, 17.1, 17.2, 17.3, 17.4_
+
+- [ ] 41. Final Checkpoint - Complete migration validation
   - Ensure all tests pass, ask the user if questions arise.
