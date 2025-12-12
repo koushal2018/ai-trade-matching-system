@@ -7,31 +7,26 @@ inclusion: always
 ## Core Framework
 
 - **Python**: 3.11+ (required)
-- **CrewAI**: 0.175+ multi-agent orchestration framework
-- **AI Model**: AWS Bedrock Claude Sonnet 4 (`apac.anthropic.claude-sonnet-4-20250514-v1:0`)
-- **Region**: me-central-1 (Middle East - UAE)
+- **Strands SDK**: Multi-agent swarm framework with autonomous handoffs
+- **AI Model**: AWS Bedrock Claude Sonnet 4 (`us.anthropic.claude-sonnet-4-20250514-v1:0`)
+- **Region**: us-east-1 (US East - N. Virginia)
 
 ## AWS Services
 
-- **AWS Bedrock**: Claude Sonnet 4 for document processing, OCR, entity extraction
-- **Amazon S3**: Document and image storage (bucket: `otc-menat-2025`)
-- **Amazon DynamoDB**: Trade data persistence (2 tables: BankTradeData, CounterpartyTradeData)
+- **AWS Bedrock**: Claude Sonnet 4 for document processing, text extraction, reasoning
+- **Amazon S3**: Document and canonical output storage (bucket: `trade-matching-system-agentcore-production`)
+- **Amazon DynamoDB**: Trade data persistence (3 tables: BankTradeData, CounterpartyTradeData, ExceptionsTable)
 - **IAM**: Security and permissions management
 
 ## Key Libraries
 
-- `crewai>=0.201.0` - Multi-agent framework
-- `crewai-tools[mcp]>=0.14.0` - CrewAI tools with MCP support
-- `anthropic>=0.69.0` - Anthropic API client
-- `litellm>=1.74.9` - LLM provider abstraction
-- `boto3>=1.40.0` - AWS SDK for Python
-- `pdf2image>=1.17.0` - PDF to image conversion
-- `Pillow>=11.3.0` - Image processing
-- `fastapi>=0.118.0` - Web framework (for EKS deployment)
+- `strands>=0.1.0` - Multi-agent swarm framework
+- `strands-tools>=0.1.0` - Strands AWS tools (use_aws)
+- `boto3>=1.34.0` - AWS SDK for Python (direct DynamoDB access)
+- `fastapi>=0.118.0` - Web framework (for web portal API)
 - `uvicorn>=0.37.0` - ASGI server
-- `mcp>=1.16.0` - Model Context Protocol for AWS operations
 - `python-dotenv>=1.1.0` - Environment variable management
-- `pydantic>=2.11.0` - Data validation
+- `pydantic>=2.0.0` - Data validation
 
 ## System Dependencies
 
@@ -62,33 +57,36 @@ uv pip install -e .
 ### Running the System
 
 ```bash
-# Run with main.py
-python src/latest_trade_matching_agent/main.py
+# Run the Strands Swarm
+python deployment/swarm/trade_matching_swarm.py \
+  data/BANK/FAB_26933659.pdf \
+  --source-type BANK \
+  --document-id FAB_26933659 \
+  --verbose
 
-# Run with CrewAI CLI
-crewai run
-
-# Run with uv
-uv run latest_trade_matching_agent
+# Process a counterparty trade
+python deployment/swarm/trade_matching_swarm.py \
+  s3://trade-matching-system-agentcore-production/COUNTERPARTY/GCS381315_V1.pdf \
+  --source-type COUNTERPARTY
 ```
 
 ### AWS Operations
 
 ```bash
 # List DynamoDB tables
-aws dynamodb list-tables --region me-central-1
+aws dynamodb list-tables --region us-east-1
 
 # Scan bank trades
-aws dynamodb scan --table-name BankTradeData --region me-central-1
+aws dynamodb scan --table-name BankTradeData --region us-east-1
 
 # Scan counterparty trades
-aws dynamodb scan --table-name CounterpartyTradeData --region me-central-1
+aws dynamodb scan --table-name CounterpartyTradeData --region us-east-1
 
 # List S3 bucket contents
-aws s3 ls s3://otc-menat-2025 --recursive
+aws s3 ls s3://trade-matching-system-agentcore-production --recursive
 
 # Upload test PDF
-aws s3 cp test_trade.pdf s3://otc-menat-2025/COUNTERPARTY/
+aws s3 cp test_trade.pdf s3://trade-matching-system-agentcore-production/COUNTERPARTY/
 ```
 
 ### Terraform
@@ -118,47 +116,43 @@ Required in `.env` file:
 # AWS Credentials
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
-AWS_DEFAULT_REGION=me-central-1
-AWS_PROFILE=default
+AWS_REGION=us-east-1
 
 # S3 Configuration
-S3_BUCKET_NAME=otc-menat-2025
+S3_BUCKET_NAME=trade-matching-system-agentcore-production
 
 # DynamoDB Tables
 DYNAMODB_BANK_TABLE=BankTradeData
 DYNAMODB_COUNTERPARTY_TABLE=CounterpartyTradeData
+DYNAMODB_EXCEPTIONS_TABLE=ExceptionsTable
 
 # Bedrock Configuration
-BEDROCK_MODEL=apac.anthropic.claude-sonnet-4-20250514-v1:0
-
-# Dummy OpenAI key (required by CrewAI, not used)
-OPENAI_API_KEY=sk-dummy-key-not-used
+BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-20250514-v1:0
 ```
 
 ### LLM Configuration
 
-- **Model**: bedrock/apac.anthropic.claude-sonnet-4-20250514-v1:0
-- **Temperature**: 0.7
+- **Model**: us.anthropic.claude-sonnet-4-20250514-v1:0
+- **Temperature**: 0.1 (deterministic for financial operations)
 - **Max Tokens**: 4096
-- **Rate Limit**: 2 RPM (requests per minute)
-- **Max Retry**: 1
-- **Multimodal**: Enabled
+- **Region**: us-east-1
+- **Multimodal**: Enabled (direct PDF processing)
 
-## MCP Integration
+## Strands Swarm Configuration
 
-- **Server**: awslabs.aws-api-mcp-server@latest
-- **Command**: uvx (requires uv installation)
-- **Purpose**: AWS CLI commands as MCP tools for DynamoDB and other AWS operations
-- **Lifecycle**: Auto-managed by @CrewBase decorator
-
-**Important**: Use `awslabs.aws-api-mcp-server` for actual DynamoDB operations, NOT `awslabs.dynamodb-mcp-server` (v2.0.0+ only provides data modeling guidance).
+- **Entry Point**: PDF Adapter agent
+- **Max Handoffs**: 10 (prevents infinite loops)
+- **Max Iterations**: 20 (total across all agents)
+- **Execution Timeout**: 600 seconds (10 minutes)
+- **Node Timeout**: 180 seconds (3 minutes per agent)
+- **Repetitive Handoff Detection**: 6-window with 2 minimum unique agents
 
 ## Performance Characteristics
 
-- **PDF Processing**: ~5 seconds
-- **OCR Extraction (5 pages)**: ~30-45 seconds
-- **Entity Extraction**: ~10-15 seconds
+- **PDF Download**: ~2-5 seconds
+- **Text Extraction (direct PDF)**: ~10-20 seconds
+- **Trade Extraction**: ~10-15 seconds
 - **DynamoDB Storage**: ~2-5 seconds
 - **Matching Analysis**: ~10-20 seconds
-- **Total**: ~60-90 seconds per trade confirmation
-- **Token Usage**: ~120K tokens per complete workflow (85% reduction achieved)
+- **Total**: ~40-70 seconds per trade confirmation
+- **Token Usage**: Varies by document complexity (tracked per agent)

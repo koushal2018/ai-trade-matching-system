@@ -8,9 +8,8 @@ strands-agents-tools>=0.1.0
 # AWS SDK
 boto3>=1.40.0
 
-# PDF Processing
-pdf2image>=1.17.0
-Pillow>=11.3.0
+# LLM providers
+anthropic>=0.69.0
 
 # Data validation
 pydantic>=2.11.0

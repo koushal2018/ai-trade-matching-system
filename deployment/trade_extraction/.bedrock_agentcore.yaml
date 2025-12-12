@@ -2,7 +2,7 @@ default_agent: trade_extraction_agent
 agents:
   trade_extraction_agent:
     name: trade_extraction_agent
-    entrypoint: /Users/koushald/ai-trade-matching-system-2/deployment/trade_extraction/trade_extraction_agent.py
+    entrypoint: /Users/koushald/ai-trade-matching-system-2/deployment/trade_extraction/trade_extraction_agent_strands.py
     deployment_type: direct_code_deploy
     runtime_type: PYTHON_3_11
     platform: linux/arm64
@@ -30,7 +30,7 @@ agents:
     bedrock_agentcore:
       agent_id: trade_extraction_agent-KnAx4O4ezw
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/trade_extraction_agent-KnAx4O4ezw
-      agent_session_id: 7719978a-3bae-4340-81bc-03eb46991b33
+      agent_session_id: 689097a8-b6f9-44e7-b6d0-c9f6e8513701
     codebuild:
       project_name: null
       execution_role: null

@@ -25,24 +25,27 @@ ai-trade-matching-system/
 
 ## Key Files
 
-### Application Core
+### AgentCore Deployment (Production)
 
-- **`src/latest_trade_matching_agent/crew_fixed.py`**: Main crew definition with 5 agents and MCP integration
-- **`src/latest_trade_matching_agent/main.py`**: Entry point for running the crew
-- **`src/latest_trade_matching_agent/eks_main.py`**: FastAPI server for EKS deployment
+- **`deployment/pdf_adapter/pdf_adapter_agent_strands.py`**: PDF Adapter using Strands SDK
+- **`deployment/trade_extraction/trade_extraction_agent_strands.py`**: Trade Extraction using Strands SDK
+- **`deployment/trade_matching/trade_matching_agent_strands.py`**: Trade Matching using Strands SDK
+- **`deployment/exception_management/exception_management_agent_strands.py`**: Exception Management with RL
+- **`deployment/orchestrator/orchestrator_agent_strands.py`**: Orchestrator for SLA monitoring
+- **`deployment/deploy_all.sh`**: Master deployment script for all agents
 
-### Configuration Files
+### Supporting Modules (Used by Deployment)
 
-- **`src/latest_trade_matching_agent/config/agents.yaml`**: Agent definitions (roles, goals, backstories)
-- **`src/latest_trade_matching_agent/config/tasks.yaml`**: Task definitions for each agent
-- **`.env`**: Environment variables (AWS credentials, S3 bucket, DynamoDB tables)
-- **`llm_config.json`**: LLM configuration for AWS Bedrock
+- **`src/latest_trade_matching_agent/matching/`**: Fuzzy matching, scoring, classification logic
+- **`src/latest_trade_matching_agent/exception_handling/`**: Exception classification, triage, RL handler
+- **`src/latest_trade_matching_agent/orchestrator/`**: SLA monitoring, compliance checking, control commands
+- **`src/latest_trade_matching_agent/models/`**: Pydantic models for trade, events, registry, taxonomy
 
-### Custom Tools
+### Legacy Code (Not Used in Production)
 
-- **`src/latest_trade_matching_agent/tools/pdf_to_image.py`**: PDF to image conversion tool
-- **`src/latest_trade_matching_agent/tools/dynamodb_tool.py`**: Custom DynamoDB operations (put_item, scan)
-- **`src/latest_trade_matching_agent/tools/custom_tool.py`**: Additional custom tools
+- **`src/latest_trade_matching_agent/crew_fixed.py`**: Old CrewAI implementation (reference only)
+- **`src/latest_trade_matching_agent/config/agents.yaml`**: Old agent configs (reference only)
+- **`src/latest_trade_matching_agent/config/tasks.yaml`**: Old task configs (reference only)
 
 ### Infrastructure
 
@@ -60,62 +63,53 @@ ai-trade-matching-system/
 
 ## Agent Architecture
 
-The system uses 5 specialized agents in sequential order:
+The system uses a **Strands Swarm** with 4 specialized agents that autonomously hand off tasks:
 
-1. **Document Processor** (`document_processor`)
-   - Converts PDF to JPEG images (300 DPI)
-   - Saves to S3 and local storage
-   - Max iterations: 5
+1. **PDF Adapter Agent** (`pdf_adapter`)
+   - Downloads PDFs from S3
+   - Extracts text directly from PDF using Bedrock multimodal
+   - Saves canonical output to S3 (extracted text + metadata)
+   - Hands off to trade_extractor after successful extraction
 
-2. **OCR Processor** (`ocr_processor`)
-   - Extracts text from images using AWS Bedrock
-   - Combines text from all pages
-   - Max iterations: 10
+2. **Trade Extraction Agent** (`trade_extractor`)
+   - Reads canonical output from S3 using use_aws tool
+   - LLM decides which trade fields to extract (context-aware)
+   - Stores in DynamoDB (BANK or COUNTERPARTY table)
+   - Hands off to trade_matcher after storing trade data
 
-3. **Trade Entity Extractor** (`trade_entity_extractor`)
-   - Parses OCR text into structured JSON
-   - Saves to S3 (scratchpad pattern)
-   - Max iterations: 5
+3. **Trade Matching Agent** (`trade_matcher`)
+   - Scans both DynamoDB tables for trades
+   - Matches by attributes (NOT Trade_ID - trades have different IDs across systems)
+   - Calculates confidence scores and classifies results
+   - Generates matching reports and saves to S3
+   - Hands off to exception_handler if REVIEW_REQUIRED or BREAK
 
-4. **Reporting Analyst** (`reporting_analyst`)
-   - Reads JSON from S3
-   - Stores in appropriate DynamoDB table
-   - Max iterations: 8
-
-5. **Matching Analyst** (`matching_analyst`)
-   - Scans both DynamoDB tables
-   - Performs fuzzy matching
-   - Generates reports
-   - Max iterations: 10
+4. **Exception Handler Agent** (`exception_handler`)
+   - Analyzes exceptions and determines severity (CRITICAL, HIGH, MEDIUM, LOW)
+   - Calculates SLA deadlines based on business impact
+   - Stores exception records in DynamoDB ExceptionsTable
+   - Reports findings (no further handoff)
 
 ## Data Storage Patterns
 
 ### S3 Folder Structure
 
 ```
-s3://otc-menat-2025/
+s3://trade-matching-system-agentcore-production/
 ├── BANK/                              # Bank trade PDFs (input)
 ├── COUNTERPARTY/                      # Counterparty trade PDFs (input)
-├── PDFIMAGES/                         # Converted images
-│   ├── BANK/{trade_id}/
-│   └── COUNTERPARTY/{trade_id}/
-├── extracted/                         # Structured JSON data
-│   ├── BANK/trade_{id}_{timestamp}.json
-│   └── COUNTERPARTY/trade_{id}_{timestamp}.json
+├── extracted/                         # Canonical adapter output
+│   ├── BANK/{document_id}.json
+│   └── COUNTERPARTY/{document_id}.json
 └── reports/                           # Matching analysis reports
-    └── matching_report_{id}_{timestamp}.md
+    └── matching_report_{trade_id}_{timestamp}.md
 ```
 
 ### Local Processing Directory
 
 ```
-/tmp/processing/{unique_identifier}/
-├── pdf_images/
-│   └── {unique_identifier}/
-│       ├── {filename}_page_001.jpg
-│       ├── {filename}_page_002.jpg
-│       └── ...
-└── ocr_text.txt
+/tmp/
+└── {document_id}.pdf                  # Temporary PDF download
 ```
 
 ### DynamoDB Tables
@@ -129,25 +123,33 @@ s3://otc-menat-2025/
 
 ### Agent Configuration
 
-- All agents use AWS Bedrock Claude Sonnet 4
-- `verbose=False` to reduce token overhead
-- `max_rpm=2` for rate limiting
-- `max_retry_limit=1` for efficiency
-- `multimodal=True` for image processing
-- `respect_context_window=True`
+- All agents use AWS Bedrock Claude Sonnet 4 (`us.anthropic.claude-sonnet-4-20250514-v1:0`)
+- Strands Swarm framework with autonomous handoffs
+- `temperature=0.1` for deterministic processing
+- `max_tokens=4096` for response generation
+- LLM-driven decision making (agents decide when to hand off)
+- Direct boto3 access for DynamoDB operations
 
 ### Task Flow
 
-- Sequential process (Process.sequential)
-- 15-second delay between tasks to avoid AWS throttling
-- Scratchpad pattern: agents save data to S3, pass only paths/summaries
-- Memory disabled (ChromaDB has credential handling issues with AWS Bedrock)
+- Swarm-based architecture (agents hand off to each other autonomously)
+- Canonical output pattern: standardized adapter output for downstream processing
+- Agents decide when to hand off based on task context
+- No hardcoded workflow steps - emergent collaboration
 
 ### Tool Usage
 
-- **Standard CrewAI Tools**: FileReadTool, FileWriterTool, DirectoryReadTool, S3ReaderTool, S3WriterTool, OCRTool
-- **Custom Tools**: PDFToImageTool, DynamoDBTool
-- **MCP Tools**: AWS API MCP Server for DynamoDB and other AWS operations
+- **Strands AWS Tool**: `use_aws` - Built-in tool for S3 and Bedrock operations
+- **Custom Tools**: 
+  - `download_pdf_from_s3`: Get PDF from S3
+  - `extract_text_with_bedrock`: OCR with Bedrock multimodal
+  - `save_canonical_output`: Save standardized output to S3
+  - `store_trade_in_dynamodb`: Save extracted trade data
+  - `scan_trades_table`: Retrieve trades from DynamoDB
+  - `save_matching_report`: Save analysis to S3
+  - `get_severity_guidelines`: Get exception classification rules
+  - `store_exception_record`: Track exceptions with SLA deadlines
+- **boto3 Direct Access**: All custom tools use boto3 for AWS operations
 
 ### Error Handling
 
@@ -155,55 +157,70 @@ s3://otc-menat-2025/
 - Agents verify operations before proceeding
 - Data integrity checks before matching
 
-### Token Optimization
+### LLM Optimization
 
-- Concise backstories in agents.yaml
-- Minimal task descriptions
-- Scratchpad pattern (save to S3, pass paths only)
-- Reduced max_iter values
-- Verbose mode disabled
+- Low temperature (0.1) for deterministic extraction
+- Goal-oriented prompts (LLM decides the approach)
+- Canonical output pattern (standardized format)
+- AgentCore observability for token tracking
+- Strands SDK handles tool orchestration efficiently
 
 ## Input Format
 
-The crew expects this input structure:
+The swarm's `process_trade_confirmation()` function expects:
 
 ```python
-inputs = {
-    'document_path': 's3://bucket/SOURCE_TYPE/filename.pdf',  # S3 URI or local path
-    'unique_identifier': 'TRADE_ID',                          # For folder naming
-    'source_type': 'BANK' or 'COUNTERPARTY',                  # CRITICAL for routing
-    's3_bucket': 'bucket-name',
-    's3_key': 'SOURCE_TYPE/filename',
-    'dynamodb_bank_table': 'BankTradeData',
-    'dynamodb_counterparty_table': 'CounterpartyTradeData',
-    'timestamp': 'YYYYMMDD_HHMMSS'
-}
+result = process_trade_confirmation(
+    document_path="s3://bucket/key or just key",  # S3 path to PDF
+    source_type="BANK" or "COUNTERPARTY",         # CRITICAL for routing
+    document_id="optional_doc_id",                # Auto-generated if not provided
+    correlation_id="optional_corr_id"             # For tracing
+)
+```
+
+CLI usage:
+```bash
+python deployment/swarm/trade_matching_swarm.py \
+  data/BANK/FAB_26933659.pdf \
+  --source-type BANK \
+  --document-id FAB_26933659 \
+  --verbose
 ```
 
 ## Deployment Patterns
 
-### Local Development
+### Strands Swarm (Current Implementation)
 
-Run directly with Python:
+Run the swarm locally:
 ```bash
-python src/latest_trade_matching_agent/main.py
+python deployment/swarm/trade_matching_swarm.py \
+  document_path \
+  --source-type BANK \
+  --verbose
 ```
 
-### EKS Deployment
+### Web Portal
 
-FastAPI server with REST API:
+React frontend with FastAPI backend:
 ```bash
-uvicorn src.latest_trade_matching_agent.eks_main:app --host 0.0.0.0 --port 8000
+cd web-portal
+npm run dev
+
+cd web-portal-api
+uvicorn app.main:app --reload
 ```
 
-### Lambda Deployment
+### Legacy AgentCore Deployment (Reference Only)
 
-Event-driven processing via S3 triggers (see `lambda/s3_event_processor.py`)
+The `deployment/*/` folders contain legacy AgentCore deployment packages that are not used in the current Strands Swarm implementation.
 
 ## Important Notes
 
 - Always classify trades as BANK or COUNTERPARTY before processing
-- Trade_ID is the primary key for all DynamoDB operations
-- Use DynamoDB typed format for all attributes
+- trade_id is the primary key for all DynamoDB operations
+- Use DynamoDB typed format for all attributes: `{"S": "value"}`, `{"N": "123"}`
 - Verify TRADE_SOURCE matches table location (data integrity check)
-- MCP server lifecycle is auto-managed by @CrewBase decorator
+- Strands Swarm manages agent handoffs autonomously
+- Agents decide when to hand off based on task context (no hardcoded workflows)
+- All agents use Bedrock Claude Sonnet 4 in us-east-1 region
+- Trades have DIFFERENT IDs across systems - match by attributes, not Trade_ID

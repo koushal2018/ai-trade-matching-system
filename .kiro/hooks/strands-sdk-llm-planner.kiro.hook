@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "name": "Strands SDK LLM-First Design",
+  "description": "Monitors Strands SDK agent code to ensure the LLM is used as the central planner for agent behavior. Checks that logic is not hardcoded and that tools are properly defined using Python function decorators for external system interactions.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*strands*.py",
+      "**/agents/*.py",
+      "deployment/**/*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review this Strands SDK code and ensure it follows LLM-centric agent design principles:\n\n1. **LLM as Central Planner**: The LLM should drive agent behavior and decision-making. Avoid hardcoded if/else logic that bypasses the LLM's reasoning capabilities.\n\n2. **Tool-Based Architecture**: Use Strands' @tool decorator to define tools that allow the agent to interact with external systems. Tools should be:\n   - Defined using Python function decorators (@tool)\n   - Well-documented with clear docstrings describing their purpose and parameters\n   - Focused on single responsibilities (data retrieval, API calls, file operations)\n\n3. **Avoid Hardcoded Behavior**: Instead of hardcoding workflow steps, let the LLM decide which tools to use based on the task context.\n\n4. **Built-in Tools**: Leverage Strands' rich set of built-in tools where appropriate before creating custom ones.\n\nIf the code violates these principles, suggest refactoring to:\n- Move decision logic into the LLM prompt/system message\n- Convert hardcoded operations into @tool decorated functions\n- Let the agent dynamically choose tools based on context"
+  }
+}

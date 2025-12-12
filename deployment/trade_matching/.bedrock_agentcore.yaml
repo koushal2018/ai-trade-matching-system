@@ -2,7 +2,7 @@ default_agent: trade_matching_agent
 agents:
   trade_matching_agent:
     name: trade_matching_agent
-    entrypoint: /Users/koushald/ai-trade-matching-system-2/deployment/trade_matching/trade_matching_agent.py
+    entrypoint: /Users/koushald/ai-trade-matching-system-2/deployment/trade_matching/trade_matching_agent_strands.py
     deployment_type: direct_code_deploy
     runtime_type: PYTHON_3_11
     platform: linux/arm64
@@ -30,7 +30,7 @@ agents:
     bedrock_agentcore:
       agent_id: trade_matching_agent-3aAvK64dQz
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/trade_matching_agent-3aAvK64dQz
-      agent_session_id: b89c77d5-36fb-4ef8-b2f5-0fd8419bc7eb
+      agent_session_id: 25e3b5da-10a7-4964-9da3-4fe4a0e8d260
     codebuild:
       project_name: null
       execution_role: null

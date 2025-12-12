@@ -30,7 +30,7 @@ agents:
     bedrock_agentcore:
       agent_id: pdf_adapter_agent-Az72YP53FJ
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/pdf_adapter_agent-Az72YP53FJ
-      agent_session_id: 10b3df87-21dd-4f18-a5c5-fef0d2133128
+      agent_session_id: fad53fc5-6a0c-4254-a59c-8baa77eee6ee
     codebuild:
       project_name: bedrock-agentcore-pdf_adapter_agent-builder
       execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-d49ec2442f

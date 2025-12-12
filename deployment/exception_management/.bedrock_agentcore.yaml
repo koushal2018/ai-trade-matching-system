@@ -30,7 +30,7 @@ agents:
     bedrock_agentcore:
       agent_id: exception_management_agent-QrSzPSChxP
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/exception_management_agent-QrSzPSChxP
-      agent_session_id: null
+      agent_session_id: ef45bb50-e3c1-4d8c-9538-badd61f7ed75
     codebuild:
       project_name: null
       execution_role: null

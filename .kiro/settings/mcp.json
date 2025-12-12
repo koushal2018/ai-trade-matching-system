@@ -22,45 +22,6 @@
         "search_docs"
       ]
     },
-    "awslabs.aws-pricing-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "awslabs.aws-pricing-mcp-server@latest"
-      ],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_PROFILE": "default",
-        "AWS_REGION": "us-east-1"
-      },
-      "disabled": false
-    },
-    "time": {
-      "command": "uvx",
-      "args": [
-        "mcp-server-time",
-        "--local-timezone=America/Los_Angeles"
-      ],
-      "disabled": false
-    },
-    "awslabs-core-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "awslabs.core-mcp-server@latest"
-      ],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "MCP_SETTINGS_PATH": "/Users/koushald/Amazon Bedrock Client/mcp_config.json"
-      },
-      "disabled": false
-    },
-    "memory": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-memory"
-      ],
-      "disabled": false
-    },
     "awslabs.aws-documentation-mcp-server": {
       "command": "uvx",
       "args": [
@@ -69,13 +30,7 @@
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
-      "disabled": false,
-      "autoApprove": [
-        "search_documentation",
-        "read_documentation",
-        "read_documentation",
-        "read_documentation"
-      ]
+      "disabled": false
     },
     "brave-search": {
       "command": "npx",
@@ -109,8 +64,7 @@
       "disabled": false,
       "autoApprove": [
         "search_agentcore_docs",
-        "fetch_agentcore_doc",
-        "manage_agentcore_memory"
+        "fetch_agentcore_doc"
       ]
     },
     "awslabs.aws-diagram-mcp-server": {
@@ -122,21 +76,10 @@
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
-      "autoApprove": []
-    },
-    "awslabs.git-repo-research-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "awslabs.git-repo-research-mcp-server@latest"
-      ],
-      "env": {
-        "AWS_PROFILE": "default",
-        "AWS_REGION": "us-east-1",
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "GITHUB_TOKEN": ""
-      },
-      "disabled": false,
-      "autoApprove": []
+      "autoApprove": [
+        "list_icons",
+        "generate_diagram"
+      ]
     },
     "awslabs.code-doc-gen-mcp-server": {
       "command": "uvx",
@@ -144,30 +87,6 @@
         "awslabs.code-doc-gen-mcp-server@latest"
       ],
       "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
-    },
-    "awslabs.frontend-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "awslabs.frontend-mcp-server@latest"
-      ],
-      "env": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      },
-      "disabled": false,
-      "autoApprove": []
-    },
-    "well-architected-security-mcp-server": {
-      "command": "uvx",
-      "args": [
-        "awslabs.well-architected-security-mcp-server@latest"
-      ],
-      "env": {
-        "AWS_PROFILE": "default",
-        "AWS_REGION": "us-east-1",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
