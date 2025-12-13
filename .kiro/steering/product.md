@@ -12,7 +12,7 @@ Manual trade confirmation matching is time-consuming, error-prone, and doesn't s
 
 ## Key Capabilities
 
-- AI-powered document processing using AWS Bedrock Claude Sonnet 4 (multimodal) for direct PDF text extraction
+- AI-powered document processing using Amazon Nova Pro (multimodal) for direct PDF text extraction
 - Strands Swarm architecture with 4 specialized agents that autonomously hand off tasks
 - Emergent collaboration where agents decide when to hand off based on task context
 - DynamoDB integration with boto3 for direct database access

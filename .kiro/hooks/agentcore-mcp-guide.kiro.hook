@@ -1,7 +1,7 @@
 {
   "enabled": true,
   "name": "AgentCore MCP Integration Guide",
-  "description": "Provides guidance on AgentCore MCP server capabilities when editing agent deployment files - covers Gateway for tool integration, Memory for conversation context, Identity for access control, and framework integrations (LangGraph, CrewAI)",
+  "description": "Provides guidance on AgentCore MCP server capabilities when editing agent deployment files - covers Gateway for tool integration, Memory for conversation context, Identity for access control, and framework integrations (Strands SDK, LangGraph)",
   "version": "1",
   "when": {
     "type": "fileEdited",
@@ -15,6 +15,6 @@
   },
   "then": {
     "type": "askAgent",
-    "prompt": "The user is working on AgentCore agent files. Review the changes and suggest relevant AgentCore MCP server capabilities:\n\n1. **Tool Integration (Gateway)**: If the agent needs external tool access, suggest connecting to Amazon Bedrock AgentCore Gateway. Reference terraform/agentcore/agentcore_gateway.tf and configs/AGENTCORE_GATEWAY_README.md.\n\n2. **Memory Integration**: If the agent handles conversations or needs context persistence, suggest Amazon Bedrock AgentCore Memory. Reference terraform/agentcore/agentcore_memory.tf and configs/AGENTCORE_MEMORY_README.md.\n\n3. **Identity Management**: If the agent needs secure access control or authentication, suggest Amazon Bedrock AgentCore Identity. Reference terraform/agentcore/cognito.tf and configs/AGENTCORE_IDENTITY_README.md.\n\n4. **Framework Integrations**: Based on the agent implementation, suggest relevant framework integrations:\n   - For complex workflows: LangGraph integration\n   - For multi-agent orchestration: CrewAI (already in use - see crew_fixed.py)\n   - For other patterns: Mention available framework options\n\nProvide specific code examples or configuration snippets relevant to the file being edited."
+    "prompt": "The user is working on AgentCore agent files. Review the changes and suggest relevant AgentCore MCP server capabilities:\n\n1. **Tool Integration (Gateway)**: If the agent needs external tool access, suggest connecting to Amazon Bedrock AgentCore Gateway. Reference terraform/agentcore/agentcore_gateway.tf and configs/AGENTCORE_GATEWAY_README.md.\n\n2. **Memory Integration**: If the agent handles conversations or needs context persistence, suggest Amazon Bedrock AgentCore Memory. Reference terraform/agentcore/agentcore_memory.tf and configs/AGENTCORE_MEMORY_README.md.\n\n3. **Identity Management**: If the agent needs secure access control or authentication, suggest Amazon Bedrock AgentCore Identity. Reference terraform/agentcore/cognito.tf and configs/AGENTCORE_IDENTITY_README.md.\n\n4. **Framework Integrations**: Based on the agent implementation, suggest relevant framework integrations:\n   - For multi-agent swarms: Strands SDK (current implementation in deployment/swarm/)\n   - For complex workflows: LangGraph integration\n   - For other patterns: Mention available framework options\n\nProvide specific code examples or configuration snippets relevant to the file being edited."
   }
 }

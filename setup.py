@@ -22,34 +22,35 @@ def create_directories():
         Path(directory).mkdir(parents=True, exist_ok=True)
         print(f"   ✓ {directory}/")
 
-def create_tinydb_databases():
-    """Initialize TinyDB databases for trade storage"""
-    print("\n💾 Initializing TinyDB databases...")
+def check_aws_resources():
+    """Check AWS resources are accessible"""
+    print("\n☁️  Checking AWS resources...")
     
     try:
-        from tinydb import TinyDB
+        import boto3
+        from botocore.exceptions import ClientError, NoCredentialsError
         
-        # Create bank trade database
-        bank_db_path = './storage/bank_trade_data.db'
-        bank_db = TinyDB(bank_db_path)
-        print(f"   ✓ {bank_db_path}")
+        # Try to create S3 client
+        s3_client = boto3.client('s3')
+        print("   ✓ AWS credentials configured")
         
-        # Create counterparty trade database  
-        counterparty_db_path = './storage/counterparty_trade_data.db'
-        counterparty_db = TinyDB(counterparty_db_path)
-        print(f"   ✓ {counterparty_db_path}")
+        # Check if S3 bucket exists
+        bucket_name = os.getenv('S3_BUCKET_NAME', 'trade-matching-system-agentcore-production')
+        try:
+            s3_client.head_bucket(Bucket=bucket_name)
+            print(f"   ✓ S3 bucket accessible: {bucket_name}")
+        except ClientError:
+            print(f"   ⚠️  S3 bucket not found: {bucket_name}")
+            print("      Run terraform apply to create infrastructure")
         
-        # Close databases
-        bank_db.close()
-        counterparty_db.close()
-        
-        print("   ✓ TinyDB databases initialized successfully")
-        
+    except NoCredentialsError:
+        print("   ⚠️  AWS credentials not configured")
+        print("      Configure AWS credentials in .env file")
     except ImportError:
-        print("   ⚠️  TinyDB not installed - databases will be created on first run")
-        print("      Install with: pip install tinydb")
+        print("   ⚠️  boto3 not installed")
+        print("      Install with: pip install -r requirements.txt")
     except Exception as e:
-        print(f"   ❌ Error creating databases: {e}")
+        print(f"   ⚠️  Error checking AWS resources: {e}")
 
 
 
@@ -57,7 +58,7 @@ def check_dependencies():
     """Check if required dependencies are installed"""
     print("\n🔍 Checking dependencies...")
     
-    required = ['crewai', 'openai', 'tinydb', 'pdf2image']
+    required = ['strands', 'boto3', 'anthropic', 'bedrock_agentcore']
     missing = []
     
     for package in required:
@@ -82,15 +83,18 @@ def check_env_file():
     if not os.path.exists('.env'):
         print("   ⚠️  .env file not found")
         print("   Run: cp .env.example .env")
-        print("   Then edit .env with your API keys")
+        print("   Then edit .env with your AWS credentials")
         return False
     
     with open('.env', 'r') as f:
         env_content = f.read()
     
-    if 'OPENAI_API_KEY=sk-' not in env_content:
-        print("   ⚠️  OPENAI_API_KEY not configured in .env")
-        print("   Add your OpenAI API key to .env file")
+    required_vars = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION']
+    missing_vars = [var for var in required_vars if var not in env_content]
+    
+    if missing_vars:
+        print(f"   ⚠️  Missing environment variables: {', '.join(missing_vars)}")
+        print("   Add your AWS credentials to .env file")
         return False
     
     print("   ✓ .env file configured")
@@ -104,14 +108,14 @@ def main():
     # Create directories
     create_directories()
     
-    # Initialize TinyDB databases
-    create_tinydb_databases()
-    
     # Check dependencies
     deps_ok = check_dependencies()
     
     # Check environment
     env_ok = check_env_file()
+    
+    # Check AWS resources
+    check_aws_resources()
     
     print("\n" + "=" * 40)
     print("📋 Setup Summary:")
@@ -119,9 +123,10 @@ def main():
     if deps_ok and env_ok:
         print("✅ Setup completed successfully!")
         print("\n🎯 Next steps:")
-        print("   1. Ensure Poppler is installed (brew install poppler)")
-        print("   2. Run: crewai run")
-        print("   3. Check ./storage/ for results")
+        print("   1. Configure AWS credentials in .env file")
+        print("   2. Run: terraform apply (to create infrastructure)")
+        print("   3. Run: python deployment/swarm/trade_matching_swarm.py <pdf_path> --source-type BANK")
+        print("   4. Check S3 bucket for results")
     else:
         print("⚠️  Setup completed with warnings")
         print("   Please address the issues above before running")

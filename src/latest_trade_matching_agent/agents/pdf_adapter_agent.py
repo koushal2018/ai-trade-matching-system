@@ -28,8 +28,9 @@ from ..models.events import (
 from ..models.registry import AgentRegistry, AgentRegistryEntry, ScalingConfig
 
 # Import tools
-from ..tools.pdf_to_image import PDFToImageTool
-from ..tools.ocr_tool import OCRTool
+# NOTE: These tools have been moved to legacy/crewai/tools/ as they depend on CrewAI
+# from ..tools.pdf_to_image import PDFToImageTool
+# from ..tools.ocr_tool import OCRTool
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

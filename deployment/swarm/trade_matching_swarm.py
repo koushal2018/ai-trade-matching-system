@@ -24,7 +24,6 @@ import logging
 from strands import Agent, tool
 from strands.models import BedrockModel
 from strands.multiagent import Swarm
-from strands_tools import use_aws
 
 # Set up logging
 logging.basicConfig(
@@ -33,32 +32,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Configuration
-REGION = os.getenv("AWS_REGION", "us-east-1")
-S3_BUCKET = os.getenv("S3_BUCKET_NAME", "trade-matching-system-agentcore-production")
-BANK_TABLE = os.getenv("DYNAMODB_BANK_TABLE", "BankTradeData")
-COUNTERPARTY_TABLE = os.getenv("DYNAMODB_COUNTERPARTY_TABLE", "CounterpartyTradeData")
-EXCEPTIONS_TABLE = os.getenv("DYNAMODB_EXCEPTIONS_TABLE", "ExceptionsTable")
-BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0")
+# Import shared AWS resources
+from aws_resources import get_aws_client, get_config
 
-# Lazy-initialized boto3 clients
-_boto_clients: Dict[str, Any] = {}
-
-
-def get_boto_client(service: str):
-    """Get or create a boto3 client for the specified service."""
-    import boto3
-    from botocore.config import Config
-    
-    if service not in _boto_clients:
-        # Configure longer timeouts for Bedrock (PDF processing can take time)
-        config = Config(
-            read_timeout=300,  # 5 minutes for reading response
-            connect_timeout=60,  # 1 minute for connection
-            retries={'max_attempts': 3, 'mode': 'adaptive'}
-        )
-        _boto_clients[service] = boto3.client(service, region_name=REGION, config=config)
-    return _boto_clients[service]
+# Get shared configuration
+_config = get_config()
+REGION = _config["region"]
+S3_BUCKET = _config["s3_bucket"]
+BANK_TABLE = _config["bank_table"]
+COUNTERPARTY_TABLE = _config["counterparty_table"]
+EXCEPTIONS_TABLE = _config["exceptions_table"]
+BEDROCK_MODEL_ID = _config["bedrock_model_id"]
 
 
 # ============================================================================
@@ -79,7 +63,7 @@ def download_pdf_from_s3(bucket: str, key: str, document_id: str) -> str:
         JSON string with success status, base64 PDF content, and file size
     """
     try:
-        s3_client = get_boto_client('s3')
+        s3_client = get_aws_client('s3')
         local_path = f"/tmp/{document_id}.pdf"
         
         s3_client.download_file(bucket, key, local_path)
@@ -113,7 +97,7 @@ def extract_text_with_bedrock(pdf_base64: str, document_id: str) -> str:
         JSON string with success status and extracted text
     """
     try:
-        bedrock_client = get_boto_client('bedrock-runtime')
+        bedrock_client = get_aws_client('bedrock-runtime')
         pdf_bytes = base64.b64decode(pdf_base64)
         
         sanitized_name = re.sub(r'[^a-zA-Z0-9\-\(\)\[\]\s]', '-', document_id)
@@ -172,7 +156,7 @@ def save_canonical_output(
         JSON string with success status and S3 location
     """
     try:
-        s3_client = get_boto_client('s3')
+        s3_client = get_aws_client('s3')
         
         canonical_output = {
             "adapter_type": "PDF",
@@ -211,6 +195,33 @@ def save_canonical_output(
 # ============================================================================
 
 @tool
+def read_canonical_output(document_id: str, source_type: str) -> str:
+    """
+    Read canonical output from S3.
+    
+    Args:
+        document_id: Unique identifier for the document
+        source_type: BANK or COUNTERPARTY
+        
+    Returns:
+        JSON string with canonical output data
+    """
+    try:
+        s3_client = get_aws_client('s3')
+        canonical_output_key = f"extracted/{source_type}/{document_id}.json"
+        
+        response = s3_client.get_object(Bucket=S3_BUCKET, Key=canonical_output_key)
+        canonical_data = json.loads(response['Body'].read().decode('utf-8'))
+        
+        return json.dumps({
+            "success": True,
+            "canonical_output": canonical_data
+        })
+    except Exception as e:
+        logger.error(f"Failed to read canonical output: {e}")
+        return json.dumps({"success": False, "error": str(e)})
+
+@tool
 def store_trade_in_dynamodb(trade_data_json: str, source_type: str) -> str:
     """
     Store extracted trade data in the appropriate DynamoDB table.
@@ -223,7 +234,7 @@ def store_trade_in_dynamodb(trade_data_json: str, source_type: str) -> str:
         JSON string with success status and table name
     """
     try:
-        dynamodb_client = get_boto_client('dynamodb')
+        dynamodb_client = get_aws_client('dynamodb')
         trade_data = json.loads(trade_data_json)
         
         table_name = BANK_TABLE if source_type == "BANK" else COUNTERPARTY_TABLE
@@ -274,7 +285,7 @@ def scan_trades_table(source_type: str) -> str:
         JSON string with list of trades from the table
     """
     try:
-        dynamodb_client = get_boto_client('dynamodb')
+        dynamodb_client = get_aws_client('dynamodb')
         table_name = BANK_TABLE if source_type == "BANK" else COUNTERPARTY_TABLE
         
         response = dynamodb_client.scan(TableName=table_name)
@@ -321,7 +332,7 @@ def save_matching_report(
         JSON string with S3 location of the report
     """
     try:
-        s3_client = get_boto_client('s3')
+        s3_client = get_aws_client('s3')
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         
         report_key = f"reports/matching_report_{trade_id}_{timestamp}.md"
@@ -412,7 +423,7 @@ def store_exception_record(
         JSON with success status and calculated SLA deadline
     """
     try:
-        dynamodb_client = get_boto_client('dynamodb')
+        dynamodb_client = get_aws_client('dynamodb')
         
         sla_deadline = (datetime.utcnow() + timedelta(hours=sla_hours)).isoformat()
         reason_code_list = [code.strip() for code in reason_codes.split(",") if code.strip()]
@@ -594,8 +605,7 @@ def create_pdf_adapter_agent() -> Agent:
         tools=[
             download_pdf_from_s3,
             extract_text_with_bedrock,
-            save_canonical_output,
-            use_aws
+            save_canonical_output
         ]
     )
 

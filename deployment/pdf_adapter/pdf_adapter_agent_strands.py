@@ -22,7 +22,7 @@ import logging
 # Strands SDK imports
 from strands import Agent, tool
 from strands.models import BedrockModel
-from strands_tools import use_aws
+from strands_agents_tools import use_aws
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from bedrock_agentcore.runtime.models import PingStatus
 
@@ -46,7 +46,7 @@ app = BedrockAgentCoreApp()
 # Configuration
 REGION = os.getenv("AWS_REGION", "us-east-1")
 S3_BUCKET = os.getenv("S3_BUCKET_NAME", "trade-matching-system-agentcore-production")
-BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0")
+BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
 AGENT_VERSION = os.getenv("AGENT_VERSION", "1.0.0")
 AGENT_ALIAS = os.getenv("AGENT_ALIAS", "default")
 OBSERVABILITY_STAGE = os.getenv("OBSERVABILITY_STAGE", "development")
@@ -72,74 +72,105 @@ _boto_clients: Dict[str, Any] = {}
 
 
 def get_boto_client(service: str):
-    """Get or create a boto3 client for the specified service."""
+    """
+    Get or create a boto3 client for the specified service.
+    
+    Uses lazy initialization to avoid creating clients until needed.
+    Clients are cached for reuse across tool invocations.
+    
+    Args:
+        service: AWS service name (e.g., 's3', 'bedrock-runtime')
+        
+    Returns:
+        Configured boto3 client for the service
+    """
     import boto3
+    from botocore.config import Config
+    
     if service not in _boto_clients:
-        _boto_clients[service] = boto3.client(service, region_name=REGION)
+        # Configure timeout for Nova models (60 min inference timeout per AWS docs)
+        config = Config(
+            read_timeout=3600,  # 60 minutes for Nova document processing
+            connect_timeout=10,
+            retries={'max_attempts': 3, 'mode': 'adaptive'}
+        )
+        _boto_clients[service] = boto3.client(service, region_name=REGION, config=config)
     return _boto_clients[service]
 
 
 # ============================================================================
-# Custom Tools for PDF Processing
+# Custom Tools for PDF Processing (Granular, LLM-driven)
 # ============================================================================
 
 @tool
-def download_pdf_from_s3(bucket: str, key: str, document_id: str) -> str:
+def infer_source_type_from_path(document_path: str) -> str:
     """
-    Download a PDF file from S3 and return its base64-encoded content.
+    Infer the source type (BANK or COUNTERPARTY) from an S3 path.
+    
+    Analyzes the path structure to determine if this is a bank or counterparty trade.
     
     Args:
-        bucket: S3 bucket name
-        key: S3 object key (path to the PDF)
+        document_path: S3 path (s3://bucket/key or just key)
+        
+    Returns:
+        JSON string with inferred source_type or error
+    """
+    try:
+        if "/BANK/" in document_path or document_path.startswith("BANK/"):
+            return json.dumps({"success": True, "source_type": "BANK"})
+        elif "/COUNTERPARTY/" in document_path or document_path.startswith("COUNTERPARTY/"):
+            return json.dumps({"success": True, "source_type": "COUNTERPARTY"})
+        else:
+            return json.dumps({
+                "success": False,
+                "error": f"Cannot determine source_type from path '{document_path}'. Must contain /BANK/ or /COUNTERPARTY/"
+            })
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+@tool
+def extract_text_from_pdf_s3(
+    document_path: str,
+    document_id: str
+) -> str:
+    """
+    Download a PDF from S3 and extract all text using Bedrock's multimodal capabilities.
+    
+    This tool handles the complete text extraction workflow:
+    - Downloads PDF from S3
+    - Extracts text using Amazon Nova Pro multimodal
+    - Returns the complete extracted text
+    
+    Args:
+        document_path: S3 path (s3://bucket/key or just key)
         document_id: Unique identifier for the document
         
     Returns:
-        JSON string with success status, base64 PDF content, and file size
+        JSON string with extracted text and metadata
     """
+    import re
+    
     try:
+        # Parse S3 path
+        if document_path.startswith("s3://"):
+            parts = document_path.replace("s3://", "").split("/", 1)
+            bucket = parts[0]
+            key = parts[1]
+        else:
+            bucket = S3_BUCKET
+            key = document_path
+        
+        # Download PDF
         s3_client = get_boto_client('s3')
         local_path = f"/tmp/{document_id}.pdf"
-        
         s3_client.download_file(bucket, key, local_path)
         
         with open(local_path, 'rb') as f:
             pdf_bytes = f.read()
         
-        pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
-        
-        return json.dumps({
-            "success": True,
-            "pdf_base64": pdf_base64,
-            "file_size_bytes": len(pdf_bytes),
-            "local_path": local_path
-        })
-    except Exception as e:
-        logger.error(f"Failed to download PDF from S3: {e}")
-        return json.dumps({
-            "success": False,
-            "error": str(e)
-        })
-
-
-@tool
-def extract_text_with_bedrock(pdf_base64: str, document_id: str) -> str:
-    """
-    Extract text from a PDF using AWS Bedrock's multimodal capabilities.
-    
-    Args:
-        pdf_base64: Base64-encoded PDF content
-        document_id: Unique identifier for the document
-        
-    Returns:
-        JSON string with success status and extracted text
-    """
-    import re
-    
-    try:
+        # Extract text using Bedrock multimodal
         bedrock_client = get_boto_client('bedrock-runtime')
-        
-        # Decode base64 to bytes
-        pdf_bytes = base64.b64decode(pdf_base64)
         
         # Sanitize document name for Bedrock
         sanitized_name = re.sub(r'[^a-zA-Z0-9\-\(\)\[\]\s]', '-', document_id)
@@ -177,7 +208,12 @@ Return the complete extracted text."""
                         }
                     ]
                 }
-            ]
+            ],
+            inferenceConfig={
+                "maxTokens": 4096,
+                "temperature": 0.2,
+                "topP": 0.9
+            }
         )
         
         extracted_text = response['output']['message']['content'][0]['text']
@@ -185,40 +221,45 @@ Return the complete extracted text."""
         return json.dumps({
             "success": True,
             "extracted_text": extracted_text,
-            "text_length": len(extracted_text)
+            "file_size_bytes": len(pdf_bytes),
+            "text_length": len(extracted_text),
+            "document_id": document_id
         })
+        
     except Exception as e:
-        logger.error(f"Failed to extract text with Bedrock: {e}")
+        logger.error(f"Failed to extract text from PDF: {e}", exc_info=True)
         return json.dumps({
             "success": False,
-            "error": str(e)
+            "error": str(e),
+            "error_type": type(e).__name__
         })
 
 
 @tool
-def save_canonical_output(
+def save_canonical_output_to_s3(
     document_id: str,
     source_type: str,
     extracted_text: str,
     correlation_id: str,
-    processing_time_ms: float
+    file_size_bytes: int
 ) -> str:
     """
-    Save the canonical adapter output to S3 in the standardized format.
+    Save canonical adapter output to S3 in standardized format.
+    
+    Creates the canonical output structure with metadata and saves to S3.
+    Also saves raw extracted text as a separate file.
     
     Args:
         document_id: Unique identifier for the document
         source_type: BANK or COUNTERPARTY
-        extracted_text: The extracted text from the PDF
+        extracted_text: Complete extracted text from PDF
         correlation_id: Correlation ID for tracing
-        processing_time_ms: Processing time in milliseconds
+        file_size_bytes: Original PDF file size
         
     Returns:
-        JSON string with success status and S3 location
+        JSON string with S3 locations and success status
     """
     try:
-        s3_client = get_boto_client('s3')
-        
         # Create canonical output structure
         canonical_output = {
             "adapter_type": "PDF",
@@ -230,14 +271,16 @@ def save_canonical_output(
                 "dpi": 300,
                 "processing_timestamp": datetime.utcnow().isoformat(),
                 "ocr_model": BEDROCK_MODEL_ID,
-                "processing_time_ms": processing_time_ms
+                "file_size_bytes": file_size_bytes,
+                "text_length": len(extracted_text)
             },
             "s3_location": f"s3://{S3_BUCKET}/extracted/{source_type}/{document_id}.json",
             "processing_timestamp": datetime.utcnow().isoformat(),
             "correlation_id": correlation_id
         }
         
-        # Save to S3
+        # Save canonical output to S3
+        s3_client = get_boto_client('s3')
         canonical_output_key = f"extracted/{source_type}/{document_id}.json"
         s3_client.put_object(
             Bucket=S3_BUCKET,
@@ -264,13 +307,17 @@ def save_canonical_output(
         return json.dumps({
             "success": True,
             "canonical_output_location": canonical_output["s3_location"],
-            "ocr_text_location": f"s3://{S3_BUCKET}/{ocr_output_key}"
+            "ocr_text_location": f"s3://{S3_BUCKET}/{ocr_output_key}",
+            "document_id": document_id,
+            "source_type": source_type
         })
+        
     except Exception as e:
-        logger.error(f"Failed to save canonical output: {e}")
+        logger.error(f"Failed to save canonical output: {e}", exc_info=True)
         return json.dumps({
             "success": False,
-            "error": str(e)
+            "error": str(e),
+            "error_type": type(e).__name__
         })
 
 
@@ -294,30 +341,46 @@ def health_check() -> PingStatus:
 
 
 # ============================================================================
-# Agent System Prompt (Optimized for token efficiency)
+# Agent System Prompt (Goal-oriented, not prescriptive)
 # ============================================================================
 
-SYSTEM_PROMPT = f"""You are a PDF Adapter Agent for OTC trade confirmations.
+SYSTEM_PROMPT = f"""You are an intelligent PDF Adapter Agent for OTC derivative trade confirmations.
 
-## Resources
-- S3: {S3_BUCKET} | Region: {REGION} | Model: {BEDROCK_MODEL_ID}
+## Your Mission
+Transform PDF trade confirmations into standardized canonical output that downstream agents can process.
 
-## Tools
-1. download_pdf_from_s3(bucket, key, document_id) → PDF base64
-2. extract_text_with_bedrock(pdf_base64, document_id) → extracted text
-3. save_canonical_output(document_id, source_type, extracted_text, correlation_id, processing_time_ms) → S3 location
-4. use_aws → general AWS operations
+## Available Resources
+- S3 Bucket: {S3_BUCKET}
+- AWS Region: {REGION}
+- Bedrock Model: {BEDROCK_MODEL_ID}
 
-## Workflow
-1. Download PDF from S3
-2. Extract all text using Bedrock
-3. Save canonical output to S3
-4. Report success/failure with S3 location
+## Available Tools
+1. **infer_source_type_from_path**: Determine if a document is BANK or COUNTERPARTY based on S3 path
+2. **extract_text_from_pdf_s3**: Download PDF from S3 and extract all text using Bedrock multimodal
+3. **save_canonical_output_to_s3**: Save standardized canonical output with metadata
+4. **use_aws**: General AWS operations if needed
 
-## Rules
-- source_type: "BANK" or "COUNTERPARTY" only
-- Preserve all extracted text (no summarization)
-- Report errors clearly with details
+## Your Workflow (You Decide the Order)
+Think about the task and decide which tools to use and when. Generally you'll want to:
+1. Validate or infer the source_type if not provided
+2. Extract text from the PDF
+3. Save the canonical output to S3
+
+But you have full autonomy to adapt based on the situation.
+
+## Success Criteria
+- Extract ALL text from the PDF (no summarization)
+- Determine the correct source_type (BANK or COUNTERPARTY)
+- Save canonical output to S3 with proper metadata
+- Handle errors intelligently
+
+## Key Principles
+- **Think First**: Analyze what needs to be done before acting
+- **Use Tools Wisely**: Each tool has a specific purpose - use them appropriately
+- **Be Complete**: Extract all text - downstream agents need every detail
+- **Be Clear**: Explain your reasoning and what you accomplished
+
+You are the LLM - you decide the approach.
 """
 
 
@@ -331,7 +394,7 @@ def create_pdf_adapter_agent() -> Agent:
     bedrock_model = BedrockModel(
         model_id=BEDROCK_MODEL_ID,
         region_name=REGION,
-        temperature=0.1,  # Low temperature for deterministic document processing
+        temperature=0.3,  # Higher temperature for better reasoning and adaptability
         max_tokens=4096,
     )
     
@@ -339,10 +402,10 @@ def create_pdf_adapter_agent() -> Agent:
         model=bedrock_model,
         system_prompt=SYSTEM_PROMPT,
         tools=[
-            download_pdf_from_s3,
-            extract_text_with_bedrock,
-            save_canonical_output,
-            use_aws
+            infer_source_type_from_path,
+            extract_text_from_pdf_s3,
+            save_canonical_output_to_s3,
+            use_aws  # Fallback for any additional AWS operations
         ]
     )
 
@@ -403,9 +466,11 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
         "correlation_id": correlation_id,
         "document_id": document_id or "unknown",
         "source_type": source_type or "unknown",
+        "model_id": BEDROCK_MODEL_ID,  # Track which model is being used
+        "operation": "pdf_processing",  # Standardized operation name
     }
     
-    # Basic validation
+    # Minimal validation - let the agent handle edge cases
     if not document_id or not document_path:
         error_response = {
             "success": False,
@@ -424,14 +489,6 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
                 logger.warning(f"Observability span error: {e}")
         return error_response
     
-    if source_type and source_type not in ["BANK", "COUNTERPARTY"]:
-        return {
-            "success": False,
-            "error": f"Invalid source_type: {source_type}. Must be BANK or COUNTERPARTY",
-            "agent_name": AGENT_NAME,
-            "agent_version": AGENT_VERSION,
-        }
-    
     try:
         # Start observability span for the main operation
         span_context = None
@@ -448,36 +505,22 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
         # Create the agent
         agent = create_pdf_adapter_agent()
         
-        # Parse S3 path
-        if document_path.startswith("s3://"):
-            parts = document_path.replace("s3://", "").split("/", 1)
-            bucket = parts[0]
-            key = parts[1]
-        else:
-            bucket = S3_BUCKET
-            key = document_path
-        
-        # Construct goal-oriented prompt - let LLM decide the approach
-        prompt = f"""Process this PDF trade confirmation and produce canonical output.
+        # Construct goal-oriented prompt - let the agent reason about the approach
+        prompt = f"""Process this trade confirmation PDF and create canonical output.
 
-## Document Information
-- Document ID: {document_id}
-- Location: s3://{bucket}/{key}
-- Source Type: {source_type if source_type else "Infer from path (BANK or COUNTERPARTY folder)"}
-- Correlation ID: {correlation_id}
+**Document ID**: {document_id}
+**S3 Path**: {document_path}
+**Source Type**: {source_type if source_type else "Not specified - infer from path"}
+**Correlation ID**: {correlation_id}
 
-## Goal
-Extract all text from the PDF and save it as canonical output to S3. The canonical output should preserve all trade details for downstream processing.
+**Your Goal**: Extract all text from this PDF and save it as canonical output to S3.
 
-## Available Tools
-- download_pdf_from_s3: Retrieve the PDF from S3
-- extract_text_with_bedrock: Extract text using Bedrock's multimodal capabilities  
-- save_canonical_output: Save the standardized output to S3
+**Think through your approach**:
+1. Do you need to infer the source_type? (Use infer_source_type_from_path if needed)
+2. Extract the text from the PDF (Use extract_text_from_pdf_s3)
+3. Save the canonical output (Use save_canonical_output_to_s3)
 
-## Success Criteria
-- All text extracted from the PDF
-- Canonical output saved to S3 with proper metadata
-- Report the S3 location and extraction summary
+You decide which tools to use and in what order. Be thorough and handle any issues intelligently.
 """
         
         # Invoke the agent
@@ -513,6 +556,11 @@ Extract all text from the PDF and save it as canonical output to S3. The canonic
                 span_context.set_attribute("input_tokens", token_metrics["input_tokens"])
                 span_context.set_attribute("output_tokens", token_metrics["output_tokens"])
                 span_context.set_attribute("total_tokens", token_metrics["total_tokens"])
+                # Add cost estimation (approximate - adjust based on actual pricing)
+                # Nova Pro pricing: ~$0.0008/1K input tokens, ~$0.0032/1K output tokens
+                estimated_cost = (token_metrics["input_tokens"] * 0.0008 / 1000) + \
+                                (token_metrics["output_tokens"] * 0.0032 / 1000)
+                span_context.set_attribute("estimated_cost_usd", round(estimated_cost, 6))
             except Exception as e:
                 logger.warning(f"Failed to set span attributes: {e}")
         
@@ -538,8 +586,17 @@ Extract all text from the PDF and save it as canonical output to S3. The canonic
             try:
                 span_context.set_attribute("success", False)
                 span_context.set_attribute("error_type", type(e).__name__)
-                span_context.set_attribute("error_message", str(e))
+                span_context.set_attribute("error_message", str(e)[:500])  # Truncate long errors
                 span_context.set_attribute("processing_time_ms", processing_time_ms)
+                # Track error category for better analysis
+                if "DynamoDB" in str(e) or "dynamodb" in str(e):
+                    span_context.set_attribute("error_category", "database")
+                elif "S3" in str(e) or "s3" in str(e):
+                    span_context.set_attribute("error_category", "storage")
+                elif "Bedrock" in str(e) or "bedrock" in str(e):
+                    span_context.set_attribute("error_category", "model")
+                else:
+                    span_context.set_attribute("error_category", "unknown")
             except Exception:
                 pass
         

@@ -8,12 +8,22 @@ inclusion: always
 
 ```
 ai-trade-matching-system/
-├── src/latest_trade_matching_agent/    # Main application code
-│   ├── config/                         # Agent and task configurations
-│   ├── tools/                          # Custom CrewAI tools
-│   ├── crew_fixed.py                   # Main crew definition
-│   ├── main.py                         # Entry point
-│   └── eks_main.py                     # FastAPI server for EKS
+├── deployment/                         # Production Strands agents
+│   ├── pdf_adapter/                    # PDF Adapter agent
+│   ├── trade_extraction/               # Trade Extraction agent
+│   ├── trade_matching/                 # Trade Matching agent
+│   ├── exception_management/           # Exception Management agent
+│   ├── orchestrator/                   # Orchestrator agent
+│   └── swarm/                          # Strands Swarm entry point
+├── src/latest_trade_matching_agent/    # Supporting modules
+│   ├── matching/                       # Fuzzy matching logic
+│   ├── exception_handling/             # Exception classification
+│   ├── orchestrator/                   # SLA monitoring
+│   ├── models/                         # Pydantic models
+│   ├── tools/                          # Custom tools (DynamoDB, LLM)
+│   └── eks_main.py                     # FastAPI server (health checks)
+├── legacy/                             # Archived code (not used)
+│   └── crewai/                         # Old CrewAI implementation
 ├── terraform/                          # Infrastructure as Code
 ├── lambda/                             # Lambda function code
 ├── config/                             # Application configuration
@@ -41,11 +51,18 @@ ai-trade-matching-system/
 - **`src/latest_trade_matching_agent/orchestrator/`**: SLA monitoring, compliance checking, control commands
 - **`src/latest_trade_matching_agent/models/`**: Pydantic models for trade, events, registry, taxonomy
 
-### Legacy Code (Not Used in Production)
+### Legacy Code (Archived - Not Used in Production)
 
-- **`src/latest_trade_matching_agent/crew_fixed.py`**: Old CrewAI implementation (reference only)
-- **`src/latest_trade_matching_agent/config/agents.yaml`**: Old agent configs (reference only)
-- **`src/latest_trade_matching_agent/config/tasks.yaml`**: Old task configs (reference only)
+**All legacy CrewAI code has been moved to `legacy/crewai/` directory:**
+
+- **`legacy/crewai/crew_fixed.py`**: Old CrewAI implementation (archived)
+- **`legacy/crewai/config/agents.yaml`**: Old agent configs (archived)
+- **`legacy/crewai/config/tasks.yaml`**: Old task configs (archived)
+- **`legacy/crewai/tools/`**: Old CrewAI tools (archived)
+- **`legacy/crewai/tests/`**: Old CrewAI parity tests (archived)
+- **`legacy/crewai/README.md`**: Explanation of archived code
+
+⚠️ **WARNING**: These files are preserved for historical reference only. They are NOT used in the current production system, which uses Strands SDK exclusively.
 
 ### Infrastructure
 
@@ -123,7 +140,7 @@ s3://trade-matching-system-agentcore-production/
 
 ### Agent Configuration
 
-- All agents use AWS Bedrock Claude Sonnet 4 (`us.anthropic.claude-sonnet-4-20250514-v1:0`)
+- All agents use Amazon Nova Pro (`amazon.nova-pro-v1:0`)
 - Strands Swarm framework with autonomous handoffs
 - `temperature=0.1` for deterministic processing
 - `max_tokens=4096` for response generation

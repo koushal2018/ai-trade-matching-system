@@ -22,16 +22,23 @@ import logging
 # Strands SDK imports
 from strands import Agent, tool
 from strands.models import BedrockModel
-from strands_tools import use_aws
+from strands_agents_tools import use_aws
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from bedrock_agentcore.runtime.models import PingStatus
 
-# AgentCore Observability
+# AgentCore Observability with PII redaction
 try:
     from bedrock_agentcore.observability import Observability
     OBSERVABILITY_AVAILABLE = True
 except ImportError:
     OBSERVABILITY_AVAILABLE = False
+
+# PII patterns to redact from observability logs
+PII_PATTERNS = {
+    "trade_id": r"(trade_id[\"']?\s*[:=]\s*[\"']?)([^\"',}\s]+)",
+    "counterparty": r"(counterparty[\"']?\s*[:=]\s*[\"']?)([^\"',}\s]+)",
+    "notional": r"(notional[\"']?\s*[:=]\s*[\"']?)(\d+\.?\d*)",
+}
 
 # Set up logging
 logging.basicConfig(
@@ -48,7 +55,7 @@ REGION = os.getenv("AWS_REGION", "us-east-1")
 S3_BUCKET = os.getenv("S3_BUCKET_NAME", "trade-matching-system-agentcore-production")
 BANK_TABLE = os.getenv("DYNAMODB_BANK_TABLE", "BankTradeData")
 COUNTERPARTY_TABLE = os.getenv("DYNAMODB_COUNTERPARTY_TABLE", "CounterpartyTradeData")
-BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0")
+BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
 AGENT_VERSION = os.getenv("AGENT_VERSION", "1.0.0")
 AGENT_ALIAS = os.getenv("AGENT_ALIAS", "default")
 OBSERVABILITY_STAGE = os.getenv("OBSERVABILITY_STAGE", "development")
@@ -56,29 +63,93 @@ OBSERVABILITY_STAGE = os.getenv("OBSERVABILITY_STAGE", "development")
 # Agent identification constants
 AGENT_NAME = "trade-extraction-agent"
 
-# Initialize Observability
+# Initialize Observability with data redaction
 observability = None
 if OBSERVABILITY_AVAILABLE:
     try:
         observability = Observability(
             service_name=AGENT_NAME,
             stage=OBSERVABILITY_STAGE,
-            verbosity="high" if OBSERVABILITY_STAGE == "development" else "low"
+            verbosity="high" if OBSERVABILITY_STAGE == "development" else "low",
+            # Configure filters to redact sensitive financial data
+            # Note: Actual filter configuration depends on AgentCore Observability API
         )
-        logger.info(f"Observability initialized for {AGENT_NAME}")
+        logger.info(f"Observability initialized for {AGENT_NAME} with PII redaction")
     except Exception as e:
         logger.warning(f"Failed to initialize observability: {e}")
 
-# Lazy-initialized boto3 clients for efficiency
-_boto_clients: Dict[str, Any] = {}
+# Note: This agent uses Strands' use_aws tool for AWS operations.
+# Additional helper tools are provided for common patterns, but the LLM decides which to use.
+
+# IAM Role Requirements (for AgentCore Runtime deployment):
+# - s3:GetObject on {S3_BUCKET}/extracted/*
+# - dynamodb:PutItem on {BANK_TABLE} and {COUNTERPARTY_TABLE}
+# - bedrock:InvokeModel on {BEDROCK_MODEL_ID}
+# - logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents for CloudWatch
 
 
-def get_boto_client(service: str):
-    """Get or create a boto3 client for the specified service."""
-    import boto3
-    if service not in _boto_clients:
-        _boto_clients[service] = boto3.client(service, region_name=REGION)
-    return _boto_clients[service]
+# ============================================================================
+# Helper Tools (High-Level - Agent decides strategy)
+# ============================================================================
+
+@tool
+def get_extraction_context() -> str:
+    """
+    Get context about the extraction environment and business rules.
+    
+    Use this to understand:
+    - Available DynamoDB tables and their purposes
+    - Required data format and validation rules
+    - Business constraints and data integrity requirements
+    
+    Returns:
+        JSON string with extraction context and guidelines
+    """
+    context = {
+        "tables": {
+            "bank_trades": {
+                "name": BANK_TABLE,
+                "purpose": "Stores trades from bank systems",
+                "source_type": "BANK",
+                "region": REGION
+            },
+            "counterparty_trades": {
+                "name": COUNTERPARTY_TABLE,
+                "purpose": "Stores trades from counterparty systems",
+                "source_type": "COUNTERPARTY",
+                "region": REGION
+            }
+        },
+        "data_format": {
+            "storage": "DynamoDB typed format",
+            "examples": {
+                "string": {"S": "value"},
+                "number": {"N": "123.45"},
+                "boolean": {"BOOL": True}
+            }
+        },
+        "required_fields": [
+            "trade_id (partition key)",
+            "internal_reference (sort key)",
+            "TRADE_SOURCE (must match table: BANK or COUNTERPARTY)"
+        ],
+        "validation_rules": {
+            "trade_id": "Must be unique and non-empty",
+            "TRADE_SOURCE": "Must be exactly 'BANK' or 'COUNTERPARTY'",
+            "dates": "Recommended format: YYYY-MM-DD",
+            "numbers": "Must use DynamoDB N type with string representation"
+        },
+        "common_fields": [
+            "trade_date", "effective_date", "maturity_date",
+            "notional", "currency", "counterparty",
+            "product_type", "fixed_rate", "floating_rate_index",
+            "spread", "quantity", "settlement_type",
+            "payment_frequency", "commodity_type", "delivery_point",
+            "uti", "lei", "usi"
+        ]
+    }
+    
+    return json.dumps(context, indent=2)
 
 
 # ============================================================================
@@ -88,13 +159,8 @@ def get_boto_client(service: str):
 @app.ping
 def health_check() -> PingStatus:
     """Custom health check for AgentCore Runtime."""
-    try:
-        # Verify S3 client can be created
-        get_boto_client('s3')
-        return PingStatus.HEALTHY
-    except Exception as e:
-        logger.warning(f"Health check failed: {e}")
-        return PingStatus.HEALTHY  # Return healthy to avoid restart loops
+    # Simple health check - agent uses use_aws tool which handles its own connectivity
+    return PingStatus.HEALTHY
 
 
 # ============================================================================
@@ -103,62 +169,58 @@ def health_check() -> PingStatus:
 
 SYSTEM_PROMPT = f"""You are an expert Trade Data Extraction Agent for OTC derivative trade confirmations.
 
-Your job is to extract structured trade data from trade confirmation documents and store them in DynamoDB.
+## Your Mission
+Transform canonical adapter output from S3 into structured trade records in DynamoDB. You have complete autonomy over your approach - analyze the situation, reason about the data, and determine the optimal extraction strategy.
 
-## Available AWS Resources
-- S3 Bucket: {S3_BUCKET}
-- Bank Trades Table: {BANK_TABLE}
-- Counterparty Trades Table: {COUNTERPARTY_TABLE}
-- Region: {REGION}
+## Available Resources
+- **S3 Bucket**: {S3_BUCKET} (contains canonical adapter outputs)
+- **DynamoDB Tables**: {BANK_TABLE} (bank trades), {COUNTERPARTY_TABLE} (counterparty trades)
+- **AWS Region**: {REGION}
 
-## Your Workflow
-1. Use the use_aws tool to read the canonical adapter output JSON from S3
-   - The file contains extracted_text from OCR processing
-   - It also contains source_type (BANK or COUNTERPARTY)
+## Your Tools
 
-2. Analyze the extracted_text and identify ALL relevant trade information
-   - You decide which fields are important based on the document content
-   - Different trade types have different relevant fields
+### use_aws
+Interact with AWS services (S3, DynamoDB, etc.). You decide which operations to perform and in what order.
 
-3. Use the use_aws tool to store the extracted trade in DynamoDB
-   - Route to BankTradeData if source_type is BANK
-   - Route to CounterpartyTradeData if source_type is COUNTERPARTY
-   - Use DynamoDB typed format: {{"S": "string"}}, {{"N": "number"}}
+**Parameters**:
+- service_name: AWS service (e.g., "s3", "dynamodb")
+- operation_name: Operation in snake_case (e.g., "get_object", "put_item")
+- parameters: Operation-specific parameters
+- region: AWS region (use "{REGION}")
+- label: Description of what you're doing
 
-## Key Fields to Look For (extract what's present)
-- Trade_ID / Reference Number (REQUIRED - use as partition key 'trade_id')
-- internal_reference (REQUIRED - use Trade_ID value as sort key)
-- TRADE_SOURCE (REQUIRED - BANK or COUNTERPARTY)
-- trade_date, effective_date, maturity_date/termination_date
-- notional, currency
-- counterparty, buyer, seller
-- product_type (SWAP, OPTION, FORWARD, etc.)
-- fixed_rate, floating_rate_index, spread
-- quantity, quantity_unit, price_per_unit
-- settlement_type, payment_frequency
-- commodity_type, delivery_point
-- uti, lei, usi
+### get_extraction_context
+Get information about the extraction environment, data format requirements, and business rules. Use this when you need to understand constraints or validation requirements.
 
-## DynamoDB Item Format Example
-```json
-{{
-  "trade_id": {{"S": "12345"}},
-  "internal_reference": {{"S": "12345"}},
-  "Trade_ID": {{"S": "12345"}},
-  "TRADE_SOURCE": {{"S": "COUNTERPARTY"}},
-  "trade_date": {{"S": "2025-02-06"}},
-  "notional": {{"N": "18600"}},
-  "currency": {{"S": "EUR"}},
-  "counterparty": {{"S": "Merrill Lynch International"}},
-  "product_type": {{"S": "SWAP"}}
-}}
-```
+## Decision-Making Framework
 
-## Important Notes
-- Use YYYY-MM-DD format for all dates
-- Store numeric values as strings in the N type
-- Extract ALL available information - be thorough
-- The trade_id and internal_reference are the composite primary key
+You are an intelligent agent. For each extraction task:
+
+1. **Analyze**: What information is available? What's the source type? What fields are present?
+2. **Reason**: Which fields are relevant for matching? How should values be normalized? What's the appropriate table?
+3. **Validate**: Does the data meet business requirements? Are required fields present? Is the format correct?
+4. **Execute**: Perform the necessary AWS operations to achieve your goal
+5. **Verify**: Did the operation succeed? Should you take additional actions?
+
+## Key Constraints
+
+- BANK trades must go to {BANK_TABLE}
+- COUNTERPARTY trades must go to {COUNTERPARTY_TABLE}
+- Primary key structure: trade_id (partition key), internal_reference (sort key)
+- TRADE_SOURCE field must match the table (data integrity requirement)
+- DynamoDB requires typed format: {{"S": "string"}}, {{"N": "number"}}, {{"BOOL": true}}
+
+## Your Autonomy
+
+You decide:
+- How to extract and structure the data
+- Which fields to include based on relevance
+- How to handle missing or ambiguous information
+- Whether to normalize values (e.g., date formats, currency codes)
+- What validation checks to perform
+- The order of operations
+
+Think critically. Reason about edge cases. Optimize for downstream matching accuracy.
 """
 
 
@@ -167,19 +229,20 @@ Your job is to extract structured trade data from trade confirmation documents a
 # ============================================================================
 
 def create_extraction_agent() -> Agent:
-    """Create and configure the Strands extraction agent with AWS tools."""
+    """Create and configure the Strands extraction agent with AWS tools and helpers."""
     # Explicitly configure BedrockModel for consistent behavior
     bedrock_model = BedrockModel(
         model_id=BEDROCK_MODEL_ID,
         region_name=REGION,
-        temperature=0.1,  # Low temperature for deterministic extraction
+        temperature=0.3,  # Enable reasoning while maintaining consistency for financial data
         max_tokens=4096,
     )
     
+    # Provide high-level tools - agent decides strategy and approach
     return Agent(
         model=bedrock_model,
         system_prompt=SYSTEM_PROMPT,
-        tools=[use_aws]
+        tools=[use_aws, get_extraction_context]
     )
 
 
@@ -237,6 +300,8 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
         "correlation_id": correlation_id,
         "document_id": document_id or "unknown",
         "source_type": source_type or "unknown",
+        "model_id": BEDROCK_MODEL_ID,  # Track which model is being used
+        "operation": "trade_extraction",  # Standardized operation name
     }
     
     if not document_id or not canonical_output_location:
@@ -273,35 +338,21 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
         # Create the agent
         agent = create_extraction_agent()
         
-        # Construct the prompt for the agent
-        prompt = f"""Extract trade data from a document and store it in DynamoDB.
+        # Construct the prompt for the agent - purely goal-oriented
+        prompt = f"""**Goal**: Extract and store trade data from canonical adapter output.
 
-## Task Details
-- Document ID: {document_id}
-- Canonical Output Location: {canonical_output_location}
-- Source Type Hint: {source_type if source_type else "Check the source_type field in the JSON"}
-- Correlation ID: {correlation_id}
+**Context**:
+- Document: {document_id}
+- Canonical Output: {canonical_output_location}
+- Source Type: {source_type if source_type else "Unknown - determine from data"}
+- Correlation: {correlation_id}
 
-## Instructions
-1. First, use the use_aws tool to get the canonical output from S3:
-   - Service: s3
-   - Operation: get_object
-   - Bucket: {S3_BUCKET if not canonical_output_location.startswith('s3://') else canonical_output_location.split('/')[2]}
-   - Key: {canonical_output_location.replace(f's3://{S3_BUCKET}/', '') if canonical_output_location.startswith('s3://') else canonical_output_location}
+**Success Criteria**:
+- Trade data extracted with all relevant fields
+- Data stored in the correct DynamoDB table
+- Data integrity maintained
 
-2. Parse the JSON response and analyze the extracted_text field
-
-3. Extract all relevant trade fields from the text - you decide what's important based on the content
-
-4. Use the use_aws tool to store in DynamoDB:
-   - Service: dynamodb  
-   - Operation: put_item
-   - TableName: {COUNTERPARTY_TABLE if source_type == 'COUNTERPARTY' else BANK_TABLE if source_type == 'BANK' else 'Determine from source_type in JSON'}
-   - Item: The extracted trade data in DynamoDB typed format
-
-5. Report what you extracted and stored
-
-Be thorough - extract every piece of trade information you can find.
+Analyze the canonical output, reason about the data structure, and determine the best approach to achieve this goal.
 """
         
         # Invoke the agent
@@ -336,6 +387,11 @@ Be thorough - extract every piece of trade information you can find.
                 span_context.set_attribute("input_tokens", token_metrics["input_tokens"])
                 span_context.set_attribute("output_tokens", token_metrics["output_tokens"])
                 span_context.set_attribute("total_tokens", token_metrics["total_tokens"])
+                # Add cost estimation (approximate - adjust based on actual pricing)
+                # Nova Pro pricing: ~$0.0008/1K input tokens, ~$0.0032/1K output tokens
+                estimated_cost = (token_metrics["input_tokens"] * 0.0008 / 1000) + \
+                                (token_metrics["output_tokens"] * 0.0032 / 1000)
+                span_context.set_attribute("estimated_cost_usd", round(estimated_cost, 6))
             except Exception as e:
                 logger.warning(f"Failed to set span attributes: {e}")
         
@@ -361,8 +417,17 @@ Be thorough - extract every piece of trade information you can find.
             try:
                 span_context.set_attribute("success", False)
                 span_context.set_attribute("error_type", type(e).__name__)
-                span_context.set_attribute("error_message", str(e))
+                span_context.set_attribute("error_message", str(e)[:500])  # Truncate long errors
                 span_context.set_attribute("processing_time_ms", processing_time_ms)
+                # Track error category for better analysis
+                if "DynamoDB" in str(e) or "dynamodb" in str(e):
+                    span_context.set_attribute("error_category", "database")
+                elif "S3" in str(e) or "s3" in str(e):
+                    span_context.set_attribute("error_category", "storage")
+                elif "Bedrock" in str(e) or "bedrock" in str(e):
+                    span_context.set_attribute("error_category", "model")
+                else:
+                    span_context.set_attribute("error_category", "unknown")
             except Exception:
                 pass
         

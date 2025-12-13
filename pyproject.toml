@@ -1,25 +1,25 @@
 [project]
 name = "latest_trade_matching_agent"
 version = "0.1.0"
-description = "latest-trade-matching-agent using crewAI"
+description = "AI Trade Matching System using Strands SDK and AWS Bedrock AgentCore"
 authors = [{ name = "Your Name", email = "you@example.com" }]
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "crewai[tools]>=0.175.0,<1.0.0",
-    "hypothesis>=6.148.7",
-    "pdf2image>=1.17.0",
+    "anthropic>=0.69.0",
+    "bedrock-agentcore>=1.1.1",
+    "bedrock-agentcore-starter-toolkit>=0.2.4",
+    "boto3>=1.40.0",
+    "fastapi>=0.118.0",
+    "hypothesis>=6.0.0",
+    "pydantic>=2.11.0",
+    "pytest>=9.0.2",
+    "python-dotenv>=1.1.0",
+    "strands-agents>=1.19.0",
+    "strands-agents-tools>=0.0.1",
+    "structlog>=25.4.0",
+    "uvicorn>=0.37.0",
 ]
-
-[project.scripts]
-latest_trade_matching_agent = "latest_trade_matching_agent.main:run"
-run_crew = "latest_trade_matching_agent.main:run"
-train = "latest_trade_matching_agent.main:train"
-replay = "latest_trade_matching_agent.main:replay"
-test = "latest_trade_matching_agent.main:test"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.crewai]
-type = "crew"

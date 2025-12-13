@@ -61,7 +61,7 @@ app = BedrockAgentCoreApp()
 # Constants
 # ============================================================================
 
-BEDROCK_MODEL_ID = "us.anthropic.claude-sonnet-4-20250514-v1:0"
+BEDROCK_MODEL_ID = "amazon.nova-pro-v1:0"
 MATCHING_QUEUE_NAME = "trade-matching-system-matching-events-production"
 EXCEPTION_QUEUE_NAME = "trade-matching-system-exception-events-production"
 

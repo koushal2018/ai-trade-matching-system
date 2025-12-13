@@ -1,16 +1,16 @@
 # AI Trade Matching System
 
-> **Enterprise-grade trade confirmation matching powered by CrewAI on AWS Bedrock**
+> **Enterprise-grade trade confirmation matching powered by Strands SDK on AWS Bedrock**
 
 ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
-![CrewAI](https://img.shields.io/badge/CrewAI-0.175+-green.svg)
+![Strands](https://img.shields.io/badge/Strands-SDK-green.svg)
 ![AWS](https://img.shields.io/badge/AWS-Bedrock%20Claude%20Sonnet%204-orange.svg)
-![DynamoDB](https://img.shields.io/badge/DynamoDB-boto3%20%2B%20MCP-green.svg)
+![DynamoDB](https://img.shields.io/badge/DynamoDB-boto3-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 ## Overview
 
-The AI Trade Matching System is an intelligent, cloud-native solution that automates the processing and matching of derivative trade confirmations using advanced AI capabilities. Built on AWS native services with a multi-agent architecture powered by CrewAI, the system leverages **AWS Bedrock Claude Sonnet 4** for document analysis and implements sophisticated trade matching algorithms for financial operations teams.
+The AI Trade Matching System is an intelligent, cloud-native solution that automates the processing and matching of derivative trade confirmations using advanced AI capabilities. Built on AWS native services with a multi-agent swarm architecture powered by Strands SDK, the system leverages **AWS Bedrock Claude Sonnet 4** for document analysis and implements sophisticated trade matching algorithms for financial operations teams.
 
 **Key Problem Solved**: Manual trade confirmation matching is time-consuming, error-prone, and doesn't scale with trading volumes. This system automates the entire process from PDF ingestion to intelligent matching, reducing settlement risk and operational overhead.
 
@@ -41,7 +41,7 @@ The AI Trade Matching System is an intelligent, cloud-native solution that autom
 
 **AWS Account Requirements**:
 - AWS CLI configured with appropriate permissions
-- Access to AWS Bedrock (Claude Sonnet 4 model in US East region: `us.anthropic.claude-sonnet-4-20250514-v1:0`)
+- Access to AWS Bedrock (Amazon Nova Pro model in US East region: `amazon.nova-pro-v1:0`)
 - DynamoDB, S3, and IAM permissions
 - AWS region: `us-east-1` (US East - N. Virginia)
 
@@ -97,7 +97,7 @@ graph TB
     end
 
     subgraph "AWS Bedrock"
-        Bedrock[🧠 Claude Sonnet 4<br/>us.anthropic.claude-sonnet-4-20250514-v1:0<br/>Temperature: 0.1 | Max Tokens: 4096]
+        Bedrock[🧠 Amazon Nova Pro<br/>amazon.nova-pro-v1:0<br/>Temperature: 0.1 | Max Tokens: 4096]
     end
 
     subgraph "Processing Layer - Strands Swarm"
@@ -231,7 +231,7 @@ DYNAMODB_COUNTERPARTY_TABLE=CounterpartyTradeData
 DYNAMODB_EXCEPTIONS_TABLE=ExceptionsTable
 
 # Bedrock Configuration
-BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-20250514-v1:0
+BEDROCK_MODEL_ID=amazon.nova-pro-v1:0
 ```
 
 ### 3. Run the System
@@ -270,9 +270,8 @@ ai-trade-matching-system/
 ├── deployment/swarm/                  # Strands Swarm implementation
 │   ├── trade_matching_swarm.py        # Main swarm with 4 agents
 │   └── requirements.txt               # Swarm dependencies
-├── src/latest_trade_matching_agent/   # Legacy CrewAI code (being migrated)
-│   ├── agents/                        # Event-driven agents
-│   ├── config/                        # Agent and task YAML configurations
+├── src/latest_trade_matching_agent/   # Supporting modules
+│   ├── agents/                        # Agent implementations
 │   ├── exception_handling/            # Exception management with RL
 │   ├── matching/                      # Fuzzy matching, scoring, classification
 │   ├── memory/                        # AgentCore memory integration
@@ -280,10 +279,7 @@ ai-trade-matching-system/
 │   ├── observability/                 # Metrics and tracing
 │   ├── orchestrator/                  # SLA monitoring, compliance, control
 │   ├── policy/                        # Policy management
-│   ├── tools/                         # Custom tools (PDF, DynamoDB, OCR, LLM)
-│   ├── crew_fixed.py                  # CrewAI crew definition
-│   ├── main.py                        # Entry point
-│   └── eks_main.py                    # FastAPI server for EKS
+│   └── tools/                         # Custom tools (PDF, DynamoDB, LLM)
 ├── deployment/                        # AgentCore deployment packages
 │   ├── pdf_adapter/                   # PDF Adapter Agent deployment
 │   ├── trade_extraction/              # Trade Extraction Agent deployment
@@ -291,6 +287,8 @@ ai-trade-matching-system/
 │   ├── exception_management/          # Exception Management Agent deployment
 │   ├── orchestrator/                  # Orchestrator Agent deployment
 │   └── deploy_all.sh                  # Master deployment script
+├── legacy/                            # Archived legacy code
+│   └── crewai/                        # Legacy CrewAI implementation (not used)
 ├── terraform/                         # Infrastructure as Code
 │   ├── agentcore/                     # AgentCore infrastructure (SQS, DynamoDB, etc.)
 │   └── *.tf                           # Core AWS resources
@@ -412,11 +410,11 @@ s3://trade-matching-system-agentcore-production/
 ```bash
 # Error: Failed to extract text with Bedrock
 # Solution: Verify Bedrock model access
-aws bedrock list-foundation-models --region us-east-1 | grep claude-sonnet-4
+aws bedrock list-foundation-models --region us-east-1 | grep nova-pro
 
 # Ensure you have access to the model
 aws bedrock get-foundation-model \
-  --model-identifier us.anthropic.claude-sonnet-4-20250514-v1:0 \
+  --model-identifier amazon.nova-pro-v1:0 \
   --region us-east-1
 ```
 

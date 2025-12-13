@@ -121,16 +121,18 @@ Successfully updated all documentation files to accurately reflect the **Amazon 
    - Tool consent bypass for AgentCore
    - Automatic tool orchestration
 
-## What's Still Legacy
+## Legacy Code Archived
 
-The following files are kept for reference but not used in production:
+All legacy CrewAI code has been moved to the `legacy/crewai/` directory:
 
-- `src/latest_trade_matching_agent/crew_fixed.py` - Old CrewAI implementation
-- `src/latest_trade_matching_agent/main.py` - Old entry point
-- `src/latest_trade_matching_agent/config/agents.yaml` - Old agent configs
-- `src/latest_trade_matching_agent/config/tasks.yaml` - Old task configs
+- `legacy/crewai/crew_fixed.py` - Old CrewAI implementation
+- `legacy/crewai/main.py` - Old entry point
+- `legacy/crewai/config/agents.yaml` - Old agent configs
+- `legacy/crewai/config/tasks.yaml` - Old task configs
+- `legacy/crewai/tools/` - Old CrewAI-specific tools
+- `legacy/crewai/tests/` - Old CrewAI parity tests
 
-**Note**: The supporting modules (matching/, exception_handling/, orchestrator/, models/) are actively used by the deployment agents.
+**Note**: The supporting modules (matching/, exception_handling/, orchestrator/, models/) in `src/latest_trade_matching_agent/` are actively used by the deployment agents.
 
 ## Production Deployment
 
@@ -156,7 +158,7 @@ cd deployment
 ### Technology Stack
 - **Agent Framework**: Amazon Bedrock AgentCore Runtime
 - **Agent SDK**: Strands SDK (`strands-agents`, `strands-agents-tools`)
-- **AI Model**: AWS Bedrock Claude Sonnet 4 (`us.anthropic.claude-sonnet-4-20250514-v1:0`)
+- **AI Model**: Amazon Nova Pro (`amazon.nova-pro-v1:0`)
 - **Region**: us-east-1
 - **Data Storage**: Amazon DynamoDB (4 tables)
 - **Document Storage**: Amazon S3
@@ -204,8 +206,9 @@ cd deployment
 1. ✅ Documentation is now accurate and up-to-date
 2. ✅ Steering files guide Kiro correctly
 3. ✅ Architecture diagrams reflect actual implementation
-4. ⏭️ Consider archiving legacy CrewAI code to `legacy/` folder
-5. ⏭️ Update web portal documentation if needed
+4. ✅ Legacy CrewAI code archived to `legacy/crewai/` folder
+5. ✅ All CrewAI dependencies removed from requirements.txt
+6. ⏭️ Update web portal documentation if needed
 
 ---
 

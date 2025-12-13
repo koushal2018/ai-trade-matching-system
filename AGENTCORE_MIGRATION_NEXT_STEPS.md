@@ -11,20 +11,21 @@ Your AgentCore migration is well-advanced with most core functionality implement
 **Status**: Started with Property 17 ✅  
 **Files Created**: 
 - `test_property_17_simple.py` ✅
-- `test_property_1_functional_parity.py` ✅
+- ~~`test_property_1_functional_parity.py`~~ ❌ **DEPRECATED - CrewAI removed**
+
+**Note**: CrewAI functional parity tests are no longer applicable as CrewAI has been completely removed from the system. All legacy CrewAI code has been archived to `legacy/crewai/`.
 
 **Next Steps**:
 ```bash
 # Run existing property tests
 python test_property_17_simple.py
-python test_property_1_functional_parity.py
 
 # Install hypothesis for advanced property testing
 pip install hypothesis
 
 # Create remaining property tests
 # - Property 37: Audit records immutability
-# - Property 11: PDF conversion maintains 300 DPI
+# - Property 11: PDF DPI quality
 # - Property 21: Fuzzy matching tolerances
 ```
 
@@ -153,8 +154,8 @@ Ensure these are properly enforced through policies:
 # Test trade source classification
 python test_property_17_simple.py
 
-# Test functional parity with CrewAI
-python test_property_1_functional_parity.py
+# Note: CrewAI functional parity tests have been removed
+# as CrewAI is no longer part of the system
 
 # Add more property tests for:
 # - Audit immutability

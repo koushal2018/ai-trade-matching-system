@@ -115,7 +115,7 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - **Property 17: Trade source classification validity**
   - **Validates: Requirements 6.2**
 
-- [ ] 2.8 Write property test for audit trail immutability
+- [x] 2.8 Write property test for audit trail immutability
   - **Property 37: Audit records are immutable**
   - **Validates: Requirements 10.4**
 
@@ -884,20 +884,21 @@ This implementation plan breaks down the AgentCore migration into discrete, mana
   - Document lessons learned
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 32. Implement missing property-based tests
-- [ ] 32.1 Set up property-based testing framework
+- [x] 32. Implement missing property-based tests
+- [x] 32.1 Set up property-based testing framework
   - Install hypothesis library for Python property testing
   - Create test generators for trade data, PDFs, and matching scenarios
   - Configure test runners with minimum 100 iterations per property
   - _Requirements: 18.5_
 
-- [ ] 32.2 Implement core correctness properties
-  - **Property 1: Functional parity with CrewAI implementation**
-  - **Property 17: Trade source classification validity**
-  - **Property 37: Audit records are immutable**
-  - **Property 11: PDF conversion maintains 300 DPI**
-  - **Property 21: Fuzzy matching applies tolerances**
-  - **Validates: Requirements 1.5, 6.2, 10.4, 5.1, 7.1**
+- [x] 32.2 Implement core correctness properties
+  - ~~**Property 1: Functional parity with CrewAI implementation**~~ (Not applicable - CrewAI deprecated)
+  - **Property 17: Trade source classification validity** ✅ COMPLETED
+  - **Property 37: Audit records are immutable** ✅ COMPLETED
+  - ~~**Property 11: PDF conversion maintains 300 DPI**~~ (Not applicable - using LLM multimodal OCR)
+  - **Property 21: Fuzzy matching applies tolerances** ✅ COMPLETED
+  - **Property 12: LLM OCR extraction completeness** ✅ COMPLETED
+  - **Validates: Requirements 6.2, 10.4, 7.1, 5.2**
 
 - [ ] 32.3 Implement memory and observability properties
   - **Property 39: Trade patterns stored in memory**

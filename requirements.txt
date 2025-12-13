@@ -1,20 +1,18 @@
-# Core CrewAI framework
-crewai>=0.201.0
-crewai-tools[mcp]>=0.14.0
-
 # LLM providers
 anthropic>=0.69.0
-# litellm version pinned by crewai dependency
-litellm>=1.74.9
 
 # AWS services (required for Lambda, S3, Bedrock)
 boto3>=1.40.0
 
-# PDF processing
-pdf2image>=1.17.0
-Pillow>=11.3.0
+# Strands SDK for multi-agent swarm
+strands-agents>=1.19.0
+strands-agents-tools>=0.0.1
 
-# Web framework (for eks_main.py)
+# AgentCore SDK
+bedrock-agentcore>=1.1.1
+bedrock-agentcore-starter-toolkit>=0.2.4
+
+# Web framework (for web portal API)
 fastapi>=0.118.0
 uvicorn>=0.37.0
 
@@ -22,9 +20,6 @@ uvicorn>=0.37.0
 python-dotenv>=1.1.0
 pydantic>=2.11.0
 structlog>=25.4.0
-
-# MCP for DynamoDB integration
-mcp>=1.16.0
 
 # Property-based testing
 hypothesis>=6.0.0

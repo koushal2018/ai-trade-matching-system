@@ -381,23 +381,7 @@ Do not include any markdown formatting or explanations outside the JSON object.
 """
         return prompt
     
-    def _run(
-        self,
-        extracted_text: str,
-        document_path: Optional[str] = None
-    ) -> str:
-        """
-        Run the tool (CrewAI-compatible interface).
-        
-        Args:
-            extracted_text: Text to analyze
-            document_path: Optional S3 path for additional context
-        
-        Returns:
-            str: JSON string with classification result
-        """
-        result = self.classify_trade_source(extracted_text, document_path)
-        return json.dumps(result, indent=2)
+
 
 
 # Convenience function for direct usage

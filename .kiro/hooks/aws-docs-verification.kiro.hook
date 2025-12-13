@@ -9,7 +9,7 @@
       "terraform/*.tf",
       "lambda/*.py",
       "src/latest_trade_matching_agent/tools/dynamodb_tool.py",
-      "src/latest_trade_matching_agent/crew_fixed.py",
+      "deployment/**/*_agent*.py",
       ".env.example",
       "llm_config.json"
     ]

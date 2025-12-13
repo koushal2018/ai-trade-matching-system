@@ -61,7 +61,7 @@ Performed comprehensive cleanup of the AI Trade Matching System codebase to remo
 ### Core Technologies
 - **Agent Framework**: Amazon Bedrock AgentCore Runtime
 - **Agent SDK**: Strands Agents Framework (`strands-agents`, `strands-agents-tools`)
-- **AI Model**: AWS Bedrock Claude Sonnet 4 (`us.anthropic.claude-sonnet-4-20250514-v1:0`)
+- **AI Model**: Amazon Nova Pro (`amazon.nova-pro-v1:0`)
 - **Region**: us-east-1 (US East)
 - **Data Storage**: Amazon DynamoDB with boto3 direct access
 - **Document Storage**: Amazon S3

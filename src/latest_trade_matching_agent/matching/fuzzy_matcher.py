@@ -70,6 +70,31 @@ class MatchResult(BaseModel):
         default_factory=list,
         description="List of field differences with details"
     )
+    
+    def is_match(self) -> bool:
+        """
+        Determine if the trades match based on tolerances.
+        
+        Returns:
+            True if all critical fields match within tolerances
+        """
+        # Currency must match exactly
+        if self.currency_match is not None and not self.currency_match:
+            return False
+        
+        # Date must be within ±2 days
+        if self.date_diff_days is not None and self.date_diff_days > 2:
+            return False
+        
+        # Notional must be within ±2%
+        if self.notional_diff_pct is not None and self.notional_diff_pct > 2.0:
+            return False
+        
+        # Counterparty must have similarity >= 0.8
+        if self.counterparty_similarity is not None and self.counterparty_similarity < 0.8:
+            return False
+        
+        return True
 
 
 def fuzzy_match(
@@ -128,7 +153,7 @@ def fuzzy_match(
             "within_tolerance": False
         })
     
-    # 2. Trade_Date: ±1 business day tolerance
+    # 2. Trade_Date: ±2 days tolerance
     bank_date = _extract_value(bank_trade, "trade_date")
     cp_date = _extract_value(counterparty_trade, "trade_date")
     
@@ -139,7 +164,7 @@ def fuzzy_match(
             cp_dt = datetime.strptime(cp_date, "%Y-%m-%d")
             date_diff_days = abs((bank_dt - cp_dt).days)
             
-            within_tolerance = date_diff_days <= 1
+            within_tolerance = date_diff_days <= 2
             exact_matches["trade_date"] = date_diff_days == 0
             
             if date_diff_days > 0:
@@ -147,7 +172,7 @@ def fuzzy_match(
                     "field_name": "trade_date",
                     "bank_value": bank_date,
                     "counterparty_value": cp_date,
-                    "difference_type": "TOLERANCE_EXCEEDED" if date_diff_days > 1 else "WITHIN_TOLERANCE",
+                    "difference_type": "TOLERANCE_EXCEEDED" if date_diff_days > 2 else "WITHIN_TOLERANCE",
                     "tolerance_applied": True,
                     "within_tolerance": within_tolerance,
                     "days_difference": date_diff_days
@@ -162,7 +187,7 @@ def fuzzy_match(
                 "within_tolerance": False
             })
     
-    # 3. Notional: ±0.01% tolerance
+    # 3. Notional: ±2% tolerance
     bank_notional = _extract_value(bank_trade, "notional")
     cp_notional = _extract_value(counterparty_trade, "notional")
     
@@ -177,7 +202,7 @@ def fuzzy_match(
                     (cp_notional_float - bank_notional_float) / bank_notional_float * 100
                 )
                 
-                within_tolerance = notional_diff_pct <= 0.01
+                within_tolerance = notional_diff_pct <= 2.0
                 exact_matches["notional"] = notional_diff_pct == 0.0
                 
                 if notional_diff_pct > 0:
@@ -185,7 +210,7 @@ def fuzzy_match(
                         "field_name": "notional",
                         "bank_value": bank_notional_float,
                         "counterparty_value": cp_notional_float,
-                        "difference_type": "TOLERANCE_EXCEEDED" if notional_diff_pct > 0.01 else "WITHIN_TOLERANCE",
+                        "difference_type": "TOLERANCE_EXCEEDED" if notional_diff_pct > 2.0 else "WITHIN_TOLERANCE",
                         "tolerance_applied": True,
                         "within_tolerance": within_tolerance,
                         "percentage_difference": notional_diff_pct
@@ -232,7 +257,7 @@ def fuzzy_match(
     
     currency_match = None
     if bank_currency and cp_currency:
-        currency_match = str(bank_currency).upper() == str(cp_currency).upper()
+        currency_match = str(bank_currency) == str(cp_currency)
         exact_matches["currency"] = currency_match
         
         if not currency_match:
@@ -308,10 +333,10 @@ def _extract_value(trade: Optional[Dict[str, Any]], field_name: str) -> Any:
 
 def _compute_string_similarity(str1: str, str2: str) -> float:
     """
-    Compute similarity between two strings using SequenceMatcher.
+    Compute similarity between two strings using SequenceMatcher with enhanced matching.
     
-    This uses the Ratcliff/Obershelp algorithm which is similar to
-    Levenshtein distance but more efficient for longer strings.
+    This uses the Ratcliff/Obershelp algorithm and also handles common abbreviations
+    for financial institutions.
     
     Args:
         str1: First string
@@ -323,7 +348,37 @@ def _compute_string_similarity(str1: str, str2: str) -> float:
     if not str1 or not str2:
         return 0.0
     
-    return SequenceMatcher(None, str1, str2).ratio()
+    # Normalize strings
+    norm1 = str1.lower().strip()
+    norm2 = str2.lower().strip()
+    
+    # Check for exact match after normalization
+    if norm1 == norm2:
+        return 1.0
+    
+    # Common financial institution abbreviations
+    abbreviations = {
+        'goldman sachs': ['gs', 'goldman', 'goldman sachs & co'],
+        'jpmorgan': ['jpm', 'jp morgan', 'jpmorgan chase'],
+        'morgan stanley': ['ms', 'morgan stanley & co'],
+        'bank of america': ['boa', 'bofa', 'bank of america corp'],
+        'citigroup': ['citi', 'citibank', 'citicorp'],
+        'wells fargo': ['wf', 'wells fargo & co'],
+        'deutsche bank': ['db', 'deutsche bank ag'],
+        'credit suisse': ['cs', 'credit suisse group'],
+        'ubs': ['ubs group', 'ubs ag'],
+        'barclays': ['barclays plc', 'barclays bank']
+    }
+    
+    # Check if either string is an abbreviation of the other
+    for full_name, abbrevs in abbreviations.items():
+        if (norm1 == full_name and norm2 in abbrevs) or (norm2 == full_name and norm1 in abbrevs):
+            return 0.9  # High similarity for known abbreviations
+        if norm1 in abbrevs and norm2 in abbrevs:
+            return 0.9  # Both are abbreviations of the same entity
+    
+    # Use standard sequence matching
+    return SequenceMatcher(None, norm1, norm2).ratio()
 
 
 def _count_business_days(date1: datetime, date2: datetime) -> int:

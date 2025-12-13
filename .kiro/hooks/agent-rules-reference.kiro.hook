@@ -1,15 +1,14 @@
 {
   "enabled": true,
   "name": "12 Rules for Agents Reference",
-  "description": "Provides the 12-Factor Agents principles as context when editing agent configuration files, crew definitions, or task files to ensure best practices are followed",
+  "description": "Provides the 12-Factor Agents principles as context when editing agent implementation files to ensure best practices are followed",
   "version": "1",
   "when": {
     "type": "fileEdited",
     "patterns": [
-      "src/latest_trade_matching_agent/config/agents.yaml",
-      "src/latest_trade_matching_agent/config/tasks.yaml",
-      "src/latest_trade_matching_agent/crew_fixed.py",
-      "src/latest_trade_matching_agent/main.py"
+      "deployment/**/*_agent*.py",
+      "src/latest_trade_matching_agent/agents/*.py",
+      "deployment/swarm/*.py"
     ]
   },
   "then": {

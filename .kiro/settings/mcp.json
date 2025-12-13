@@ -30,7 +30,14 @@
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
-      "disabled": false
+      "disabled": false,
+      "autoApprove": [
+        "search_documentation",
+        "search_documentation",
+        "search_documentation",
+        "read_documentation",
+        "read_documentation"
+      ]
     },
     "brave-search": {
       "command": "npx",
@@ -41,7 +48,10 @@
       "env": {
         "BRAVE_API_KEY": "${BRAVE_API_KEY}"
       },
-      "disabled": false
+      "disabled": false,
+      "autoApprove": [
+        "brave_web_search"
+      ]
     },
     "mcp-server-fetch": {
       "command": "uvx",

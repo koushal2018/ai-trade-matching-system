@@ -1,0 +1,4 @@
+# file: /Users/koushald/ai-trade-matching-system/src/latest_trade_matching_agent/models/trade.py
+# hypothesis_version: 6.148.7
+
+[0.0, 0.92, 1.0, 3.5, 1000000.0, '2024-10-15', '2024-10-17', '2025-10-17', 'Amount of collateral', 'BANK', 'BOOL', 'BRENT', 'Broker name', 'CASH', 'COUNTERPARTY', 'CRUDE_OIL', 'CanonicalTradeModel', 'Clearing house name', 'Email of the trader', 'GCS382857', 'Goldman Sachs', 'MONTHLY', 'N', 'NULL', 'Name of the trader', 'Price per unit', 'S', 'SWAP', 'TRADE_SOURCE', 'Trade_ID', 'USD', '^\\d{4}-\\d{2}-\\d{2}$', 'collateral_currency', 'commodity_type', 'counterparty', 'currency', 'effective_date', 'examples', 'fixed_rate', 'floating_rate_index', 'maturity_date', 'notional', 'payment_frequency', 'premium_currency', 'product_type', 's3_source', 'settlement_type', 'trade_date']

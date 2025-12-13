@@ -8,7 +8,7 @@ inclusion: always
 
 - **Python**: 3.11+ (required)
 - **Strands SDK**: Multi-agent swarm framework with autonomous handoffs
-- **AI Model**: AWS Bedrock Claude Sonnet 4 (`us.anthropic.claude-sonnet-4-20250514-v1:0`)
+- **AI Model**: Amazon Nova Pro (`amazon.nova-pro-v1:0`)
 - **Region**: us-east-1 (US East - N. Virginia)
 
 ## AWS Services
@@ -127,12 +127,12 @@ DYNAMODB_COUNTERPARTY_TABLE=CounterpartyTradeData
 DYNAMODB_EXCEPTIONS_TABLE=ExceptionsTable
 
 # Bedrock Configuration
-BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-20250514-v1:0
+BEDROCK_MODEL_ID=amazon.nova-pro-v1:0
 ```
 
 ### LLM Configuration
 
-- **Model**: us.anthropic.claude-sonnet-4-20250514-v1:0
+- **Model**: amazon.nova-pro-v1:0
 - **Temperature**: 0.1 (deterministic for financial operations)
 - **Max Tokens**: 4096
 - **Region**: us-east-1

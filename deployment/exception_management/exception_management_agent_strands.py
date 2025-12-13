@@ -18,7 +18,7 @@ import logging
 # Strands SDK imports
 from strands import Agent, tool
 from strands.models import BedrockModel
-from strands_tools import use_aws
+from strands_agents_tools import use_aws
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from bedrock_agentcore.runtime.models import PingStatus
 
@@ -43,7 +43,7 @@ app = BedrockAgentCoreApp()
 REGION = os.getenv("AWS_REGION", "us-east-1")
 S3_BUCKET = os.getenv("S3_BUCKET_NAME", "trade-matching-system-agentcore-production")
 EXCEPTIONS_TABLE = os.getenv("DYNAMODB_EXCEPTIONS_TABLE", "ExceptionsTable")
-BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0")
+BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
 AGENT_VERSION = os.getenv("AGENT_VERSION", "1.0.0")
 AGENT_ALIAS = os.getenv("AGENT_ALIAS", "default")
 OBSERVABILITY_STAGE = os.getenv("OBSERVABILITY_STAGE", "development")

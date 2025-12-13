@@ -1,0 +1,4 @@
+# file: /Users/koushald/ai-trade-matching-system/src/latest_trade_matching_agent/models/matching.py
+# hypothesis_version: 6.148.7
+
+[0.0, 0.7, 0.78, 0.85, 0.95, 0.98, 1.0, 500000.0, 1000000.0, ' | ', '2024-10-15', '2024-10-16', '2024-10-17', 'AUTO_MATCH', 'BREAK', 'DATA_ERROR', 'DATE_MISMATCH', 'ESCALATE', 'EXCEPTION', 'FAB26933659', 'GCS382857', 'MATCHED', 'PROBABLE_MATCH', 'REVIEW_REQUIRED', 'TOLERANCE_EXCEEDED', 'Trade_ID', 'after', 'bank_trade', 'bank_value', 'classification', 'confidence_score', 'counterparty_trade', 'counterparty_value', 'decision_status', 'difference_type', 'differences', 'examples', 'field_name', 'match_score', 'notional', 'reason_codes', 'report_path', 'requires_hitl', 'tolerance_applied', 'trade_date', 'trade_id', 'within_tolerance']

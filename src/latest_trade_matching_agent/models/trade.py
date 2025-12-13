@@ -49,7 +49,7 @@ class CanonicalTradeModel(BaseModel):
         min_length=1
     )
     
-    TRADE_SOURCE: Literal["BANK", "COUNTERPARTY"] = Field(
+    TRADE_SOURCE: str = Field(
         ...,
         description="Classification of the trade source"
     )
@@ -279,8 +279,11 @@ class CanonicalTradeModel(BaseModel):
     @field_validator("TRADE_SOURCE")
     @classmethod
     def validate_trade_source(cls, v: str) -> str:
-        """Ensure TRADE_SOURCE is uppercase."""
-        return v.upper()
+        """Ensure TRADE_SOURCE is uppercase and valid."""
+        normalized = v.upper()
+        if normalized not in ["BANK", "COUNTERPARTY"]:
+            raise ValueError(f"TRADE_SOURCE must be 'BANK' or 'COUNTERPARTY', got '{v}'")
+        return normalized
     
     def to_dynamodb_format(self) -> Dict[str, Any]:
         """

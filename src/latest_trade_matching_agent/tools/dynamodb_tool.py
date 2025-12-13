@@ -1,5 +1,5 @@
 """
-DynamoDB Operations Tool for CrewAI
+DynamoDB Operations Tool
 Provides put_item and scan operations for DynamoDB tables
 """
 
@@ -7,32 +7,31 @@ import boto3
 import json
 import logging
 from typing import Any, Dict, Optional
-from crewai.tools import BaseTool
 
 logger = logging.getLogger(__name__)
 
 
-class DynamoDBTool(BaseTool):
-    name: str = "DynamoDB Operations Tool"
-    description: str = (
-        "Performs DynamoDB operations including put_item and scan. "
-        "Use this tool to store trade data in DynamoDB tables or retrieve all items from a table. "
-        "Supports both BankTradeData and CounterpartyTradeData tables."
-    )
-    region_name: str = "me-central-1"
-
-    class Config:
-        arbitrary_types_allowed = True
-
-    def __init__(self, region_name: str = "me-central-1", **kwargs):
-        super().__init__(region_name=region_name, **kwargs)
+class DynamoDBTool:
+    """
+    DynamoDB operations tool for storing and retrieving trade data.
+    Supports both BankTradeData and CounterpartyTradeData tables.
+    """
+    
+    def __init__(self, region_name: str = "me-central-1"):
+        self.region_name = region_name
+        self.name = "DynamoDB Operations Tool"
+        self.description = (
+            "Performs DynamoDB operations including put_item and scan. "
+            "Use this tool to store trade data in DynamoDB tables or retrieve all items from a table. "
+            "Supports both BankTradeData and CounterpartyTradeData tables."
+        )
         logger.info(f"DynamoDB client initialized for region: {region_name}")
 
     def _get_dynamodb_client(self):
         """Get or create DynamoDB client"""
         return boto3.client('dynamodb', region_name=self.region_name)
 
-    def _run(
+    def run(
         self,
         operation: str,
         table_name: str,
