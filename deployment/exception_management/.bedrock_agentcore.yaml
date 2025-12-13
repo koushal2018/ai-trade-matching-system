@@ -67,12 +67,12 @@ agents:
     container_runtime: none
     source_path: /Users/koushald/ai-trade-matching-system-2/deployment/exception_management
     aws:
-      execution_role: null
-      execution_role_auto_create: true
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-ad04f7aab0
+      execution_role_auto_create: false
       account: '401552979575'
       region: us-east-1
-      ecr_repository: null
-      ecr_auto_create: true
+      ecr_repository: 401552979575.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-exception_manager
+      ecr_auto_create: false
       s3_path: null
       s3_auto_create: false
       network_configuration:
