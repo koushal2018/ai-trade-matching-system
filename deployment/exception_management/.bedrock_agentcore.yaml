@@ -86,13 +86,13 @@ agents:
         idle_runtime_session_timeout: null
         max_lifetime: null
     bedrock_agentcore:
-      agent_id: null
-      agent_arn: null
-      agent_session_id: null
+      agent_id: exception_manager-uliBS5DsX3
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/exception_manager-uliBS5DsX3
+      agent_session_id: 08de24e9-f0d1-4f20-a39a-0388bd534e9e
     codebuild:
-      project_name: null
-      execution_role: null
-      source_bucket: null
+      project_name: bedrock-agentcore-exception_manager-builder
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-ad04f7aab0
+      source_bucket: bedrock-agentcore-codebuild-sources-401552979575-us-east-1
     memory:
       mode: STM_AND_LTM
       memory_id: exception_management_agent_mem-GVHALbBeKr
