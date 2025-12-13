@@ -18,7 +18,42 @@ import logging
 # Strands SDK imports
 from strands import Agent, tool
 from strands.models import BedrockModel
-from strands_agents_tools import use_aws
+
+# Try to import use_aws from different locations in strands-agents
+try:
+    from strands_tools import use_aws
+    print("✓ Imported use_aws from strands_tools (community tools package)")
+except ImportError:
+    try:
+        from strands import use_aws
+        print("✓ Imported use_aws from strands")
+    except ImportError:
+        try:
+            from strands.tools import use_aws
+            print("✓ Imported use_aws from strands.tools")
+        except ImportError:
+            try:
+                from strands_agents_tools import use_aws
+                print("✓ Imported use_aws from strands_agents_tools")
+            except ImportError:
+                print("⚠ use_aws not found, will define custom implementation")
+                use_aws = None
+
+# Fallback implementation if use_aws is not available
+if use_aws is None:
+    @tool
+    def use_aws(service_name: str, operation_name: str, parameters: dict, region: str = "us-east-1", label: str = "") -> str:
+        """
+        Fallback AWS tool implementation using boto3.
+        """
+        import boto3
+        try:
+            client = boto3.client(service_name, region_name=region)
+            operation = getattr(client, operation_name)
+            result = operation(**parameters)
+            return json.dumps(result, default=str)
+        except Exception as e:
+            return f"Error: {str(e)}"
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from bedrock_agentcore.runtime.models import PingStatus
 
@@ -42,7 +77,7 @@ app = BedrockAgentCoreApp()
 # Configuration
 REGION = os.getenv("AWS_REGION", "us-east-1")
 S3_BUCKET = os.getenv("S3_BUCKET_NAME", "trade-matching-system-agentcore-production")
-EXCEPTIONS_TABLE = os.getenv("DYNAMODB_EXCEPTIONS_TABLE", "ExceptionsTable")
+EXCEPTIONS_TABLE = os.getenv("DYNAMODB_EXCEPTIONS_TABLE", "trade-matching-system-exceptions-production")
 BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
 AGENT_VERSION = os.getenv("AGENT_VERSION", "1.0.0")
 AGENT_ALIAS = os.getenv("AGENT_ALIAS", "default")

@@ -7,7 +7,7 @@ agent:
   
 runtime:
   type: PYTHON_3_11
-  entry_point: exception_management_agent.py
+  entry_point: exception_management_agent_strands.py
   handler: invoke
   timeout: 300  # 5 minutes for exception handling
   memory_mb: 3072
