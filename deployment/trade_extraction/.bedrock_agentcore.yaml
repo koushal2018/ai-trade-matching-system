@@ -30,7 +30,7 @@ agents:
     bedrock_agentcore:
       agent_id: trade_extraction_agent-KnAx4O4ezw
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/trade_extraction_agent-KnAx4O4ezw
-      agent_session_id: 689097a8-b6f9-44e7-b6d0-c9f6e8513701
+      agent_session_id: 3777cb85-b952-41f6-be96-10af54e3fc00
     codebuild:
       project_name: null
       execution_role: null
@@ -46,6 +46,15 @@ agents:
     identity:
       credential_providers: []
       workload: null
+    aws_jwt:
+      enabled: false
+      audiences: []
+      signing_algorithm: ES384
+      issuer_url: null
+      duration_seconds: 300
     authorizer_configuration: null
     request_header_configuration: null
     oauth_configuration: null
+    api_key_env_var_name: null
+    api_key_credential_provider_name: null
+    is_generated_by_agentcore_create: false

@@ -1,0 +1,59 @@
+{
+  "tool_resources": {
+    "aws_config": {
+      "region": "us-east-1",
+      "connection_pool_size": 10,
+      "retry_config": {
+        "max_attempts": 3,
+        "mode": "adaptive"
+      }
+    },
+    "dynamodb_config": {
+      "tables": {
+        "bank_trades": "BankTradeData",
+        "counterparty_trades": "CounterpartyTradeData",
+        "exceptions": "ExceptionsTable"
+      },
+      "read_capacity_units": 5,
+      "write_capacity_units": 5
+    },
+    "s3_config": {
+      "bucket": "trade-matching-system-agentcore-production",
+      "folders": {
+        "bank_pdfs": "BANK/",
+        "counterparty_pdfs": "COUNTERPARTY/",
+        "extracted_data": "extracted/",
+        "reports": "reports/"
+      },
+      "encryption": "AES256"
+    },
+    "bedrock_config": {
+      "model_id": "amazon.nova-pro-v1:0",
+      "temperature": 0.3,
+      "max_tokens": 4096,
+      "timeout_seconds": 60
+    },
+    "agentcore_gateway": {
+      "dynamodb_gateway": "trade-matching-system-dynamodb-gateway-production",
+      "s3_gateway": "trade-matching-system-s3-gateway-production",
+      "enabled": false,
+      "fallback_to_direct": true
+    }
+  },
+  "security": {
+    "pii_redaction": {
+      "enabled": true,
+      "patterns": [
+        "trade_id",
+        "counterparty",
+        "notional",
+        "currency"
+      ]
+    },
+    "observability": {
+      "stage": "development",
+      "verbosity": "high",
+      "metrics_namespace": "AgentCore/TradeExtraction"
+    }
+  }
+}
