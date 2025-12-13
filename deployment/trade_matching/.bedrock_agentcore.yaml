@@ -30,22 +30,31 @@ agents:
     bedrock_agentcore:
       agent_id: trade_matching_agent-3aAvK64dQz
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/trade_matching_agent-3aAvK64dQz
-      agent_session_id: 25e3b5da-10a7-4964-9da3-4fe4a0e8d260
+      agent_session_id: 43266953-b465-4a58-922c-de96f38b2c4f
     codebuild:
       project_name: null
       execution_role: null
       source_bucket: null
     memory:
-      mode: STM_ONLY
-      memory_id: trade_matching_agent_mem-SxPFir3bbF
-      memory_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:memory/trade_matching_agent_mem-SxPFir3bbF
-      memory_name: trade_matching_agent_mem
-      event_expiry_days: 30
-      first_invoke_memory_check_done: true
-      was_created_by_toolkit: true
+      mode: STM_AND_LTM
+      memory_id: trade_matching_decisions-Z3tG4b4Xsd
+      memory_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:memory/trade_matching_decisions-Z3tG4b4Xsd
+      memory_name: trade_matching_decisions
+      event_expiry_days: 90
+      first_invoke_memory_check_done: false
+      was_created_by_toolkit: false
     identity:
       credential_providers: []
       workload: null
+    aws_jwt:
+      enabled: false
+      audiences: []
+      signing_algorithm: ES384
+      issuer_url: null
+      duration_seconds: 300
     authorizer_configuration: null
     request_header_configuration: null
     oauth_configuration: null
+    api_key_env_var_name: null
+    api_key_credential_provider_name: null
+    is_generated_by_agentcore_create: false
