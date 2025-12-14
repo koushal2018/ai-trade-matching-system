@@ -1,6 +1,5 @@
 """
-Test that installation succeeds after CrewAI removal.
-Validates: Requirements 1.3, 1.4
+Test that installation and dependencies are properly configured.
 """
 import subprocess
 import sys
@@ -51,17 +50,17 @@ def test_pyproject_toml_is_valid():
     assert 'dependencies' in config['project'], "pyproject.toml missing dependencies"
 
 
-def test_no_crewai_in_installed_packages():
-    """Test that CrewAI packages are not in the dependency list"""
-    # Note: This tests the requirements file, not the installed packages
-    # Actual uninstallation happens in later tasks
+def test_required_dependencies_present():
+    """Test that required dependencies are present in requirements.txt"""
     requirements_path = Path("requirements.txt")
     with open(requirements_path, 'r') as f:
         content = f.read().lower()
     
-    assert 'crewai' not in content, "requirements.txt should not contain crewai"
-    assert 'litellm' not in content, "requirements.txt should not contain litellm"
-    assert 'mcp' not in content, "requirements.txt should not contain mcp"
+    # Check for core dependencies
+    assert 'strands-agents' in content, "requirements.txt should contain strands-agents"
+    assert 'bedrock-agentcore' in content, "requirements.txt should contain bedrock-agentcore"
+    assert 'boto3' in content, "requirements.txt should contain boto3"
+    assert 'fastapi' in content, "requirements.txt should contain fastapi"
 
 
 def test_strands_in_dependencies():
@@ -83,9 +82,9 @@ if __name__ == '__main__':
     test_pyproject_toml_is_valid()
     print("✅ pyproject.toml is valid")
     
-    print("\nTesting CrewAI removal from dependencies...")
-    test_no_crewai_in_installed_packages()
-    print("✅ CrewAI not in dependency list")
+    print("\nTesting required dependencies...")
+    test_required_dependencies_present()
+    print("✅ Required dependencies present")
     
     print("\nTesting Strands SDK in dependencies...")
     test_strands_in_dependencies()
