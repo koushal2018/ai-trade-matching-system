@@ -1,0 +1,127 @@
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  AWS_DEFAULT_REGION: us-east-1
+  NODE_VERSION: "18"
+  PYTHON_VERSION: "3.9"
+
+# Test stage - runs on both branches
+frontend-test:
+  stage: test
+  image: node:${NODE_VERSION}
+  script:
+    - cd web-portal
+    - npm ci
+    - npm run test -- --coverage --watchAll=false
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: web-portal/coverage/cobertura-coverage.xml
+  only:
+    - dev
+    - main
+  except:
+    changes:
+      - "*.md"
+      - "docs/**/*"
+
+backend-test:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  script:
+    - cd web-portal-api
+    - pip install -r requirements.txt
+    - python -m pytest tests/ --cov=app --cov-report=xml
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: web-portal-api/coverage.xml
+  only:
+    - dev
+    - main
+  except:
+    changes:
+      - "*.md"
+      - "docs/**/*"
+
+terraform-validate:
+  stage: test
+  image: hashicorp/terraform:latest
+  script:
+    - cd terraform
+    - terraform init -backend=false
+    - terraform validate
+    - terraform fmt -check
+  only:
+    - dev
+    - main
+  changes:
+    - terraform/**/*
+
+# Build stage - runs on both branches
+build-frontend:
+  stage: build
+  image: node:${NODE_VERSION}
+  script:
+    - cd web-portal
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - web-portal/build/
+    expire_in: 1 hour
+  only:
+    - dev
+    - main
+
+# Deploy to dev environment
+deploy-dev:
+  stage: deploy
+  image: python:${PYTHON_VERSION}
+  script:
+    - echo "Deploying to development environment..."
+    - cd deployment
+    - # Add your dev deployment commands here
+    - echo "Development deployment completed"
+  environment:
+    name: development
+    url: https://dev.your-domain.com
+  only:
+    - dev
+  when: manual
+
+# Deploy to production
+deploy-prod:
+  stage: deploy
+  image: python:${PYTHON_VERSION}
+  script:
+    - echo "Deploying to production environment..."
+    - cd deployment
+    - # Add your production deployment commands here
+    - echo "Production deployment completed"
+  environment:
+    name: production
+    url: https://your-domain.com
+  only:
+    - main
+  when: manual
+
+# Security scanning
+security-scan:
+  stage: test
+  image: node:${NODE_VERSION}
+  script:
+    - cd web-portal
+    - npm audit --audit-level=high
+    - cd ../web-portal-api
+    - pip install safety
+    - safety check
+  allow_failure: true
+  only:
+    - dev
+    - main
