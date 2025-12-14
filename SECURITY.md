@@ -184,18 +184,51 @@ This system processes financial documents and requires careful security configur
 - **PDF Validation**: Validate PDF files before processing
 - **Parameter Sanitization**: Sanitize all input parameters
 - **File Size Limits**: Enforce reasonable file size limits
+- **Agent Input Validation**: Validate all inputs to agent tools and functions
 
 #### Authentication & Authorization
 
 - **API Authentication**: Implement proper API authentication
 - **Role-Based Access Control**: Implement RBAC for different user types
 - **Session Management**: Secure session handling for web interface
+- **Agent Authorization**: Ensure agents can only access authorized resources
 
 #### Secure Coding Practices
 
 - **Dependency Management**: Keep dependencies updated
 - **Error Handling**: Don't expose sensitive information in errors
 - **Logging**: Log security events without exposing sensitive data
+- **Agent Isolation**: Ensure proper isolation between agent executions
+
+### AgentCore Security
+
+#### Agent Runtime Security
+
+- **Execution Isolation**: Each agent runs in isolated containers
+- **Resource Limits**: Configure appropriate CPU and memory limits
+- **Network Isolation**: Use VPC configuration for network security
+- **Runtime Permissions**: Apply least privilege to agent execution roles
+
+#### Agent Communication Security
+
+- **Secure Handoffs**: Validate data integrity during agent handoffs
+- **Authentication**: Authenticate agent-to-agent communications
+- **Audit Logging**: Log all agent interactions and decisions
+- **Data Validation**: Validate data at each agent boundary
+
+#### Multi-Agent Security
+
+- **Workflow Integrity**: Ensure workflow cannot be manipulated
+- **Agent Verification**: Verify agent identity before handoffs
+- **State Management**: Secure agent state and context data
+- **Exception Handling**: Secure handling of agent failures and exceptions
+
+#### AgentCore Observability Security
+
+- **Trace Data Protection**: Protect sensitive data in traces
+- **Metrics Security**: Secure agent performance metrics
+- **Log Sanitization**: Remove sensitive data from agent logs
+- **Monitoring Access**: Control access to agent monitoring data
 
 ### Infrastructure Security
 
@@ -222,6 +255,8 @@ This system processes financial documents and requires careful security configur
 2. **Dependency Scanning**: Regularly scan dependencies for vulnerabilities
 3. **Static Analysis**: Use static analysis tools (bandit, semgrep)
 4. **Secrets Management**: Never commit secrets to version control
+5. **Agent Security**: Follow AgentCore security patterns and best practices
+6. **Tool Validation**: Validate all agent tools and their permissions
 
 ### For Operators
 
@@ -229,6 +264,8 @@ This system processes financial documents and requires careful security configur
 2. **Access Reviews**: Regularly review user access
 3. **Backup Security**: Secure backup procedures
 4. **Incident Response**: Have an incident response plan
+5. **Agent Monitoring**: Monitor agent health and security metrics
+6. **Runtime Security**: Regularly review agent runtime configurations
 
 ### For Users
 
@@ -236,6 +273,32 @@ This system processes financial documents and requires careful security configur
 2. **Network Security**: Use secure networks for access
 3. **Data Classification**: Properly classify and handle data
 4. **Reporting**: Report suspicious activity immediately
+5. **Trade Data Handling**: Follow financial data handling procedures
+6. **Agent Interaction**: Understand agent capabilities and limitations
+
+### Trade Matching Specific Security
+
+#### Data Classification and Handling
+
+- **BANK vs COUNTERPARTY**: Maintain strict separation of data sources
+- **Trade Confidentiality**: Protect trade details and counterparty information
+- **Matching Integrity**: Ensure matching algorithms cannot be manipulated
+- **Exception Handling**: Secure handling of trade breaks and exceptions
+
+#### Agent-Specific Security
+
+- **PDF Adapter**: Validate PDF integrity and prevent malicious uploads
+- **Trade Extraction**: Ensure accurate data extraction without manipulation
+- **Trade Matching**: Protect matching logic and prevent false matches
+- **Exception Management**: Secure exception classification and SLA tracking
+- **Orchestrator**: Protect workflow coordination and handoff logic
+
+#### Compliance and Audit
+
+- **Trade Audit Trail**: Maintain complete audit logs for all trade processing
+- **Regulatory Compliance**: Ensure compliance with financial regulations
+- **Data Retention**: Implement appropriate data retention policies
+- **Access Logging**: Log all access to trade data and matching results
 
 ## Vulnerability Disclosure Process
 
