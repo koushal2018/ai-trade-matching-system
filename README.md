@@ -120,14 +120,23 @@ The system uses **AgentCore Runtime** with **Agent-to-Agent (A2A) communication*
                                     +------------------+
 ```
 
+### Deployment Modes
+
+The system supports **dual deployment patterns**:
+
+| Mode | Framework | Use Case | Communication |
+|------|-----------|----------|---------------|
+| **Local Development** | Strands Swarm | Testing, debugging, rapid iteration | Direct agent handoffs |
+| **Production** | AgentCore Runtime | Scalable, serverless deployment | A2A communication via AgentCore |
+
 ### Agent Responsibilities
 
-| Agent | Purpose | Key Operations |
-|-------|---------|----------------|
-| **PDF Adapter** | Document ingestion | Download PDF, extract text via Bedrock multimodal, save canonical output |
-| **Trade Extractor** | Data extraction | Parse trade fields, validate data, store in DynamoDB |
-| **Trade Matcher** | Reconciliation | Match trades by attributes, calculate confidence scores, generate reports |
-| **Exception Handler** | Issue management | Triage breaks, assign severity, track SLA deadlines |
+| Agent | Purpose | Key Operations | AgentCore Features |
+|-------|---------|----------------|--------------------|
+| **PDF Adapter** | Document ingestion | Download PDF, extract text via Bedrock multimodal, save canonical output | Memory for document patterns |
+| **Trade Extractor** | Data extraction | Parse trade fields, validate data, store in DynamoDB | Memory for field mappings |
+| **Trade Matcher** | Reconciliation | Match trades by attributes, calculate confidence scores, generate reports | Memory for matching patterns |
+| **Exception Handler** | Issue management | Triage breaks, assign severity, track SLA deadlines | Memory for exception patterns |
 
 ### Data Flow
 
