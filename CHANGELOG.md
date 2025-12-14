@@ -7,15 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Initial public release preparation
-- Comprehensive documentation for open source contribution
-- Security policy and vulnerability reporting process
-- Code of conduct and contribution guidelines
-
 ## [1.0.0] - 2024-12-14
 
-### Added
+### Added - First Public Release
+- **Public Release Preparation**: Complete preparation for open source consumption
+- **Security Hardening**: Removed all sensitive data, ARNs, and PII from repository
+- **Professional Documentation**: Added CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md
+- **Template Configuration**: Added example configuration files for secure deployment
 - **Multi-Agent Swarm Architecture**: Strands SDK-based swarm with 4 specialized agents
 - **PDF Processing**: Direct PDF text extraction using AWS Bedrock multimodal capabilities
 - **Trade Extraction**: Intelligent field extraction from trade confirmations
