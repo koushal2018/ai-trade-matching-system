@@ -5,11 +5,12 @@ anthropic>=0.69.0
 boto3>=1.40.0
 
 # Strands SDK for multi-agent swarm
-strands-agents==0.1.0
-strands-agents-tools==0.1.0
+# Note: use_aws tool not available in strands-agents-tools<=0.2.17, using fallback implementation
+strands-agents>=0.1.0
+strands-agents-tools>=0.1.0
 
 # AgentCore SDK
-bedrock-agentcore>=1.1.1
+bedrock-agentcore>=1.0.0
 bedrock-agentcore-starter-toolkit>=0.2.4
 
 # Web framework (for web portal API)

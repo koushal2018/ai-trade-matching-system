@@ -16,7 +16,7 @@
       "args": [
         "strands-agents-mcp-server"
       ],
-      "disabled": false,
+      "disabled": true,
       "autoApprove": [
         "fetch_doc",
         "search_docs"
@@ -48,7 +48,7 @@
       "env": {
         "BRAVE_API_KEY": "${BRAVE_API_KEY}"
       },
-      "disabled": false,
+      "disabled": true,
       "autoApprove": [
         "brave_web_search"
       ]
@@ -87,7 +87,7 @@
       "env": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
-      "disabled": false,
+      "disabled": true,
       "autoApprove": [
         "list_icons",
         "generate_diagram"
@@ -113,7 +113,7 @@
       "env": {
         "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"
       },
-      "disabled": false,
+      "disabled": true,
       "autoApprove": []
     },
     "allpepper-memory-bank": {
@@ -125,7 +125,7 @@
       "env": {
         "MEMORY_BANK_ROOT": "/Users/koushald/memorybank"
       },
-      "disabled": false,
+      "disabled": true,
       "autoApprove": [
         "memory_bank_read",
         "memory_bank_write",
@@ -142,7 +142,7 @@
         "/Users/koushald/Desktop",
         "/Users/koushald"
       ],
-      "disabled": false
+      "disabled": true
     }
   }
 }

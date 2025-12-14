@@ -1,482 +1,574 @@
-#!/usr/bin/env python3
 """
-HTTP Agent Orchestrator for Trade Matching System
+HTTP Agent Orchestrator - Calls deployed AgentCore agents via HTTP
 
-This orchestrator communicates with deployed AgentCore agents using standard HTTP calls
-via the `agentcore invoke` CLI, which is simpler than A2A protocol and works with
-your existing deployed agents.
+This orchestrator invokes agents that are already deployed to AgentCore Runtime.
+Each agent runs in its own AgentCore instance and is called via the AgentCore API.
+
+Workflow:
+1. PDF Adapter Agent - Extract text from PDF
+2. Trade Extraction Agent - Extract structured trade data
+3. Trade Matching Agent - Match trades across tables
+4. Exception Management Agent - Handle any exceptions
 """
 
-import asyncio
+import os
 import json
 import logging
-import os
-import subprocess
-import uuid
-from typing import Dict, Any, Optional
+import asyncio
 from datetime import datetime
+from typing import Any, Dict, Optional
+from urllib.parse import quote
 
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Load .env file before reading env vars
+from dotenv import load_dotenv
+load_dotenv()
+
+import httpx
+import boto3
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
+from botocore.config import Config
+
 logger = logging.getLogger(__name__)
 
-# Agent directories for invoking via CLI
-AGENT_CONFIGS = {
-    "pdf_adapter": {
-        "directory": "/Users/koushald/ai-trade-matching-system-2/deployment/pdf_adapter",
-        "name": "pdf_adapter_agent",
-        "description": "Downloads PDFs from S3, extracts text via Bedrock multimodal, saves canonical output"
-    },
-    "trade_extractor": {
-        "directory": "/Users/koushald/ai-trade-matching-system-2/deployment/trade_extraction", 
-        "name": "trade_extraction_agent",
-        "description": "Reads canonical output, parses trade fields, stores in DynamoDB"
-    },
-    "trade_matcher": {
-        "directory": "/Users/koushald/ai-trade-matching-system-2/deployment/trade_matching",
-        "name": "trade_matching_agent",
-        "description": "Scans both tables, matches by attributes (NOT Trade_ID), generates reports"
-    },
-    "exception_handler": {
-        "directory": "/Users/koushald/ai-trade-matching-system-2/deployment/exception_management",
-        "name": "exception_manager",
-        "description": "Analyzes breaks, calculates SLA deadlines, stores exception records"
-    }
-}
+# Configure structured logging for observability
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%dT%H:%M:%S'
+)
+
+# Configuration
+REGION = os.getenv("AWS_REGION", "us-east-1")
+
+# Agent Runtime ARNs (set via environment variables)
+PDF_ADAPTER_ARN = os.getenv("PDF_ADAPTER_AGENT_ARN", "")
+TRADE_EXTRACTION_ARN = os.getenv("TRADE_EXTRACTION_AGENT_ARN", "")
+TRADE_MATCHING_ARN = os.getenv("TRADE_MATCHING_AGENT_ARN", "")
+EXCEPTION_MANAGEMENT_ARN = os.getenv("EXCEPTION_MANAGEMENT_AGENT_ARN", "")
+
+# Timeouts and Retry Configuration
+AGENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_TIMEOUT_SECONDS", "300"))
+MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 
 
-class AgentCoreHTTPClient:
-    """
-    HTTP client for communicating with deployed AgentCore agents via CLI.
-    """
+class AgentCoreClient:
+    """Client for invoking deployed AgentCore agents with SigV4 authentication."""
     
-    def __init__(self, agent_name: str, agent_directory: str, timeout: int = 300):
-        """
-        Initialize HTTP client for a specific agent.
-        
-        Args:
-            agent_name: Name of the AgentCore agent
-            agent_directory: Directory containing the agent's agentcore.yaml
-            timeout: Request timeout in seconds
-        """
-        self.agent_name = agent_name
-        self.agent_directory = agent_directory
-        self.timeout = timeout
-        
-        logger.info(f"Initialized HTTP client for {agent_name} in {agent_directory}")
+    def __init__(self, region: str = REGION):
+        self.region = region
+        self.session = boto3.Session()
+        self.endpoint = f"https://bedrock-agentcore.{region}.amazonaws.com"
+        logger.info(f"AgentCore client initialized for region: {region}")
+        logger.info(f"Endpoint: {self.endpoint}")
     
-    async def invoke_agent(self, payload: Dict[str, Any], session_id: Optional[str] = None) -> Dict[str, Any]:
+    def _sign_request(self, method: str, url: str, headers: Dict[str, str], body: bytes) -> Dict[str, str]:
+        """Sign request with SigV4 for AgentCore authentication."""
+        credentials = self.session.get_credentials()
+        if not credentials:
+            raise RuntimeError("No AWS credentials found")
+        
+        request = AWSRequest(method=method, url=url, headers=headers, data=body)
+        SigV4Auth(credentials.get_frozen_credentials(), "bedrock-agentcore", self.region).add_auth(request)
+        
+        return dict(request.headers)
+    
+    async def invoke_agent(
+        self,
+        runtime_arn: str,
+        payload: Dict[str, Any],
+        session_id: Optional[str] = None,
+        timeout: int = AGENT_TIMEOUT_SECONDS,
+        retries: int = MAX_RETRIES
+    ) -> Dict[str, Any]:
         """
-        Invoke the AgentCore agent with a payload.
-        
-        Args:
-            payload: JSON payload to send to the agent
-            session_id: Optional session ID (generated if not provided)
-            
-        Returns:
-            Agent response as dictionary
+        Invoke a deployed AgentCore agent via HTTP with SigV4 signing.
         """
-        if session_id is None:
-            session_id = str(uuid.uuid4())
+        if not runtime_arn:
+            raise ValueError("Agent runtime ARN is required")
         
-        # Ensure session ID meets AgentCore minimum length requirement (33+ chars)
-        if len(session_id) < 33:
-            session_id = f"{session_id}_{uuid.uuid4().hex[:8]}"
+        # Build URL - URL encode the ARN
+        encoded_arn = quote(runtime_arn, safe="")
+        url = f"{self.endpoint}/runtimes/{encoded_arn}/invocations"
         
-        # Prepare the payload
-        payload_str = json.dumps(payload)
+        logger.info(f"Invoking agent ARN: ...{runtime_arn[-40:]}")
+        logger.info(f"Payload: {json.dumps(payload)[:200]}...")
         
-        # Build agentcore invoke command for dev mode
-        cmd = [
-            "agentcore", "invoke",
-            "--dev", "--port", "8082",
-            payload_str
-        ]
+        # Prepare request body
+        body = json.dumps(payload).encode("utf-8")
         
-        try:
-            logger.info(f"Invoking {self.agent_name} with session {session_id}")
-            logger.debug(f"Payload: {payload}")
-            
-            # Change to agent directory and run command
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                cwd=self.agent_directory,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=os.environ.copy()
-            )
-            
-            # Wait for completion with timeout
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=self.timeout
-            )
-            
-            if process.returncode == 0:
-                # Parse JSON response
-                try:
-                    raw_output = stdout.decode()
-                    
-                    # Check if this is dev server format
-                    if "Response from dev server:" in raw_output:
-                        # Extract the response part after "Response from dev server:"
-                        response_section = raw_output.split("Response from dev server:")[-1].strip()
-                        # Parse the outer response
-                        outer_response = json.loads(response_section)
-                        # Parse the inner response string
-                        if 'response' in outer_response and isinstance(outer_response['response'], str):
-                            inner_response = json.loads(outer_response['response'])
-                            return {
-                                "success": True,
-                                "response": inner_response,
-                                "session_id": session_id,
-                                "agent_name": self.agent_name
-                            }
-                        else:
-                            return {
-                                "success": True,
-                                "response": outer_response,
-                                "session_id": session_id,
-                                "agent_name": self.agent_name
-                            }
-                    else:
-                        # Regular AgentCore format
-                        response = json.loads(raw_output)
-                        return {
-                            "success": True,
-                            "response": response,
-                            "session_id": session_id,
-                            "agent_name": self.agent_name
-                        }
-                except json.JSONDecodeError as e:
-                    raw_output = stdout.decode()
-                    logger.debug(f"Parsing AgentCore output from {self.agent_name}")
-                    
-                    # AgentCore includes formatting, look for the JSON in "Response:" section
-                    if "Response:" in raw_output:
-                        response_section = raw_output.split("Response:")[-1].strip()
-                        # Handle multi-line JSON (AgentCore may wrap long lines)
-                        json_lines = []
-                        for line in response_section.split('\n'):
-                            line = line.strip()
-                            if line and not line.startswith('│') and not line.startswith('╭') and not line.startswith('╰'):
-                                json_lines.append(line)
-                        
-                        json_text = ''.join(json_lines)
-                        try:
-                            response = json.loads(json_text)
-                            logger.info(f"Successfully parsed AgentCore response from {self.agent_name}")
-                            return {
-                                "success": True,
-                                "response": response,
-                                "session_id": session_id,
-                                "agent_name": self.agent_name
-                            }
-                        except json.JSONDecodeError as parse_error:
-                            logger.error(f"Failed to parse extracted JSON: {json_text}")
-                    
-                    # Fallback: Try to extract JSON from any line
-                    lines = raw_output.strip().split('\n')
-                    for line in reversed(lines):
-                        line = line.strip()
-                        if line.startswith('{') and line.endswith('}'):
-                            try:
-                                response = json.loads(line)
-                                return {
-                                    "success": True,
-                                    "response": response,
-                                    "session_id": session_id,
-                                    "agent_name": self.agent_name
-                                }
-                            except json.JSONDecodeError:
-                                continue
-                    
-                    return {
-                        "success": False,
-                        "error": f"Invalid JSON response: {e}",
-                        "raw_stdout": raw_output,
-                        "session_id": session_id,
-                        "agent_name": self.agent_name
-                    }
-            else:
+        # Headers
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        if session_id:
+            headers["X-Amzn-Bedrock-AgentCore-Runtime-Session-Id"] = session_id
+        
+        # Sign the request
+        signed_headers = self._sign_request("POST", url, headers, body)
+        
+        # Make HTTP request with retries
+        last_error = None
+        for attempt in range(retries):
+            try:
+                logger.info(f"Attempt {attempt + 1}/{retries} - calling {url[:80]}...")
+                
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.post(
+                        url,
+                        headers=signed_headers,
+                        content=body
+                    )
+                
+                logger.info(f"Response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    result["success"] = result.get("success", True)
+                    logger.info(f"Agent returned success={result.get('success')}")
+                    return result
+                
+                # Log error response
+                logger.error(f"Agent error: {response.status_code} - {response.text[:500]}")
+                
+                # Retry on 5xx errors
+                if response.status_code >= 500 and attempt < retries - 1:
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                    # Re-sign for retry (credentials might have refreshed)
+                    signed_headers = self._sign_request("POST", url, headers, body)
+                    continue
+                
                 return {
                     "success": False,
-                    "error": f"Agent invocation failed (exit code {process.returncode})",
-                    "stderr": stderr.decode(),
-                    "stdout": stdout.decode(),
-                    "session_id": session_id,
-                    "agent_name": self.agent_name
+                    "error": f"HTTP {response.status_code}: {response.text[:500]}",
+                    "status_code": response.status_code
                 }
                 
-        except asyncio.TimeoutError:
-            return {
-                "success": False,
-                "error": f"Agent invocation timed out after {self.timeout} seconds",
-                "session_id": session_id,
-                "agent_name": self.agent_name
-            }
-        except Exception as e:
-            logger.error(f"Agent invocation failed for {self.agent_name}: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "session_id": session_id,
-                "agent_name": self.agent_name
-            }
+            except httpx.TimeoutException:
+                last_error = f"Timeout after {timeout}s"
+                logger.warning(f"Timeout on attempt {attempt + 1}")
+                if attempt < retries - 1:
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                    signed_headers = self._sign_request("POST", url, headers, body)
+                    continue
+                    
+            except Exception as e:
+                last_error = str(e)
+                logger.error(f"Request error: {e}")
+                if attempt < retries - 1:
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                    signed_headers = self._sign_request("POST", url, headers, body)
+                    continue
+        
+        return {"success": False, "error": last_error or "Max retries exceeded"}
 
 
 class TradeMatchingHTTPOrchestrator:
     """
-    HTTP orchestrator for the Trade Matching workflow using deployed AgentCore agents.
+    Orchestrates trade matching workflow by calling deployed AgentCore agents.
     
-    This orchestrator coordinates between your four deployed AgentCore agents using
-    standard HTTP invocation via the agentcore CLI.
+    This is a sequential workflow orchestrator that:
+    1. Calls PDF Adapter to extract text
+    2. Calls Trade Extraction to get structured data
+    3. Calls Trade Matching to find matches
+    4. Calls Exception Management if issues found
     """
     
     def __init__(self):
-        """Initialize the HTTP orchestrator."""
-        # Create HTTP clients for each agent
-        self.agents = {}
-        for agent_name, config in AGENT_CONFIGS.items():
-            self.agents[agent_name] = AgentCoreHTTPClient(
-                agent_name=config["name"],
-                agent_directory=config["directory"]
-            )
+        self.client = AgentCoreClient()
+        self.agent_arns = {
+            "pdf_adapter": PDF_ADAPTER_ARN,
+            "trade_extraction": TRADE_EXTRACTION_ARN,
+            "trade_matching": TRADE_MATCHING_ARN,
+            "exception_management": EXCEPTION_MANAGEMENT_ARN
+        }
         
-        logger.info("Initialized Trade Matching HTTP Orchestrator")
-        logger.info(f"Configured agents: {list(self.agents.keys())}")
+        # Validate configuration
+        missing = [k for k, v in self.agent_arns.items() if not v]
+        if missing:
+            logger.warning(f"Missing agent ARNs: {missing}. Set environment variables.")
     
     async def process_trade_confirmation(
         self,
         document_path: str,
         source_type: str,
         document_id: str,
-        correlation_id: Optional[str] = None
+        correlation_id: str
     ) -> Dict[str, Any]:
         """
-        Process a trade confirmation using HTTP agent communication.
-        
-        This method orchestrates the workflow:
-        1. PDF Adapter: Download and extract text from PDF
-        2. Trade Extraction: Parse and store trade data
-        3. Trade Matching: Match against existing trades
-        4. Exception Management: Handle any issues
+        Process a trade confirmation through the full workflow.
         
         Args:
-            document_path: S3 path to the PDF
+            document_path: S3 path to the PDF document
             source_type: BANK or COUNTERPARTY
             document_id: Unique document identifier
-            correlation_id: Optional correlation ID for tracing
+            correlation_id: Correlation ID for tracing
             
         Returns:
-            Processing result with status and details
+            Complete workflow result with all agent responses
         """
-        if correlation_id is None:
-            correlation_id = f"corr_{uuid.uuid4().hex[:12]}"
-        
-        session_id = f"trade_{document_id}_{uuid.uuid4()}"
+        start_time = datetime.utcnow()
+        workflow_steps = {}
+        current_step = None
         
         try:
-            # Step 1: PDF Adapter - Download and extract text
-            logger.info(f"Step 1: PDF Adapter processing for {document_id}")
+            # Step 1: PDF Adapter - Extract text from PDF
+            current_step = "pdf_adapter"
+            logger.info(f"[{correlation_id}] Step 1: Invoking PDF Adapter Agent")
             
-            pdf_payload = {
-                "document_path": document_path,
-                "source_type": source_type
-            }
-            
-            pdf_result = await self.agents["pdf_adapter"].invoke_agent(pdf_payload, f"{session_id[:20]}_pdf_{uuid.uuid4().hex[:8]}")
+            pdf_result = await self._invoke_pdf_adapter(
+                document_path=document_path,
+                source_type=source_type,
+                document_id=document_id,
+                correlation_id=correlation_id
+            )
+            workflow_steps["pdf_adapter"] = pdf_result
             
             if not pdf_result.get("success"):
-                return {
-                    "success": False,
-                    "step": "pdf_adapter",
-                    "error": pdf_result.get("error"),
-                    "document_id": document_id,
-                    "correlation_id": correlation_id,
-                    "execution_mode": "HTTP Orchestrator"
-                }
+                return self._build_error_response(
+                    step=current_step,
+                    error=pdf_result.get("error", "PDF extraction failed"),
+                    workflow_steps=workflow_steps,
+                    document_id=document_id,
+                    correlation_id=correlation_id,
+                    start_time=start_time
+                )
             
-            # Step 2: Trade Extraction - Parse and store data
-            logger.info(f"Step 2: Trade Extraction processing for {document_id}")
+            # Step 2: Trade Extraction - Extract structured data
+            current_step = "trade_extraction"
+            logger.info(f"[{correlation_id}] Step 2: Invoking Trade Extraction Agent")
             
-            extraction_payload = {
-                "document_id": document_id,
-                "source_type": source_type
-            }
+            # Pass canonical_output_location from PDF Adapter to Trade Extraction
+            canonical_output_location = pdf_result.get("canonical_output_location")
             
-            extraction_result = await self.agents["trade_extractor"].invoke_agent(extraction_payload, f"{session_id[:20]}_ext_{uuid.uuid4().hex[:8]}")
+            extraction_result = await self._invoke_trade_extraction(
+                document_id=document_id,
+                source_type=source_type,
+                correlation_id=correlation_id,
+                canonical_output_location=canonical_output_location
+            )
+            workflow_steps["trade_extraction"] = extraction_result
             
             if not extraction_result.get("success"):
-                return {
-                    "success": False,
-                    "step": "trade_extraction",
-                    "error": extraction_result.get("error"),
-                    "document_id": document_id,
-                    "correlation_id": correlation_id,
-                    "pdf_result": pdf_result,
-                    "execution_mode": "HTTP Orchestrator"
-                }
+                # Route to exception management
+                await self._handle_exception(
+                    event_type="EXTRACTION_FAILED",
+                    trade_id=document_id,
+                    error_message=extraction_result.get("error"),
+                    correlation_id=correlation_id,
+                    workflow_steps=workflow_steps
+                )
+                return self._build_error_response(
+                    step=current_step,
+                    error=extraction_result.get("error", "Trade extraction failed"),
+                    workflow_steps=workflow_steps,
+                    document_id=document_id,
+                    correlation_id=correlation_id,
+                    start_time=start_time
+                )
             
-            # Step 3: Trade Matching - Analyze matches
-            logger.info(f"Step 3: Trade Matching processing for {document_id}")
+            # Extract trade_id from extraction result
+            # The extraction agent stores the actual Trade_ID from the document,
+            # which may differ from the document_id (e.g., "26933659" vs "FAB_26933659")
+            trade_id = self._extract_trade_id(extraction_result, document_id)
+            logger.info(f"[{correlation_id}] Extracted trade_id: {trade_id} (document_id: {document_id})")
             
-            matching_payload = {
-                "document_id": document_id,
-                "source_type": source_type
-            }
+            # Step 3: Trade Matching - Find matching trades
+            # Pass both trade_id and document_id so the agent can search for either
+            current_step = "trade_matching"
+            logger.info(f"[{correlation_id}] Step 3: Invoking Trade Matching Agent")
             
-            matching_result = await self.agents["trade_matcher"].invoke_agent(matching_payload, f"{session_id[:20]}_match_{uuid.uuid4().hex[:8]}")
+            matching_result = await self._invoke_trade_matching(
+                trade_id=trade_id,
+                source_type=source_type,
+                correlation_id=correlation_id,
+                document_id=document_id  # Pass original document_id as fallback
+            )
+            workflow_steps["trade_matching"] = matching_result
             
-            if not matching_result.get("success"):
-                return {
-                    "success": False,
-                    "step": "trade_matching",
-                    "error": matching_result.get("error"),
-                    "document_id": document_id,
-                    "correlation_id": correlation_id,
-                    "pdf_result": pdf_result,
-                    "extraction_result": extraction_result,
-                    "execution_mode": "HTTP Orchestrator"
-                }
+            # Check if exception handling needed based on match result
+            classification = matching_result.get("match_classification", "UNKNOWN")
             
-            # Step 4: Exception Management (if needed)
-            # Check if the matching result indicates issues that need exception handling
-            matching_response = str(matching_result.get("response", ""))
-            needs_exception_handling = any(term in matching_response.lower() for term in [
-                "review_required", "break", "exception", "error", "discrepancy", "mismatch"
-            ])
+            # If classification is UNKNOWN, try to extract from agent_response text
+            if classification == "UNKNOWN":
+                classification = self._extract_classification(matching_result)
+                logger.info(f"[{correlation_id}] Extracted classification from response: {classification}")
             
-            exception_result = None
-            if needs_exception_handling:
-                logger.info(f"Step 4: Exception Management processing for {document_id}")
+            if classification in ["REVIEW_REQUIRED", "BREAK"]:
+                current_step = "exception_management"
+                logger.info(f"[{correlation_id}] Step 4: Invoking Exception Management (classification: {classification})")
                 
-                exception_payload = {
-                    "document_id": document_id,
-                    "source_type": source_type
-                }
-                
-                exception_result = await self.agents["exception_handler"].invoke_agent(exception_payload, f"{session_id[:20]}_exc_{uuid.uuid4().hex[:8]}")
+                exception_result = await self._handle_exception(
+                    event_type="MATCHING_EXCEPTION",
+                    trade_id=trade_id,
+                    match_score=matching_result.get("confidence_score", 0) / 100.0,
+                    reason_codes=self._extract_reason_codes(matching_result),
+                    correlation_id=correlation_id,
+                    workflow_steps=workflow_steps
+                )
+                workflow_steps["exception_management"] = exception_result
             
-            # Compile final result
-            result = {
+            # Build success response
+            processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+            
+            return {
                 "success": True,
                 "document_id": document_id,
+                "trade_id": trade_id,
+                "source_type": source_type,
                 "correlation_id": correlation_id,
-                "session_id": session_id,
-                "execution_mode": "HTTP Orchestrator",
-                "workflow_steps": {
-                    "pdf_adapter": pdf_result,
-                    "trade_extraction": extraction_result,
-                    "trade_matching": matching_result
-                }
-            }
-            
-            if exception_result:
-                result["workflow_steps"]["exception_management"] = exception_result
-            
-            logger.info(f"HTTP orchestration completed successfully for {document_id}")
-            return result
-            
-        except Exception as e:
-            logger.error(f"HTTP orchestration failed for {document_id}: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "document_id": document_id,
-                "correlation_id": correlation_id,
+                "match_classification": classification,
+                "confidence_score": matching_result.get("confidence_score", 0),
+                "workflow_steps": workflow_steps,
+                "processing_time_ms": processing_time_ms,
                 "execution_mode": "HTTP Orchestrator"
             }
-
-
-async def process_trade_with_http_orchestrator(
-    document_path: str,
-    source_type: str,
-    document_id: str,
-    correlation_id: Optional[str] = None
-) -> Dict[str, Any]:
-    """
-    Process a trade confirmation using HTTP orchestration.
+            
+        except Exception as e:
+            logger.error(f"[{correlation_id}] Workflow failed at {current_step}: {e}", exc_info=True)
+            return self._build_error_response(
+                step=current_step or "initialization",
+                error=str(e),
+                workflow_steps=workflow_steps,
+                document_id=document_id,
+                correlation_id=correlation_id,
+                start_time=start_time
+            )
     
-    Args:
-        document_path: S3 path to the PDF
-        source_type: BANK or COUNTERPARTY
-        document_id: Unique document identifier
-        correlation_id: Optional correlation ID for tracing
+    async def _invoke_pdf_adapter(
+        self,
+        document_path: str,
+        source_type: str,
+        document_id: str,
+        correlation_id: str
+    ) -> Dict[str, Any]:
+        """Invoke the PDF Adapter agent."""
+        if not self.agent_arns["pdf_adapter"]:
+            return {"success": False, "error": "PDF_ADAPTER_AGENT_ARN not configured"}
         
-    Returns:
-        Processing result with status and details
-    """
-    orchestrator = TradeMatchingHTTPOrchestrator()
-    
-    return await orchestrator.process_trade_confirmation(
-        document_path=document_path,
-        source_type=source_type,
-        document_id=document_id,
-        correlation_id=correlation_id
-    )
-
-
-# ============================================================================
-# CLI Entry Point for HTTP Orchestrator Mode
-# ============================================================================
-
-def main_http():
-    """CLI entrypoint for HTTP orchestrator mode."""
-    import argparse
-    
-    parser = argparse.ArgumentParser(
-        description="Trade Matching HTTP Orchestrator - Process trade confirmations using deployed AgentCore agents"
-    )
-    parser.add_argument(
-        "document_path",
-        help="S3 path to the PDF document"
-    )
-    parser.add_argument(
-        "--source-type", "-s",
-        choices=["BANK", "COUNTERPARTY"],
-        required=True,
-        help="Source type: BANK or COUNTERPARTY"
-    )
-    parser.add_argument(
-        "--document-id", "-d",
-        required=True,
-        help="Document ID for the trade"
-    )
-    parser.add_argument(
-        "--correlation-id", "-c",
-        help="Optional correlation ID for tracing"
-    )
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose logging"
-    )
-    
-    args = parser.parse_args()
-    
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-    
-    async def run_processing():
-        result = await process_trade_with_http_orchestrator(
-            document_path=args.document_path,
-            source_type=args.source_type,
-            document_id=args.document_id,
-            correlation_id=args.correlation_id
+        return await self.client.invoke_agent(
+            runtime_arn=self.agent_arns["pdf_adapter"],
+            payload={
+                "document_path": document_path,
+                "source_type": source_type,
+                "document_id": document_id,
+                "correlation_id": correlation_id
+            }
         )
-        
-        print(json.dumps(result, indent=2, default=str))
-        return result.get("success", False)
     
-    # Run the async function
-    success = asyncio.run(run_processing())
-    return 0 if success else 1
-
-
-if __name__ == "__main__":
-    exit(main_http())
+    async def _invoke_trade_extraction(
+        self,
+        document_id: str,
+        source_type: str,
+        correlation_id: str,
+        canonical_output_location: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Invoke the Trade Extraction agent."""
+        if not self.agent_arns["trade_extraction"]:
+            return {"success": False, "error": "TRADE_EXTRACTION_AGENT_ARN not configured"}
+        
+        payload = {
+            "document_id": document_id,
+            "source_type": source_type,
+            "correlation_id": correlation_id
+        }
+        
+        # Include canonical_output_location if provided by PDF Adapter
+        if canonical_output_location:
+            payload["canonical_output_location"] = canonical_output_location
+        
+        return await self.client.invoke_agent(
+            runtime_arn=self.agent_arns["trade_extraction"],
+            payload=payload
+        )
+    
+    async def _invoke_trade_matching(
+        self,
+        trade_id: str,
+        source_type: str,
+        correlation_id: str,
+        document_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Invoke the Trade Matching agent."""
+        if not self.agent_arns["trade_matching"]:
+            return {"success": False, "error": "TRADE_MATCHING_AGENT_ARN not configured"}
+        
+        payload = {
+            "trade_id": trade_id,
+            "source_type": source_type,
+            "correlation_id": correlation_id
+        }
+        
+        # Include document_id as fallback search key if different from trade_id
+        if document_id and document_id != trade_id:
+            payload["document_id"] = document_id
+            payload["search_keys"] = [trade_id, document_id]
+        
+        return await self.client.invoke_agent(
+            runtime_arn=self.agent_arns["trade_matching"],
+            payload=payload
+        )
+    
+    async def _handle_exception(
+        self,
+        event_type: str,
+        trade_id: str,
+        correlation_id: str,
+        workflow_steps: Dict,
+        match_score: Optional[float] = None,
+        reason_codes: Optional[list] = None,
+        error_message: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Invoke the Exception Management agent."""
+        if not self.agent_arns["exception_management"]:
+            logger.warning("EXCEPTION_MANAGEMENT_AGENT_ARN not configured - skipping")
+            return {"success": False, "error": "Agent not configured", "skipped": True}
+        
+        return await self.client.invoke_agent(
+            runtime_arn=self.agent_arns["exception_management"],
+            payload={
+                "event_type": event_type,
+                "trade_id": trade_id,
+                "match_score": match_score,
+                "reason_codes": reason_codes or [],
+                "error_message": error_message,
+                "correlation_id": correlation_id
+            }
+        )
+    
+    def _extract_trade_id(self, extraction_result: Dict, fallback: str) -> str:
+        """Extract trade_id from extraction result.
+        
+        The extraction agent stores the actual Trade_ID from the document,
+        which may differ from the document_id. For example:
+        - document_id: "FAB_26933659" (filename-based)
+        - Trade_ID: "26933659" (extracted from document content)
+        
+        We try multiple strategies to find the actual stored trade_id.
+        """
+        import re
+        
+        # Strategy 1: Direct trade_id field in response
+        if "trade_id" in extraction_result:
+            return extraction_result["trade_id"]
+        
+        # Strategy 2: Check for extracted_trade_id field
+        if "extracted_trade_id" in extraction_result:
+            return extraction_result["extracted_trade_id"]
+        
+        # Strategy 3: Parse agent_response for trade_id patterns
+        # Prioritize numeric-only Trade_IDs which are the actual DynamoDB keys
+        response_text = extraction_result.get("agent_response", "")
+        if response_text:
+            # Look for Trade_ID patterns - prioritize numeric IDs
+            patterns = [
+                # DynamoDB format: "Trade_ID": {"S": "26933659"}
+                r'"Trade_ID":\s*\{"S":\s*"(\d+)"',
+                r'"trade_id":\s*\{"S":\s*"(\d+)"',
+                # Simple format: Trade_ID: 26933659 or Trade_ID = "26933659"
+                r'["\']?Trade_ID["\']?\s*[:=]\s*["\']?(\d+)["\']?',
+                r'["\']?trade_id["\']?\s*[:=]\s*["\']?(\d+)["\']?',
+                # Stored trade ID pattern
+                r'stored.*[Tt]rade.*ID[:\s]+["\']?(\d+)["\']?',
+                # fab_ref which contains the actual trade ID
+                r'["\']?fab_ref["\']?\s*[:=]\s*["\']?(\d+)["\']?',
+            ]
+            for pattern in patterns:
+                match = re.search(pattern, response_text)
+                if match:
+                    extracted_id = match.group(1)
+                    # Validate it looks like a trade ID (numeric, reasonable length)
+                    if extracted_id.isdigit() and 5 <= len(extracted_id) <= 15:
+                        logger.info(f"Extracted trade_id '{extracted_id}' from agent response using pattern")
+                        return extracted_id
+        
+        # Strategy 4: Strip common prefixes from document_id
+        # e.g., "FAB_26933659" -> "26933659"
+        if fallback:
+            # Try stripping common prefixes
+            for prefix in ["FAB_", "GCS_", "BANK_", "CP_"]:
+                if fallback.upper().startswith(prefix):
+                    stripped = fallback[len(prefix):]
+                    # Only use if the stripped value is numeric
+                    if stripped.isdigit():
+                        logger.info(f"Stripped prefix from document_id: {fallback} -> {stripped}")
+                        return stripped
+        
+        # Strategy 5: Extract numeric portion from document_id
+        if fallback:
+            numeric_match = re.search(r'(\d{6,15})', fallback)
+            if numeric_match:
+                extracted = numeric_match.group(1)
+                logger.info(f"Extracted numeric trade_id '{extracted}' from document_id: {fallback}")
+                return extracted
+        
+        return fallback
+    
+    def _extract_classification(self, matching_result: Dict) -> str:
+        """Extract match classification from matching result agent_response.
+        
+        Parses the agent's response text to determine the classification
+        when it's not explicitly returned in the structured response.
+        """
+        response = matching_result.get("agent_response", "").upper()
+        
+        # Check for explicit classification mentions
+        if "REVIEW_REQUIRED" in response or "REVIEW REQUIRED" in response:
+            return "REVIEW_REQUIRED"
+        if "PROBABLE_MATCH" in response or "PROBABLE MATCH" in response:
+            return "PROBABLE_MATCH"
+        if "BREAK" in response and ("CLASSIFICATION" in response or "NO MATCH" in response):
+            return "BREAK"
+        
+        # Check for implicit indicators
+        if "FURTHER REVIEW" in response or "REQUIRES REVIEW" in response:
+            return "REVIEW_REQUIRED"
+        if "POTENTIAL MATCH" in response or "LIKELY MATCH" in response:
+            return "PROBABLE_MATCH"
+        if "MATCHED" in response and "NO" not in response.split("MATCHED")[0][-20:]:
+            # Check if "MATCHED" is not preceded by "NO" within 20 chars
+            return "MATCHED"
+        if "NO MATCH" in response or "NOT FOUND" in response:
+            return "BREAK"
+        
+        return "UNKNOWN"
+    
+    def _extract_reason_codes(self, matching_result: Dict) -> list:
+        """Extract reason codes from matching result."""
+        codes = []
+        response = matching_result.get("agent_response", "").upper()
+        
+        if "NOTIONAL" in response and ("MISMATCH" in response or "DIFFERENCE" in response):
+            codes.append("NOTIONAL_MISMATCH")
+        if "DATE" in response and ("MISMATCH" in response or "DIFFERENCE" in response):
+            codes.append("DATE_MISMATCH")
+        if "COUNTERPARTY" in response and ("MISMATCH" in response or "DIFFERENCE" in response):
+            codes.append("COUNTERPARTY_MISMATCH")
+        if "CURRENCY" in response and ("MISMATCH" in response or "DIFFERENCE" in response):
+            codes.append("CURRENCY_MISMATCH")
+        
+        return codes if codes else ["UNKNOWN_MISMATCH"]
+    
+    def _build_error_response(
+        self,
+        step: str,
+        error: str,
+        workflow_steps: Dict,
+        document_id: str,
+        correlation_id: str,
+        start_time: datetime
+    ) -> Dict[str, Any]:
+        """Build standardized error response."""
+        processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        
+        return {
+            "success": False,
+            "error": error,
+            "failed_step": step,
+            "document_id": document_id,
+            "correlation_id": correlation_id,
+            "workflow_steps": workflow_steps,
+            "processing_time_ms": processing_time_ms,
+            "execution_mode": "HTTP Orchestrator"
+        }

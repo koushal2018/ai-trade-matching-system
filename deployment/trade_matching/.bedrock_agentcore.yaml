@@ -2,7 +2,7 @@ default_agent: trade_matching_agent
 agents:
   trade_matching_agent:
     name: trade_matching_agent
-    entrypoint: /Users/koushald/ai-trade-matching-system-2/deployment/trade_matching/trade_matching_agent_strands.py
+    entrypoint: /Users/koushald/ai-trade-matching-system-2/deployment/swarm_agentcore/trade_matching_swarm.py
     deployment_type: direct_code_deploy
     runtime_type: PYTHON_3_11
     platform: linux/arm64

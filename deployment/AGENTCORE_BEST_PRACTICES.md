@@ -135,8 +135,35 @@ aws cloudwatch put-metric-alarm \
 
 #### Current Usage
 - [x] `use_aws` tool for S3 and DynamoDB operations
+- [x] **IMPLEMENTED**: Tool resource reuse via `aws_resources.py` module
 - [ ] **Consider**: AgentCore Browser for web-based trade confirmations
 - [ ] **Consider**: AgentCore Code Interpreter for complex calculations
+
+**Tool Resource Reuse Pattern** (✅ Implemented):
+The system uses a shared `AWSResourceManager` class that maintains singleton AWS client instances:
+
+```python
+# aws_resources.py - Reusable resource manager
+class AWSResourceManager:
+    def __init__(self):
+        self._clients: Dict[str, Any] = {}  # Cached clients
+        
+    def get_client(self, service: str):
+        if service not in self._clients:
+            # Create once with proper config (timeouts, retries)
+            self._clients[service] = self.session.client(service, config=config)
+        return self._clients[service]  # Reuse existing
+
+# In agent tools
+def download_pdf_from_s3(...):
+    s3_client = get_aws_client('s3')  # Gets shared client
+```
+
+**Benefits**:
+- Connection pooling across multiple tool calls
+- Reduced overhead from client initialization
+- Consistent configuration (timeouts, retries) across all operations
+- Better performance for high-volume processing
 
 **When to use Browser**:
 - Processing HTML-based trade confirmations
