@@ -1,428 +1,537 @@
-# Trade Reconciliation System
+<div align="center">
 
-An AI-powered trade reconciliation system built on AWS that automates the matching and reconciliation of trades between bank and counterparty data sources.
+# AI Trade Matching System
+
+### Enterprise-Grade Trade Confirmation Matching Powered by AWS Bedrock
+
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org)
+[![Amazon Nova Pro](https://img.shields.io/badge/Amazon-Nova%20Pro-FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white)](https://aws.amazon.com/bedrock/)
+[![Strands SDK](https://img.shields.io/badge/Strands-SDK-00A4BD.svg?style=for-the-badge)](https://strandsagents.com)
+[![AgentCore](https://img.shields.io/badge/Amazon-AgentCore-232F3E.svg?style=for-the-badge&logo=amazon-aws&logoColor=white)](https://aws.amazon.com/bedrock/agentcore/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
+
+<br/>
+
+**Automate trade confirmation matching with AI agents that understand financial documents**
+
+[Getting Started](#-quick-start) | [Architecture](#-architecture) | [Documentation](#-documentation) | [Contributing](#-contributing)
+
+<br/>
+
+<img src="generated-diagrams/ai-trade-matching-hero.png" alt="Architecture" width="900"/>
+
+</div>
+
+---
 
 ## Overview
 
-This system provides:
-- **Automated Document Processing**: AI-powered extraction of trade data from PDF documents
-- **Intelligent Trade Matching**: Advanced algorithms to match trades between bank and counterparty sources
-- **Field-Level Reconciliation**: Detailed comparison of trade attributes with configurable tolerances
-- **Interactive Dashboard**: Real-time visualization of reconciliation status and metrics
-- **Report Generation**: Comprehensive reconciliation reports with detailed analysis
+The **AI Trade Matching System** is an intelligent, cloud-native solution that automates the processing and matching of derivative trade confirmations using advanced AI capabilities. Built on AWS native services with a **multi-agent swarm architecture** powered by Strands SDK, the system leverages **Amazon Nova Pro** for document analysis and implements sophisticated trade matching algorithms for financial operations teams.
+
+### The Problem
+
+Manual trade confirmation matching is:
+- **Time-consuming**: Hours spent comparing PDF confirmations
+- **Error-prone**: Human mistakes lead to settlement failures
+- **Doesn't scale**: Growing trade volumes overwhelm operations teams
+
+### The Solution
+
+An AI-powered system that:
+- **Extracts** trade data from PDF confirmations using multimodal AI
+- **Matches** trades across counterparties using fuzzy matching algorithms
+- **Handles exceptions** intelligently with ML-based triage
+- **Scales automatically** on AWS Bedrock AgentCore Runtime
+
+---
+
+## Key Features
+
+<table>
+<tr>
+<td width="50%">
+
+### AI-Powered Processing
+- **Amazon Nova Pro** multimodal extraction
+- Intelligent document understanding
+- 95%+ accuracy on trade field extraction
+
+### Multi-Agent Architecture
+- **4 specialized agents** working autonomously
+- Emergent collaboration via handoffs
+- Self-healing error recovery
+
+</td>
+<td width="50%">
+
+### Enterprise Ready
+- **DynamoDB** for scalable data storage
+- **S3** for document management
+- CloudWatch monitoring & alerts
+
+### Production Deployment
+- **AgentCore Runtime** for serverless scaling
+- Terraform infrastructure as code
+- React dashboard for operations
+
+</td>
+</tr>
+</table>
+
+---
 
 ## Architecture
 
-### Components
+The system uses **AgentCore Runtime** with **Agent-to-Agent (A2A) communication** for scalable, serverless processing:
 
-- **Frontend**: React TypeScript application with AWS Amplify hosting
-- **API Layer**: Amazon API Gateway with AWS Lambda backend
-- **AI Agents**: Python-based agents using the Strands framework for trade processing
-- **Data Storage**: Amazon DynamoDB for trade data and Amazon S3 for document storage
-- **Document Processing**: AWS Lambda with AI services (Textract/Rekognition) for PDF extraction
-
-### AWS Resources
-
-#### DynamoDB Tables
-- `BankTradeData`: Stores trade data from bank sources
-- `CounterpartyTradeData`: Stores trade data from counterparty sources  
-- `TradeMatches`: Stores match relationships and reconciliation results
-
-#### S3 Storage
-- Bucket: `fab-otc-reconciliation-deployment`
-- `BANK/` folder: Bank trade documents
-- `COUNTERPARTY/` folder: Counterparty trade documents
-
-#### Lambda Functions
-- **Main API Handler**: Processes API requests from frontend
-- **Document Processor** (`trade-pdf-processor`): Extracts data from uploaded documents
-- **AI Agents**: Automated trade matching and reconciliation workflows
-
-## Prerequisites
-
-- **AWS Account** with appropriate permissions
-- **Node.js** (v16 or higher)
-- **Python** (v3.9 or higher)
-- **AWS CLI** configured with your credentials
-
-## Setup Instructions
-
-### 1. Clone the Repository
-
-```bash
-git clone https://gitlab.aws.dev/koushald/agentic-ai-reconcillation.git
-cd agentic-ai-reconcillation
+```
+                                    +------------------+
+                                    |   AWS Bedrock    |
+                                    |  Amazon Nova Pro |
+                                    +--------+---------+
+                                             |
+    +----------------+              +--------v---------+
+    |   S3 Bucket    |              | AgentCore Runtime|
+    | BANK/          +------------->+   PDF Adapter    +----+
+    | COUNTERPARTY/  |              |     Agent        |    |
+    +----------------+              +--------+---------+    |
+                                             |              |
+                                    +--------v---------+    |
+                                    | AgentCore Runtime|    |
+                                    | Trade Extractor  |    |
+                                    |     Agent        |    |
+                                    +--------+---------+    |
+                                             |              |
+         +-------------------+      +--------v---------+    |
+         |    DynamoDB       |<-----| AgentCore Runtime|    |
+         | BankTradeData     |      |  Trade Matcher   |    |
+         | CounterpartyData  |<-----+     Agent        |    |
+         +-------------------+      +--------+---------+    |
+                                             |              |
+                                    +--------v---------+    |
+                                    | AgentCore Runtime|<---+
+                                    |Exception Handler |
+                                    |     Agent        |
+                                    +------------------+
+                                             |
+                                    +--------v---------+
+                                    | AgentCore Memory |
+                                    | & Observability  |
+                                    +------------------+
 ```
 
-### 2. Frontend Setup
+### Deployment Modes
+
+The system supports **dual deployment patterns**:
+
+| Mode | Framework | Use Case | Communication |
+|------|-----------|----------|---------------|
+| **Local Development** | Strands Swarm | Testing, debugging, rapid iteration | Direct agent handoffs |
+| **Production** | AgentCore Runtime | Scalable, serverless deployment | A2A communication via AgentCore |
+
+### Agent Responsibilities
+
+| Agent | Purpose | Key Operations | AgentCore Features |
+|-------|---------|----------------|--------------------|
+| **PDF Adapter** | Document ingestion | Download PDF, extract text via Bedrock multimodal, save canonical output | Memory for document patterns |
+| **Trade Extractor** | Data extraction | Parse trade fields, validate data, store in DynamoDB | Memory for field mappings |
+| **Trade Matcher** | Reconciliation | Match trades by attributes, calculate confidence scores, generate reports | Memory for matching patterns |
+| **Exception Handler** | Issue management | Triage breaks, assign severity, track SLA deadlines | Memory for exception patterns |
+
+### Data Flow
+
+```mermaid
+graph LR
+    A[PDF Upload] --> B[S3 Bucket]
+    B --> C[PDF Adapter]
+    C --> D[Bedrock AI]
+    D --> E[Trade Extractor]
+    E --> F[(DynamoDB)]
+    F --> G[Trade Matcher]
+    G --> H{Match?}
+    H -->|Yes| I[Report]
+    H -->|No| J[Exception Handler]
+    J --> K[(Exceptions Table)]
+```
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- **Python 3.11+**
+- **AWS Account** with Bedrock access (us-east-1)
+- **AWS CLI** configured with appropriate permissions
+
+### 1. Clone & Install
 
 ```bash
-cd trade-reconciliation-frontend
+git clone https://github.com/yourusername/ai-trade-matching-system.git
+cd ai-trade-matching-system
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Configure Environment
+
+```bash
+cp .env.example .env
+# Edit .env with your AWS credentials
+```
+
+Required variables:
+```env
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+AWS_REGION=us-east-1
+S3_BUCKET_NAME=your-bucket-name
+```
+
+### 3. Deploy Infrastructure
+
+```bash
+cd terraform/agentcore
+terraform init
+terraform apply
+```
+
+### 4. Deploy Agents to AgentCore Runtime
+
+```bash
+# Install AgentCore CLI
+pip install bedrock-agentcore-starter-toolkit
+
+# Deploy PDF Adapter Agent
+cd deployment/pdf_adapter
+agentcore configure --entrypoint pdf_adapter_agent_strands.py --non-interactive
+agentcore launch
+
+# Deploy Trade Extraction Agent
+cd ../trade_extraction
+agentcore configure --entrypoint trade_extraction_agent_strands.py --non-interactive
+agentcore launch
+
+# Deploy Trade Matching Agent
+cd ../trade_matching
+agentcore configure --entrypoint trade_matching_agent_strands.py --non-interactive
+agentcore launch
+
+# Deploy Exception Management Agent
+cd ../exception_management
+agentcore configure --entrypoint exception_management_agent_strands.py --non-interactive
+agentcore launch
+```
+
+### 5. Run the System
+
+**Local Development (Strands Swarm):**
+```bash
+# Process a bank trade confirmation
+python deployment/swarm/trade_matching_swarm.py \
+  data/BANK/FAB_26933659.pdf \
+  --source-type BANK \
+  --verbose
+
+# Process a counterparty trade
+python deployment/swarm/trade_matching_swarm.py \
+  s3://your-bucket/COUNTERPARTY/GCS381315_V1.pdf \
+  --source-type COUNTERPARTY
+```
+
+**Production (AgentCore Runtime):**
+```bash
+# Invoke the orchestrator agent with a trade document
+agentcore invoke '{
+  "document_path": "s3://your-bucket/BANK/FAB_26933659.pdf",
+  "source_type": "BANK",
+  "document_id": "FAB_26933659"
+}' --agent orchestrator_agent
+
+# Check agent status
+agentcore status --agent pdf_adapter_agent
+agentcore status --agent trade_extraction_agent
+```
+
+---
+
+## Project Structure
+
+```
+ai-trade-matching-system/
+├── deployment/                    # Agent deployment packages
+│   ├── swarm/                     # Main swarm implementation
+│   ├── pdf_adapter/               # PDF processing agent
+│   ├── trade_extraction/          # Data extraction agent
+│   ├── trade_matching/            # Matching agent
+│   ├── exception_management/      # Exception handling agent
+│   └── orchestrator/              # Orchestration agent
+
+├── terraform/                     # Infrastructure as Code
+│   └── agentcore/                 # AgentCore deployment
+├── web-portal/                    # React dashboard
+├── web-portal-api/                # FastAPI backend
+├── tests/                         # Test suites
+├── config/                        # Configuration files
+└── data/                          # Sample trade PDFs
+```
+
+---
+
+## Web Dashboard
+
+The system includes a **React-based dashboard** for operations teams:
+
+- **Real-time agent monitoring** - Track agent health and performance
+- **Trade matching results** - View matched/unmatched trades
+- **Exception management** - Handle breaks and discrepancies
+- **Processing metrics** - Monitor throughput and latency
+
+### Running the Dashboard
+
+```bash
+# Start the API backend
+cd web-portal-api
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8001
+
+# Start the frontend (in another terminal)
+cd web-portal
 npm install
+npm run dev
 ```
 
-Create a `.env` file in the frontend directory:
-```bash
-REACT_APP_API_GATEWAY_URL=https://your-api-gateway-url.amazonaws.com/dev
-REACT_APP_S3_BUCKET=fab-otc-reconciliation-deployment
-REACT_APP_AWS_REGION=us-east-1
-```
+---
 
-### 3. Backend Setup
+## AWS Services
 
-Install Python dependencies:
-```bash
-pip install boto3 flask strands
-```
+| Service | Purpose | Integration |
+|---------|---------|-------------|
+| **Bedrock** | Amazon Nova Pro for document analysis | Direct multimodal PDF processing |
+| **AgentCore Runtime** | Serverless agent deployment & scaling | Production agent hosting with A2A communication |
+| **AgentCore Memory** | Persistent agent context & knowledge | Trade history and matching patterns |
+| **AgentCore Observability** | Real-time monitoring & tracing | Agent performance and workflow tracking |
+| **DynamoDB** | Trade data & exceptions storage | Structured data persistence |
+| **S3** | Document & report storage | PDF inputs and canonical outputs |
+| **CloudWatch** | System monitoring & logging | Infrastructure and application metrics |
+| **IAM** | Security & access control | Fine-grained permissions for agents |
 
-Set up environment variables:
-```bash
-# Critical: AWS_REGION must be set before running agents (required for Bedrock)
-export AWS_REGION=us-east-1
-export AWS_DEFAULT_REGION=us-east-1
-export BANK_TRADES_TABLE=BankTradeData
-export COUNTERPARTY_TRADES_TABLE=CounterpartyTradeData
-export TRADE_MATCHES_TABLE=TradeMatches
-export BUCKET_NAME=fab-otc-reconciliation-deployment
-```
+---
 
-**Important**: The `AWS_REGION` environment variable is automatically set to `us-east-1` in the trade reconciliation agent code to ensure proper Bedrock model initialization. This can be overridden by setting the environment variable before running the agent.
+## Performance
 
-### 4. AI Agent Configuration
+| Metric | Value |
+|--------|-------|
+| PDF Processing | ~5 seconds |
+| OCR Extraction (5 pages) | ~30-45 seconds |
+| Trade Matching | ~10-20 seconds |
+| **Total per Trade** | **~60-90 seconds** |
 
-The Strands agents are configured to use Amazon Bedrock with Claude 3.7 Sonnet:
-- **Model**: `us.anthropic.claude-3-7-sonnet-20250219-v1:0`
-- **Region**: `us-east-1` (automatically configured in code)
-- **Features**: Thinking mode enabled for enhanced reasoning
+---
 
-The agent automatically sets the AWS region environment variables during initialization:
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Detailed system architecture |
+| [HOW_TO_RUN_TESTS.md](HOW_TO_RUN_TESTS.md) | Testing guide |
+| [terraform/agentcore/README.md](terraform/agentcore/README.md) | Infrastructure deployment |
+| [deployment/README.md](deployment/README.md) | Agent deployment guide |
+
+---
+
+## AgentCore Integration
+
+### Agent-to-Agent Communication
+
+The system leverages **AgentCore Runtime's native A2A capabilities** for seamless agent communication:
+
 ```python
-# Automatically configured in trade_reconciliation_agent.py
-os.environ['AWS_REGION'] = 'us-east-1'
-os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
+# Agent 1 can invoke Agent 2 directly
+from bedrock_agentcore import BedrockAgentCoreApp
+
+app = BedrockAgentCoreApp()
+
+@app.entrypoint
+def invoke(payload, context):
+    # Process initial request
+    result = process_document(payload)
+    
+    # Hand off to next agent
+    next_agent_response = context.invoke_agent(
+        agent_arn="arn:aws:bedrock-agentcore:us-east-1:YOUR_ACCOUNT_ID:runtime/trade-extraction-agent",
+        payload={"canonical_output": result}
+    )
+    
+    return next_agent_response
 ```
 
-### 5. AWS Resources
+### Memory Integration
 
-Deploy the required AWS infrastructure:
-- DynamoDB tables with appropriate schemas
-- S3 bucket with proper folder structure
-- Lambda functions with correct IAM roles
-- API Gateway endpoints
+**AgentCore Memory** provides persistent context across agent interactions:
 
-## Usage
+- **Trade History**: Remember previous matching patterns
+- **Counterparty Profiles**: Learn counterparty-specific document formats
+- **Exception Patterns**: Improve exception classification over time
+- **Performance Metrics**: Track and optimize agent performance
 
-### 1. Start the Frontend
+### Observability & Monitoring
 
-```bash
-cd trade-reconciliation-frontend
-npm start
+**AgentCore Observability** provides comprehensive monitoring:
+
+- **Real-time Tracing**: Track requests across all agents
+- **Performance Metrics**: Latency, throughput, error rates
+- **Token Usage**: Monitor LLM costs and optimization opportunities
+- **Custom Metrics**: Trade-specific KPIs and SLA tracking
+
+### Production Deployment Patterns
+
+#### Multi-Agent Runtime Architecture
+
+```yaml
+# .bedrock_agentcore.yaml
+agents:
+  pdf_adapter:
+    entrypoint: pdf_adapter_agent_strands.py
+    memory_enabled: true
+    vpc_enabled: true
+    
+  trade_extraction:
+    entrypoint: trade_extraction_agent_strands.py
+    memory_enabled: true
+    depends_on: [pdf_adapter]
+    
+  trade_matching:
+    entrypoint: trade_matching_agent_strands.py
+    memory_enabled: true
+    depends_on: [trade_extraction]
+    
+  exception_management:
+    entrypoint: exception_management_agent_strands.py
+    memory_enabled: true
+    depends_on: [trade_matching]
 ```
 
-The application will be available at `http://localhost:3000`
+#### Security & Compliance
 
-### 2. Document Upload
+- **VPC Isolation**: Deploy agents in private subnets
+- **IAM Least Privilege**: Fine-grained permissions per agent
+- **Encryption**: End-to-end encryption for sensitive trade data
+- **Audit Logging**: Complete audit trail via CloudTrail and AgentCore logs
 
-1. Navigate to the "Upload Documents" section
-2. Select document source (Bank or Counterparty)
-3. Upload PDF trade documents
-4. The system automatically extracts trade data using AI
-
-### 3. Trade Matching
-
-The AI agents automatically:
-1. Fetch unmatched trades from both sources
-2. Apply similarity algorithms to find potential matches
-3. Score matches based on configurable weights
-4. Update match status in the database
-
-### 4. Reconciliation
-
-For matched trades, the system:
-1. Performs field-level comparison
-2. Applies tolerance thresholds for numeric fields
-3. Uses fuzzy matching for string fields
-4. Generates detailed reconciliation reports
-
-### 5. Dashboard
-
-View real-time metrics including:
-- Match statistics (matched, partially matched, unmatched)
-- Processing trends over time
-- Trade volume analysis
-- Reconciliation status breakdown
-
-## API Endpoints
-
-### Dashboard
-- `GET /dashboard` - Get dashboard summary data
-
-### Document Management
-- `POST /documents` - Generate pre-signed URL for document upload
-
-### Trade Management
-- `GET /trades` - Get trades with optional filtering
-- `GET /trades/{tradeId}` - Get specific trade details
-
-### Match Management
-- `GET /matches` - Get matches with optional filtering
-- `GET /matches/{matchId}` - Get specific match details
-- `PUT /matches/{matchId}/status` - Update match status
-
-### Reconciliation
-- `GET /reconciliation/{matchId}` - Get detailed reconciliation results
-
-### Reporting
-- `GET /reports` - Get list of reports
-- `GET /reports/{reportId}` - Get specific report
-- `POST /reports` - Generate new report
-
-### Settings
-- `GET /settings` - Get system configuration
-- `PUT /settings` - Update system settings
-
-## AI Agent Tools
-
-The system includes specialized tools for automated processing using the Strands framework:
-
-### Strands Agent Configuration
-The system uses Amazon Bedrock with Claude 3.7 Sonnet model for AI processing:
-```python
-# AWS region is automatically set before Strands import
-os.environ['AWS_REGION'] = 'us-east-1'
-os.environ['AWS_DEFAULT_REGION'] = 'us-east-1'
-
-bedrock_model = BedrockModel(
-    model_id="us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-    region="us-east-1",
-    additional_request_fields={
-        "thinking": {
-            "type": "enabled",
-        }
-    }
-)
-```
-
-### Trade Matching Tools
-- `fetch_unmatched_trades()` - Retrieve trades pending matching
-- `find_potential_matches()` - Identify candidate matches
-- `compute_similarity()` - Calculate match confidence scores
-- `update_match_status()` - Update matching results
-
-### Reconciliation Tools
-- `fetch_matched_trades()` - Get trades ready for reconciliation
-- `compare_fields()` - Perform field-level comparison
-- `determine_overall_status()` - Calculate reconciliation status
-- `generate_reconciliation_report()` - Create detailed reports
-
-### Workflow Management Tools
-- `get_current_timestamp()` - Get timestamps for audit trails
-- `create_workflow_log()` - Track workflow progress and events
-- `validate_aws_connectivity()` - Test AWS service connectivity
-
-## Configuration
-
-### Matching Weights
-Configure field importance for matching algorithm:
-```python
-weights = {
-    "trade_date": 0.3,
-    "counterparty_name": 0.2,
-    "notional": 0.25,
-    "currency": 0.15,
-    "product_type": 0.1
-}
-```
-
-### Tolerance Settings
-Set numeric field tolerances:
-```python
-numeric_tolerance = {
-    "total_notional_quantity": 0.001,  # 0.1%
-    "fixed_price": 0.01,               # 1%
-}
-```
-
-### Critical Fields
-Define fields that trigger critical mismatch status:
-```python
-critical_fields = [
-    "trade_date",
-    "currency", 
-    "total_notional_quantity"
-]
-```
+---
 
 ## Development
 
 ### Running Tests
-```bash
-# Frontend tests
-cd trade-reconciliation-frontend
-npm test
-
-# Backend tests (if implemented)
-python -m pytest
-```
-
-### Debug and Development Tools
-
-#### Trade Data Debugging
-The `debug_trades.py` utility helps developers inspect and troubleshoot trade data:
 
 ```bash
-cd strandsagents
-python debug_trades.py
+# Run all tests
+pytest tests/ -v
+
+# Run property-based tests
+pytest tests/property_based/ -v
+
+# Run end-to-end tests
+pytest tests/e2e/ -v
 ```
 
-**Features:**
-- Inspects actual DynamoDB table contents
-- Shows trade status distribution (MATCHED, UNMATCHED, etc.)
-- Tests the `fetch_unmatched_trades()` function
-- Validates trade IDs and data consistency
-- Helps identify data issues before running reconciliation
+### Adding a New Agent
 
-**Use cases:**
-- Debugging why no matches are found
-- Verifying data uploads completed successfully
-- Understanding current trade data state
-- Troubleshooting agent connectivity issues
+**For Local Development (Strands Swarm):**
+1. Create agent factory function in `deployment/swarm/`
+2. Define tools with `@tool` decorator
+3. Update swarm configuration with handoff conditions
 
-### Code Structure
+**For Production (AgentCore Runtime):**
+1. Create agent file with `BedrockAgentCoreApp` wrapper:
+   ```python
+   from bedrock_agentcore import BedrockAgentCoreApp
+   from strands import Agent
+   
+   app = BedrockAgentCoreApp()
+   
+   @app.entrypoint
+   def invoke(payload, context):
+       # Your agent logic here
+       return {"result": result}
+   
+   if __name__ == "__main__":
+       app.run()
+   ```
 
-```
-├── agents.py                          # AI agents and tools
-├── lambda_function.py                  # Main API handler
-├── architecture_diagram_detailed.md   # System architecture
-├── trade-reconciliation-frontend/     # React frontend
-│   ├── src/
-│   │   ├── components/                # React components
-│   │   ├── services/                  # API services
-│   │   └── config.ts                  # Configuration
-├── trade_extracttion/                 # Document processing
-└── *.sh                              # Deployment scripts
-```
+2. Deploy to AgentCore:
+   ```bash
+   agentcore configure --entrypoint new_agent.py --non-interactive
+   agentcore launch
+   ```
 
-### Adding New Features
+### Troubleshooting
 
-1. **Frontend**: Add React components in `trade-reconciliation-frontend/src/components/`
-2. **Backend**: Extend `lambda_function.py` with new API endpoints
-3. **AI Processing**: Add new tools to `agents.py` using the `@tool` decorator
+#### AgentCore Deployment Issues
 
-## Deployment
+**Common Issues:**
 
-### Frontend Deployment
-```bash
-# Build the application
-cd trade-reconciliation-frontend
-npm run build
+1. **Missing BedrockAgentCoreApp Import**
+   ```bash
+   Error: Agent must import BedrockAgentCoreApp
+   ```
+   **Solution:** Add `from bedrock_agentcore import BedrockAgentCoreApp`
 
-# Deploy to AWS Amplify
-aws amplify create-app --name trade-reconciliation
-# Follow Amplify deployment process
-```
+2. **Missing @app.entrypoint Decorator**
+   ```bash
+   Error: No entrypoint function found
+   ```
+   **Solution:** Add `@app.entrypoint` decorator to your invoke function
 
-### Backend Deployment
-```bash
-# Package Lambda functions
-zip -r trade-api-handler.zip lambda_function.py
-zip -r trade-agents.zip agents.py
+3. **Requirements.txt Issues**
+   ```bash
+   Error: bedrock-agentcore not found
+   ```
+   **Solution:** Add `bedrock-agentcore` to requirements.txt
 
-# Deploy using AWS CLI or infrastructure as code
-aws lambda update-function-code --function-name trade-api-handler --zip-file fileb://trade-api-handler.zip
-```
+4. **Agent Communication Failures**
+   ```bash
+   Error: Unable to invoke target agent
+   ```
+   **Solution:** Check IAM permissions for `bedrock-agentcore:InvokeAgentRuntime`
 
-## Monitoring
+#### Performance Optimization
 
-The system includes comprehensive monitoring through:
-- **CloudWatch Logs**: All Lambda function logs
-- **CloudWatch Metrics**: API Gateway and Lambda metrics
-- **DynamoDB Metrics**: Table performance monitoring
-- **Custom Dashboard**: Business metrics and KPIs
-
-## Security
-
-- **IAM Roles**: Least privilege access for all components
-- **API Gateway**: Authentication and CORS configuration
-- **S3 Bucket Policies**: Restricted document access
-- **DynamoDB**: Encryption at rest enabled
-- **HTTPS**: All communications encrypted in transit
-
-## Support
-
-For issues or questions:
-1. Check the logs in CloudWatch
-2. Review the architecture documentation
-3. Contact the development team
-
-## License
-
-This project is proprietary and confidential.
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a merge request
-5. Ensure all tests pass
+- **Token Usage**: Monitor via AgentCore Observability dashboard
+- **Latency**: Use AgentCore Memory for caching frequent operations
+- **Throughput**: Scale agents independently based on workload
+- **Cost**: Optimize model selection per agent (Nova Pro vs Claude)
 
 ---
 
-## Troubleshooting
+## Contributing
 
-### Debug Utilities
+Contributions are welcome! Please:
 
-#### Trade Data Debugging
-Use the debug utility to inspect DynamoDB table contents and trade matching status:
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-```bash
-cd strandsagents
-python debug_trades.py
-```
+---
 
-This utility provides:
-- **Table Content Analysis**: Shows actual trades in both bank and counterparty tables
-- **Status Distribution**: Displays breakdown of trade matching statuses
-- **Function Testing**: Tests the `fetch_unmatched_trades()` function directly
-- **Data Validation**: Verifies trade IDs and status values
+## License
 
-**Example Output:**
-```
-=== Checking Bank Trades Table: BankTradeData ===
-Found 25 bank trades (showing first 10)
-  Trade ID: BANK_001, Status: UNMATCHED
-  Trade ID: BANK_002, Status: MATCHED
-Bank trades status distribution: {'UNMATCHED': 15, 'MATCHED': 10}
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
-=== Testing fetch_unmatched_trades function ===
-fetch_unmatched_trades('BANK') returned 15 trades
-```
+---
 
-### Common Issues
+<div align="center">
 
-**Frontend won't start**
-- Verify Node.js version (v16+)
-- Check environment variables in `.env`
-- Run `npm install` to ensure dependencies
+**Built for derivatives operations teams worldwide**
 
-**API errors**
-- Verify AWS credentials are configured
-- Check Lambda function logs in CloudWatch
-- Ensure DynamoDB tables exist
+[Report Bug](../../issues) | [Request Feature](../../issues) | [Documentation](docs/)
 
-**Document processing fails**
-- Check S3 bucket permissions
-- Verify Lambda function has correct IAM roles
-- Review document processing Lambda logs
-
-**No matches found**
-- Use `python debug_trades.py` to check if trades exist in both sources
-- Review matching algorithm weights
-- Verify composite key generation logic
-- Check trade status distribution using the debug utility
-
-**Agent connectivity issues**
-- Run the debug script to validate table access
-- Verify AWS region configuration (automatically set to us-east-1)
-- Check DynamoDB table permissions and existence
+</div>

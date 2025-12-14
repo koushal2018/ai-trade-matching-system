@@ -1,12 +1,14 @@
-# Byte-compiled / optimized / DLL files
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -20,308 +22,136 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
+*.kiro/
+.kiro/
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-#Pipfile.lock
-
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.venv
-env/
+# Virtual environments
+.venv/
 venv/
 ENV/
-env.bak/
-venv.bak/
+env/
 
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# Node.js dependencies
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# React build files
-build/
-dist/
-
-# AWS deployment files
-*.zip
-*.tar.gz
-
-# Environment variables and secrets
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-*.pem
-*.key
-*credentials*
-config.json
-secrets.json
-
-# IDE files
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Logs
-*.log
+# Generated files
+pdf_images/
+# Legacy storage directory removed
 logs/
-log/
+data/*.json
+data/*.md
+data/temp/
 
-# Runtime data
-pids/
-*.pid
-*.seed
-*.pid.lock
-
-# AWS SAM
-.aws-sam/
-
-# CDK
-cdk.out/
-*.asset.*
+# AWS
+.aws/
+*.pem
+*.key
 
 # Terraform
 *.tfstate
 *.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
 .terraform/
+.terraform.lock.hcl
+
+# Sensitive deployment configs
+terraform/secrets/
 
 # Lambda deployment packages
-lambda-package/
-lambda-deployment-package.zip
+lambda-deploy/
+*.zip
 
-# DynamoDB local
-.dynamodb/
+# MCP configuration (may contain sensitive data)
+.mcp.json
+*-config.json
 
-# Test files
-test_*.py
-*_test.py
-tests/
-test/
+# AgentCore configuration files (contain sensitive ARNs and account IDs)
+.bedrock_agentcore.yaml
+**/.bedrock_agentcore.yaml
+**/.bedrock_agentcore/
+.env.memory
+**/.env.memory
+
+# Vibe coding / AI-generated documentation
+vibe-session.log
+vibe*.log
+generated-docs/
+**/generated-docs/
+
+# Monitoring and performance data
+monitoring/data/
+performance/reports/
+
+# Security scan results
+security/reports/
 
 # Temporary files
-tmp/
-temp/
 *.tmp
 *.temp
+temp/
+tmp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CrewAI
+.crewai/
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.hypothesis/
+
+# Virtual environments (all variations)
+.venv_new/
+
+# Generated runtime files
+registered_agents.json
+task_agent_mapping.json
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate*
+terraform/*.tfvars
 
 # Documentation builds
-_build/
-.docusaurus/
+docs/_build/
 
-# Coverage reports
-coverage/
-.nyc_output/
+# Local test files
+test_*.json
+test_*.pdf
+test_app.py
+test_request.json
+test_suite.py
 
-# Backup files
-*.bak
-*.backup
-*~
-# Project-specific ignores
-repl_state/
-*.pkl
-reconciliation_*.log
-diagnostic-function*.zip
-trade-api-handler*.zip
-*-fixed-final.zip
-*-updated-fixed.zip
-*-updated.zip
-
-# CloudFormation experimental templates
-**/cloudformation/final/
-**/cloudformation/minimal-*.yaml
-**/cloudformation/simplified-*.yaml
-**/cloudformation/fixed-*.yaml
-**/cloudformation/standalone-*.yaml
-
-# Status and summary files
-*SUMMARY.md
-*-summary.md
-*-issues-and-fixes.md
-deployment-validation-checklist.md
-IMPLEMENTATION_STATUS.md
-CLEANUP_SUMMARY.md
-
-# Reference and sample files
-referencearchitecture.html
-sample_trades.csv
-REFERENCE_ARCHITECTURE_DRAWING_INSTRUCTIONS.md
-
-# Trade data files (sensitive financial data)
-*.csv
-*.xlsx
-*.xls
-trade_data/
-bank_trades/
-counterparty_trades/
-reconciliation_results/
-processed_trades/
-
-# AI model artifacts and cache
-model_cache/
-*.model
-*.pkl
-*.joblib
-embeddings/
-vector_store/
-
-# Strands agents runtime files
-agents_runtime/
-agent_logs/
-execution_history/
-
-# Frontend specific
-# Dependencies
-/trade-reconciliation-frontend/node_modules/
-/trade-reconciliation-frontend/.pnp
-/trade-reconciliation-frontend/.pnp.js
-
-# Testing
-/trade-reconciliation-frontend/coverage/
-
-# Production build
-/trade-reconciliation-frontend/build/
-
-# Misc
-/trade-reconciliation-frontend/.DS_Store
-/trade-reconciliation-frontend/.env.local
-/trade-reconciliation-frontend/.env.development.local
-/trade-reconciliation-frontend/.env.test.local
-/trade-reconciliation-frontend/.env.production.local
-
-# Debug logs
-/trade-reconciliation-frontend/npm-debug.log*
-/trade-reconciliation-frontend/yarn-debug.log*
-/trade-reconciliation-frontend/yarn-error.log*
-
-# Lambda deployment artifacts
-/client-deployment/lambda/**/*.zip
-/client-deployment/lambda/**/node_modules/
-lambda_function.zip
-deployment_package.zip
-
-# CloudFormation stack outputs
-stack-outputs.json
-cfn-response.json
-
-# Local development databases
-*.db
-*.sqlite
-local_dynamodb/
-
-# Performance and monitoring data
-performance_metrics/
-monitoring_data/
-*.perf
-
-# Kiro IDE files
-.kiro/cache/
-.kiro/logs/
-.kiro
+# Deployment guides (may contain sensitive info)
+DEPLOYMENT_GUIDE.md
+DEPLOYMENT_SUMMARY.md
+MIGRATION_CHANGES.md
+COMPLETE_CHANGES_GUIDE.md
+crew_documentation.md
+FINAL_FIX.md
+OPTIMIZATION_SUMMARY.md
+TASK_OPTIMIZATION_GUIDE.md
+vibe-session.log
+FINAL_OPTIMIZATIONS.md
+FIXES_APPLIED.md
+setup.py
+pyproject.toml
+data/*
+CLAUDE.md
+FIXES_APPLIED_OCT11_V2.md
+FIXES_APPLIED_OCT11.md

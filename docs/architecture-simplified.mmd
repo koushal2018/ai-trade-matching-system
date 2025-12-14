@@ -1,0 +1,55 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#FF9900','primaryTextColor':'#fff','primaryBorderColor':'#232F3E','lineColor':'#232F3E','secondaryColor':'#527FFF','tertiaryColor':'#3F8624'}}}%%
+flowchart TD
+    Start([Trade PDF Upload]) --> S3
+
+    S3[("🗄️ Amazon S3<br/>trade-matching-system")] --> Agent1
+
+    Agent1["🤖 PDF Adapter Agent<br/>Strands SDK<br/>Direct PDF text extraction"] --> Bedrock1{{"🧠 AWS Bedrock<br/>Claude Sonnet 4"}}
+
+    Bedrock1 --> Canonical[("📋 S3: extracted/<br/>canonical_output.json")]
+
+    Canonical --> Agent2["🤖 Trade Extraction Agent<br/>Strands SDK<br/>LLM-driven field extraction"]
+
+    Agent2 --> Bedrock2{{"🧠 AWS Bedrock<br/>Claude Sonnet 4"}}
+
+    Bedrock2 --> Strands{{"🔗 Strands use_aws<br/>DynamoDB operations"}}
+
+    Strands --> DDB_Bank[("💾 BankTradeData")]
+    Strands --> DDB_CP[("💾 CounterpartyTradeData")]
+
+    DDB_Bank --> Agent3["🤖 Trade Matching Agent<br/>Fuzzy matching + scoring"]
+    DDB_CP --> Agent3
+
+    Agent3 --> Decision{Classification}
+
+    Decision -->|Score ≥0.85| AutoMatch["✅ AUTO_MATCH<br/>Report to S3"]
+    Decision -->|Score 0.70-0.84| HITL["⚠️ ESCALATE<br/>Human review"]
+    Decision -->|Score <0.70| Exception["❌ EXCEPTION<br/>Exception Management"]
+
+    Exception --> Agent4["🤖 Exception Management<br/>RL-based routing"]
+
+    Agent4 --> Triage{Triage}
+    Triage -->|Operational| OpsDesk["📋 OPS_DESK"]
+    Triage -->|Compliance| Compliance["⚖️ COMPLIANCE"]
+    Triage -->|System| Engineering["🔧 ENGINEERING"]
+
+    AutoMatch --> Monitor
+    HITL --> Monitor
+    Agent4 --> Monitor
+
+    Monitor["🤖 Orchestrator Agent<br/>SLA monitoring + compliance"] --> End([Complete])
+
+    style Start fill:#00A4BD,stroke:#232F3E,color:#fff
+    style End fill:#00A4BD,stroke:#232F3E,color:#fff
+    style S3 fill:#FF9900,stroke:#232F3E,color:#fff
+    style Canonical fill:#FF9900,stroke:#232F3E,color:#fff
+    style Agent1 fill:#00A4BD,stroke:#232F3E,color:#fff
+    style Agent2 fill:#00A4BD,stroke:#232F3E,color:#fff
+    style Agent3 fill:#00A4BD,stroke:#232F3E,color:#fff
+    style Agent4 fill:#00A4BD,stroke:#232F3E,color:#fff
+    style Monitor fill:#00A4BD,stroke:#232F3E,color:#fff
+    style Bedrock1 fill:#527FFF,stroke:#232F3E,color:#fff
+    style Bedrock2 fill:#527FFF,stroke:#232F3E,color:#fff
+    style Strands fill:#DD344C,stroke:#232F3E,color:#fff
+    style DDB_Bank fill:#3F8624,stroke:#232F3E,color:#fff
+    style DDB_CP fill:#3F8624,stroke:#232F3E,color:#fff

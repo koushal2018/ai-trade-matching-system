@@ -1,0 +1,48 @@
+# AgentCore configuration for Orchestrator Agent
+
+agent:
+  name: orchestrator-agent
+  description: Monitors SLAs, enforces compliance, and coordinates agent workflows
+  version: 1.0.0
+  
+runtime:
+  type: PYTHON_3_11
+  entry_point: orchestrator_agent_strands.py
+  handler: invoke
+  timeout: 180  # 3 minutes for monitoring
+  memory_mb: 2048
+  
+environment:
+  AWS_REGION: us-east-1
+  S3_BUCKET_NAME: trade-matching-system-agentcore-production
+  DYNAMODB_AGENT_REGISTRY_TABLE: trade-matching-system-agent-registry-production
+  DYNAMODB_BANK_TABLE: BankTradeData
+  DYNAMODB_COUNTERPARTY_TABLE: CounterpartyTradeData
+  BEDROCK_MODEL_ID: us.anthropic.claude-sonnet-4-20250514-v1:0
+  LOG_LEVEL: INFO
+  
+memory:
+  enabled: true
+  strategy: semantic
+  retention_days: 90
+  
+scaling:
+  min_instances: 1
+  max_instances: 5
+  target_utilization: 0.6
+  
+sla:
+  processing_time_seconds: 10
+  throughput_per_hour: 600
+  error_rate_threshold: 0.01
+  
+event_subscriptions:
+  - queue: orchestrator-monitoring-queue
+    batch_size: 10
+    visibility_timeout: 180
+    
+event_publications:
+  - queue: control-commands-queue
+    event_type: CONTROL_COMMAND_ISSUED
+  - queue: alert-queue
+    event_type: SLA_VIOLATED

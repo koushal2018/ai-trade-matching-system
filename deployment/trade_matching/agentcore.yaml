@@ -1,0 +1,46 @@
+# AgentCore configuration for Trade Matching Agent
+
+agent:
+  name: trade-matching-agent
+  description: Performs fuzzy matching between bank and counterparty trades
+  version: 1.0.0
+  
+runtime:
+  type: PYTHON_3_11
+  entry_point: trade_matching_agent.py
+  handler: invoke
+  timeout: 900  # 15 minutes for matching analysis
+  memory_mb: 4096
+  
+environment:
+  AWS_REGION: us-east-1
+  S3_BUCKET_NAME: trade-matching-bucket
+  DYNAMODB_BANK_TABLE: BankTradeData
+  DYNAMODB_COUNTERPARTY_TABLE: CounterpartyTradeData
+  LOG_LEVEL: INFO
+  
+memory:
+  enabled: true
+  strategy: semantic
+  retention_days: 90
+  
+scaling:
+  min_instances: 1
+  max_instances: 15
+  target_utilization: 0.7
+  
+sla:
+  processing_time_seconds: 60
+  throughput_per_hour: 60
+  error_rate_threshold: 0.05
+  
+event_subscriptions:
+  - queue: matching-events
+    batch_size: 1
+    visibility_timeout: 900
+    
+event_publications:
+  - queue: hitl-review-queue
+    event_type: HITL_REQUIRED
+  - queue: exception-events
+    event_type: MATCHING_EXCEPTION

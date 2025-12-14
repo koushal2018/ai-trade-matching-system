@@ -1,0 +1,77 @@
+graph TB
+    subgraph "Input Layer"
+        PDF[📄 Trade Confirmation PDFs<br/>BANK / COUNTERPARTY]
+        S3[(Amazon S3<br/>trade-matching-system-agentcore-production)]
+        PDF --> S3
+    end
+
+    subgraph "AWS Bedrock"
+        Bedrock[🧠 Amazon Nova Pro<br/>amazon.nova-pro-v1:0<br/>Temperature: 0.1 - Max Tokens: 4096]
+    end
+
+    subgraph "Processing Layer - Amazon Bedrock AgentCore Runtime"
+        A1[🤖 PDF Adapter Agent<br/>Strands SDK<br/>Direct PDF text extraction]
+        A2[🤖 Trade Extraction Agent<br/>Strands SDK<br/>LLM-driven field extraction]
+        A3[🤖 Trade Matching Agent<br/>Fuzzy matching + scoring]
+        A4[🤖 Exception Management Agent<br/>RL-based routing]
+        A5[🤖 Orchestrator Agent<br/>SLA monitoring + compliance]
+
+        A1 -->|extraction-events| A2
+        A2 -->|matching-events| A3
+        A3 -->|exception-events| A4
+        A4 -.->|monitoring| A5
+        A3 -.->|monitoring| A5
+    end
+
+    subgraph "Data Layer"
+        DDB1[(DynamoDB<br/>BankTradeData<br/>PK: trade_id)]
+        DDB2[(DynamoDB<br/>CounterpartyTradeData<br/>PK: trade_id)]
+        DDB3[(DynamoDB<br/>ExceptionsTable)]
+        DDB4[(DynamoDB<br/>AgentRegistry)]
+    end
+
+    subgraph "Integration Layer"
+        SQS[📨 Amazon SQS<br/>Event-driven communication<br/>10+ queues]
+        Strands[🧠 Strands SDK<br/>use_aws tool<br/>LLM-driven decisions]
+    end
+
+    subgraph "Output Layer"
+        Reports[📊 Matching Reports<br/>S3: reports/]
+        Canonical[📋 Canonical Outputs<br/>S3: extracted/]
+    end
+
+    %% Connections
+    S3 --> A1
+    A1 --> Bedrock
+    A1 --> Canonical
+    A2 --> Bedrock
+    A2 --> Strands
+    A3 --> Strands
+    A4 --> Strands
+    A5 --> Strands
+
+    Strands --> DDB1
+    Strands --> DDB2
+    A3 --> DDB1
+    A3 --> DDB2
+    A4 --> DDB3
+    A5 --> DDB4
+
+    A3 --> Reports
+    A1 --> SQS
+    A2 --> SQS
+    A3 --> SQS
+    A4 --> SQS
+
+    %% Styling
+    classDef aws fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#fff
+    classDef agent fill:#00A4BD,stroke:#232F3E,stroke-width:2px,color:#fff
+    classDef bedrock fill:#527FFF,stroke:#232F3E,stroke-width:2px,color:#fff
+    classDef data fill:#3F8624,stroke:#232F3E,stroke-width:2px,color:#fff
+    classDef tool fill:#DD344C,stroke:#232F3E,stroke-width:2px,color:#fff
+
+    class S3,Canonical,Reports aws
+    class A1,A2,A3,A4,A5 agent
+    class Bedrock bedrock
+    class DDB1,DDB2,DDB3,DDB4 data
+    class SQS,Strands tool

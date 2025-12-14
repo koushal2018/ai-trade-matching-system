@@ -1,0 +1,262 @@
+# AgentCore Configuration for Trade Extraction Agent
+# This file configures the agent for deployment to Amazon Bedrock AgentCore Runtime
+
+agent:
+  name: trade-extraction-agent
+  version: "1.0.0"
+  alias: "production"
+  description: "Extracts structured trade data from canonical adapter output using LLM reasoning and AWS integration"
+  
+  # Runtime Configuration
+  runtime:
+    type: PYTHON_3_11
+    timeout: 300  # 5 minutes
+    memory: 1024  # MB
+    
+  # Model Configuration
+  model:
+    id: "amazon.nova-pro-v1:0"
+    region: "us-east-1"
+    temperature: 0.3
+    max_tokens: 4096
+    
+  # Environment Variables
+  environment:
+    AWS_REGION: "us-east-1"
+    S3_BUCKET_NAME: "trade-matching-system-agentcore-production"
+    DYNAMODB_BANK_TABLE: "BankTradeData"
+    DYNAMODB_COUNTERPARTY_TABLE: "CounterpartyTradeData"
+    BEDROCK_MODEL_ID: "amazon.nova-pro-v1:0"
+    DEPLOYMENT_STAGE: "production"
+    OBSERVABILITY_STAGE: "production"
+    COGNITO_USER_POOL_ID: "us-east-1_uQ2lN39dT"
+    COGNITO_CLIENT_ID: "78daptta2m4lb6k5jm3n2hd8oc"
+    ENABLE_MFA: "true"
+    AGENTCORE_GATEWAY_DYNAMODB: "trade-matching-system-dynamodb-gateway-production"
+    AGENTCORE_GATEWAY_S3: "trade-matching-system-s3-gateway-production"
+    AGENTCORE_MEMORY_PATTERNS: "trade-matching-system-trade-patterns-production"
+    AGENTCORE_MEMORY_HISTORY: "trade-matching-system-processing-history-production"
+    
+  # IAM Permissions
+  permissions:
+    - effect: Allow
+      actions:
+        - "bedrock:InvokeModel"
+      resources:
+        - "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0"
+    
+    - effect: Allow
+      actions:
+        - "bedrock-agent:InvokeGateway"
+      resources:
+        - "arn:aws:bedrock-agent:us-east-1:*:gateway/trade-matching-system-*-gateway-production"
+    
+    - effect: Allow
+      actions:
+        - "bedrock-agent:QueryMemory"
+        - "bedrock-agent:StoreMemory"
+        - "bedrock-agent:AddEvent"
+      resources:
+        - "arn:aws:bedrock-agent:us-east-1:*:memory-resource/trade-matching-system-*-production"
+    
+    # Fallback permissions for development/testing
+    - effect: Allow
+      actions:
+        - "s3:GetObject"
+        - "s3:PutObject"
+      resources:
+        - "arn:aws:s3:::trade-matching-system-agentcore-production/extracted/*"
+        - "arn:aws:s3:::trade-matching-system-agentcore-production/processed/*"
+    
+    - effect: Allow
+      actions:
+        - "dynamodb:PutItem"
+        - "dynamodb:GetItem"
+        - "dynamodb:Query"
+      resources:
+        - "arn:aws:dynamodb:us-east-1:*:table/BankTradeData"
+        - "arn:aws:dynamodb:us-east-1:*:table/CounterpartyTradeData"
+    
+    - effect: Allow
+      actions:
+        - "logs:CreateLogGroup"
+        - "logs:CreateLogStream"
+        - "logs:PutLogEvents"
+      resources:
+        - "arn:aws:logs:us-east-1:*:log-group:/aws/bedrock-agentcore/trade-extraction-agent*"
+
+  # AgentCore Integrations
+  integrations:
+    # Gateway Integration
+    gateway:
+      enabled: true
+      resources:
+        - name: "trade-matching-system-dynamodb-gateway-production"
+          type: "dynamodb"
+        - name: "trade-matching-system-s3-gateway-production"
+          type: "s3"
+    
+    # Memory Integration
+    memory:
+      enabled: true
+      resources:
+        - name: "trade-matching-system-trade-patterns-production"
+          type: "semantic"
+          retention_days: 90
+        - name: "trade-matching-system-processing-history-production"
+          type: "event"
+          retention_days: 90
+    
+    # Observability Integration
+    observability:
+      enabled: true
+      stage: "production"
+      verbosity: "medium"
+      pii_redaction: true
+      custom_metrics:
+        - name: "ExtractionSuccessRate"
+          type: "counter"
+        - name: "ProcessingTimeMs"
+          type: "histogram"
+        - name: "TokenUsage"
+          type: "counter"
+        - name: "ExtractionConfidence"
+          type: "gauge"
+    
+    # Identity Integration (Optional)
+    identity:
+      enabled: true
+      user_pool_id: "us-east-1_uQ2lN39dT"
+      client_id: "78daptta2m4lb6k5jm3n2hd8oc"
+      mfa_required: true
+
+  # Health Check Configuration
+  health_check:
+    enabled: true
+    timeout: 30
+    interval: 60
+    
+  # Scaling Configuration
+  scaling:
+    min_instances: 1
+    max_instances: 10
+    target_utilization: 70
+    scale_up_cooldown: 300
+    scale_down_cooldown: 600
+
+# Deployment Configuration
+deployment:
+  # A/B Testing Support
+  traffic_routing:
+    enabled: false  # Enable for A/B testing
+    variants:
+      - alias: "production"
+        weight: 100
+      - alias: "canary"
+        weight: 0
+  
+  # Monitoring & Alerting
+  monitoring:
+    cloudwatch_alarms:
+      - name: "HighErrorRate"
+        metric: "ErrorRate"
+        threshold: 5  # 5% error rate
+        comparison: "GreaterThanThreshold"
+        evaluation_periods: 2
+        
+      - name: "HighLatency"
+        metric: "ProcessingTimeMs"
+        threshold: 30000  # 30 seconds
+        comparison: "GreaterThanThreshold"
+        evaluation_periods: 3
+        
+      - name: "LowExtractionConfidence"
+        metric: "ExtractionConfidence"
+        threshold: 0.7  # 70% confidence
+        comparison: "LessThanThreshold"
+        evaluation_periods: 2
+
+# Testing Configuration
+testing:
+  unit_tests:
+    enabled: true
+    coverage_threshold: 80
+    
+  integration_tests:
+    enabled: true
+    test_data:
+      - document_id: "TEST_BANK_001"
+        canonical_output_location: "s3://trade-matching-system-agentcore-production/extracted/BANK/TEST_BANK_001.json"
+        source_type: "BANK"
+        expected_fields: ["Trade_ID", "TRADE_SOURCE", "notional", "currency", "counterparty"]
+        
+      - document_id: "TEST_COUNTERPARTY_001"
+        canonical_output_location: "s3://trade-matching-system-agentcore-production/extracted/COUNTERPARTY/TEST_COUNTERPARTY_001.json"
+        source_type: "COUNTERPARTY"
+        expected_fields: ["Trade_ID", "TRADE_SOURCE", "notional", "currency", "counterparty"]
+
+# Documentation
+documentation:
+  description: |
+    The Trade Extraction Agent is a critical component of the AI Trade Matching System.
+    It processes canonical adapter output from S3, extracts structured trade data using
+    LLM reasoning, and stores the data in the appropriate DynamoDB table based on trade source.
+    
+    Key Features:
+    - Intelligent field extraction with context awareness
+    - Automatic source classification (BANK vs COUNTERPARTY)
+    - Data integrity validation
+    - Pattern learning through AgentCore Memory
+    - Secure operations through AgentCore Gateway
+    - Comprehensive observability with PII redaction
+    
+  capabilities:
+    - "Extract trade data from canonical adapter output"
+    - "Classify trade source (BANK or COUNTERPARTY)"
+    - "Validate data integrity and format"
+    - "Store data in appropriate DynamoDB table"
+    - "Learn from successful extraction patterns"
+    - "Handle errors with proper escalation"
+    
+  input_schema:
+    type: "object"
+    required: ["document_id", "canonical_output_location"]
+    properties:
+      document_id:
+        type: "string"
+        description: "Unique identifier for the document"
+      canonical_output_location:
+        type: "string"
+        description: "S3 path to canonical adapter output"
+      source_type:
+        type: "string"
+        enum: ["BANK", "COUNTERPARTY"]
+        description: "Trade source type (optional - can be determined from data)"
+      correlation_id:
+        type: "string"
+        description: "Correlation ID for distributed tracing"
+        
+  output_schema:
+    type: "object"
+    properties:
+      success:
+        type: "boolean"
+        description: "Whether the extraction was successful"
+      document_id:
+        type: "string"
+        description: "Document identifier"
+      source_type:
+        type: "string"
+        description: "Determined trade source type"
+      processing_time_ms:
+        type: "number"
+        description: "Processing time in milliseconds"
+      token_usage:
+        type: "object"
+        description: "Token usage metrics"
+      agent_response:
+        type: "string"
+        description: "Agent's response text"
+      error:
+        type: "string"
+        description: "Error message if unsuccessful"

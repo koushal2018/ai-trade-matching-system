@@ -1,0 +1,58 @@
+# Example Terraform Variables for AgentCore Infrastructure
+# Copy this file to terraform.tfvars and update with your values
+
+# AWS Configuration
+aws_region  = "us-east-1"
+environment = "production"
+
+# Project Configuration
+project_name = "trade-matching-system"
+
+# S3 Configuration
+s3_lifecycle_days = 90
+
+# DynamoDB Configuration
+dynamodb_bank_table        = "BankTradeData"
+dynamodb_counterparty_table = "CounterpartyTradeData"
+
+# Web Portal Configuration
+web_portal_callback_urls = [
+  "http://localhost:3000/callback",
+  "https://trade-matching-portal.example.com/callback"
+]
+
+web_portal_logout_urls = [
+  "http://localhost:3000/logout",
+  "https://trade-matching-portal.example.com/logout"
+]
+
+# Alerting Configuration
+alert_emails = [
+  "ops-team@example.com",
+  "admin@example.com"
+]
+
+# Billing Alert Configuration
+billing_alert_emails = [
+  "billing@example.com",
+  "finance@example.com"
+]
+
+# Monthly billing threshold (in USD)
+billing_alarm_threshold = 500  # Alert when monthly costs exceed $500
+
+# Enable per-service billing alarms (S3, DynamoDB, Bedrock, CloudWatch)
+enable_service_billing_alarms = true
+
+# Enable AWS Budget for cost tracking
+enable_aws_budget = true
+
+# Enable Cost Anomaly Detection (requires at least one billing_alert_email)
+enable_cost_anomaly_detection = false
+
+# Additional Tags
+tags = {
+  CostCenter = "Trading"
+  Owner      = "Platform Team"
+  Compliance = "SOX"
+}
