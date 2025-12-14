@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "Strands SDK Compliance Monitor",
+  "description": "Monitors changes to Strands agents code to ensure compliance with SDK patterns, proper tool decorators, and alignment with documentation standards",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "strandsagents/*.py",
+      "strandsagents/ai_providers/*.py",
+      "strandsagents/README_STRANDS.md",
+      "strandsagents/ENHANCED_TOOLS_DOCUMENTATION.md"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the modified Strands agents code to ensure it follows the Strands Agents SDK patterns and documentation. Check for: 1) Proper use of @tool decorators, 2) Correct agent class inheritance, 3) Proper AI provider integration patterns, 4) Alignment with the SDK documentation in README_STRANDS.md and ENHANCED_TOOLS_DOCUMENTATION.md, 5) Consistent error handling and logging patterns, 6) Proper configuration management following the enhanced_config.py patterns. Provide specific recommendations for any deviations from SDK standards."
+  }
+}

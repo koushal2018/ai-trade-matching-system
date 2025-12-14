@@ -1,0 +1,538 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Trade Reconciliation Solution - Backup and Disaster Recovery'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: Environment name (dev, test, prod)
+    AllowedValues:
+      - dev
+      - test
+      - prod
+  
+  BackupRetentionDays:
+    Type: Number
+    Default: 30
+    Description: Number of days to retain backups
+    MinValue: 1
+  
+  PointInTimeRecoveryEnabled:
+    Type: String
+    Default: 'true'
+    Description: Enable DynamoDB point-in-time recovery
+    AllowedValues:
+      - 'true'
+      - 'false'
+  
+  S3ReplicationEnabled:
+    Type: String
+    Default: 'true'
+    Description: Enable S3 cross-region replication
+    AllowedValues:
+      - 'true'
+      - 'false'
+  
+  DisasterRecoveryRegion:
+    Type: String
+    Default: us-west-2
+    Description: Secondary region for disaster recovery (different from primary region)
+
+Conditions:
+  EnableS3Replication: !Equals [!Ref S3ReplicationEnabled, 'true']
+  EnablePITR: !Equals [!Ref PointInTimeRecoveryEnabled, 'true']
+
+Resources:
+  #############################################################
+  # AWS Backup Vault
+  #############################################################
+  BackupVault:
+    Type: AWS::Backup::BackupVault
+    Properties:
+      BackupVaultName: !Sub ${EnvironmentName}-trade-reconciliation-vault
+      EncryptionKeyArn: !GetAtt BackupEncryptionKey.Arn
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  #############################################################
+  # KMS Key for Backup Encryption
+  #############################################################
+  BackupEncryptionKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: KMS key for trade reconciliation backups
+      EnableKeyRotation: true
+      PendingWindowInDays: 7
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: key-default-1
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: kms:*
+            Resource: '*'
+          - Sid: Allow Backup Service to use the key
+            Effect: Allow
+            Principal:
+              Service: backup.amazonaws.com
+            Action:
+              - kms:GenerateDataKey*
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:DescribeKey
+            Resource: '*'
+
+  BackupEncryptionKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${EnvironmentName}-trade-reconciliation-backup-key
+      TargetKeyId: !Ref BackupEncryptionKey
+
+  #############################################################
+  # AWS Backup Plan
+  #############################################################
+  BackupPlan:
+    Type: AWS::Backup::BackupPlan
+    Properties:
+      BackupPlan:
+        BackupPlanName: !Sub ${EnvironmentName}-trade-reconciliation-backup-plan
+        BackupPlanRule:
+          - RuleName: DailyBackups
+            TargetBackupVault: !Ref BackupVault
+            ScheduleExpression: cron(0 1 * * ? *) # Daily at 1 AM UTC
+            StartWindowMinutes: 60
+            CompletionWindowMinutes: 120
+            Lifecycle:
+              DeleteAfterDays: !Ref BackupRetentionDays
+            RecoveryPointTags:
+              Environment: !Ref EnvironmentName
+          - RuleName: WeeklyBackups
+            TargetBackupVault: !Ref BackupVault
+            ScheduleExpression: cron(0 1 ? * SUN *) # Weekly on Sundays at 1 AM UTC
+            StartWindowMinutes: 60
+            CompletionWindowMinutes: 180
+            Lifecycle:
+              DeleteAfterDays: !Mul [!Ref BackupRetentionDays, 4] # Keep weekly backups 4x longer than daily
+            CopyActions:
+              - DestinationBackupVaultArn: !Sub arn:aws:backup:${DisasterRecoveryRegion}:${AWS::AccountId}:backup-vault:${EnvironmentName}-trade-reconciliation-dr-vault
+                Lifecycle:
+                  DeleteAfterDays: !Mul [!Ref BackupRetentionDays, 4] # Keep weekly backups 4x longer than daily
+        AdvancedBackupSettings:
+          - ResourceType: DynamoDB
+            BackupOptions:
+              Backup:
+                PITR: !Ref PointInTimeRecoveryEnabled
+      
+  #############################################################
+  # AWS Backup Selection
+  #############################################################
+  BackupSelection:
+    Type: AWS::Backup::BackupSelection
+    Properties:
+      BackupPlanId: !Ref BackupPlan
+      BackupSelection:
+        SelectionName: TradeReconciliationBackupSelection
+        IamRoleArn: !GetAtt BackupIAMRole.Arn
+        Resources:
+          - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${EnvironmentName}-source-trades
+          - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${EnvironmentName}-target-trades
+          - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${EnvironmentName}-documents
+          - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${EnvironmentName}-reconciliations
+          - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${EnvironmentName}-matches
+          - !Sub arn:aws:s3:::${EnvironmentName}-trade-reconciliation-documents
+
+  #############################################################
+  # IAM Role for AWS Backup
+  #############################################################
+  BackupIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-trade-reconciliation-backup-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: backup.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup
+        - arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForRestores
+      Policies:
+        - PolicyName: BackupPolicyExtensions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:Decrypt
+                  - kms:ReEncrypt*
+                  - kms:GenerateDataKey
+                  - kms:DescribeKey
+                Resource: !GetAtt BackupEncryptionKey.Arn
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  #############################################################
+  # S3 Cross-Region Replication (Conditional)
+  #############################################################
+  S3ReplicationRole:
+    Type: AWS::IAM::Role
+    Condition: EnableS3Replication
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-trade-reconciliation-s3-replication-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3ReplicationPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetReplicationConfiguration
+                  - s3:ListBucket
+                Resource: !Sub arn:aws:s3:::${EnvironmentName}-trade-reconciliation-documents
+              - Effect: Allow
+                Action:
+                  - s3:GetObjectVersion
+                  - s3:GetObjectVersionAcl
+                Resource: !Sub arn:aws:s3:::${EnvironmentName}-trade-reconciliation-documents/*
+              - Effect: Allow
+                Action:
+                  - s3:ReplicateObject
+                  - s3:ReplicateDelete
+                Resource: !Sub arn:aws:s3:::${EnvironmentName}-trade-reconciliation-dr-documents/*
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: !Sub arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/*
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                Resource: !Sub arn:aws:kms:${DisasterRecoveryRegion}:${AWS::AccountId}:key/*
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  #############################################################
+  # CloudWatch Alarms for Monitoring Backup Status
+  #############################################################
+  BackupJobsFailedAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${EnvironmentName}-trade-reconciliation-backup-failures
+      AlarmDescription: Alarm when backup jobs fail
+      MetricName: JobsFailed
+      Namespace: AWS/Backup
+      Dimensions:
+        - Name: BackupVaultName
+          Value: !Ref BackupVault
+      Statistic: Sum
+      Period: 86400  # Daily
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !ImportValue
+          !Sub ${EnvironmentName}-alarm-topic-arn
+
+  #############################################################
+  # DynamoDB Point-in-Time Recovery (PITR) Configuration
+  #############################################################
+  SourceTradeTablePITR:
+    Type: AWS::DynamoDB::Table
+    Condition: EnablePITR
+    Properties:
+      TableName: !Sub ${EnvironmentName}-source-trades-pitr
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  #############################################################
+  # Disaster Recovery Documentation
+  #############################################################
+  DisasterRecoveryDocumentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${EnvironmentName}-trade-reconciliation-dr-docs
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  #############################################################
+  # Disaster Recovery Automation
+  #############################################################
+  DisasterRecoveryStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub ${EnvironmentName}-trade-reconciliation-dr-recovery
+      RoleArn: !GetAtt DisasterRecoveryStateMachineRole.Arn
+      DefinitionString: !Sub |
+        {
+          "Comment": "State Machine for Disaster Recovery",
+          "StartAt": "CheckPrimaryRegionHealth",
+          "States": {
+            "CheckPrimaryRegionHealth": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${DisasterRecoveryCheckFunction.Arn}",
+                "Payload": {
+                  "primaryRegion": "${AWS::Region}",
+                  "environmentName": "${EnvironmentName}"
+                }
+              },
+              "Next": "HealthCheckBranch"
+            },
+            "HealthCheckBranch": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.Payload.primaryRegionHealthy",
+                  "BooleanEquals": false,
+                  "Next": "InitiateDisasterRecovery"
+                }
+              ],
+              "Default": "EndExecution"
+            },
+            "InitiateDisasterRecovery": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "${DisasterRecoveryInitiateFunction.Arn}",
+                "Payload": {
+                  "primaryRegion": "${AWS::Region}",
+                  "secondaryRegion": "${DisasterRecoveryRegion}",
+                  "environmentName": "${EnvironmentName}"
+                }
+              },
+              "Next": "NotifyAdmins"
+            },
+            "NotifyAdmins": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "TopicArn": "${DisasterRecoveryTopic.Arn}",
+                "Subject": "Disaster Recovery Initiated for Trade Reconciliation System",
+                "Message.$": "$.Payload.message"
+              },
+              "End": true
+            },
+            "EndExecution": {
+              "Type": "Pass",
+              "End": true
+            }
+          }
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  DisasterRecoveryStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-trade-reconciliation-dr-sfn-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+      Policies:
+        - PolicyName: SFNPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref DisasterRecoveryTopic
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt DisasterRecoveryCheckFunction.Arn
+                  - !GetAtt DisasterRecoveryInitiateFunction.Arn
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  DisasterRecoveryTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${EnvironmentName}-trade-reconciliation-dr-notifications
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  DisasterRecoveryCheckFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-trade-reconciliation-dr-check
+      Handler: index.handler
+      Runtime: nodejs18.x
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt DisasterRecoveryLambdaRole.Arn
+      Code:
+        ZipFile: |
+          // DR check function
+          exports.handler = async (event) => {
+            console.log('Checking primary region health', event);
+            // Implement health check logic here
+            // For demo, return healthy by default
+            return {
+              primaryRegionHealthy: true,
+              message: "Primary region is healthy"
+            };
+          };
+      Environment:
+        Variables:
+          ENVIRONMENT_NAME: !Ref EnvironmentName
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  DisasterRecoveryInitiateFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${EnvironmentName}-trade-reconciliation-dr-initiate
+      Handler: index.handler
+      Runtime: nodejs18.x
+      Timeout: 60
+      MemorySize: 512
+      Role: !GetAtt DisasterRecoveryLambdaRole.Arn
+      Code:
+        ZipFile: |
+          // DR initiate function
+          exports.handler = async (event) => {
+            console.log('Initiating disaster recovery', event);
+            // Implement DR initiation logic here
+            return {
+              success: true,
+              message: `Disaster recovery initiated from ${event.primaryRegion} to ${event.secondaryRegion} for environment ${event.environmentName}`
+            };
+          };
+      Environment:
+        Variables:
+          ENVIRONMENT_NAME: !Ref EnvironmentName
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  DisasterRecoveryLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${EnvironmentName}-trade-reconciliation-dr-lambda-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DisasterRecoveryPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:DescribeTable
+                  - dynamodb:ListTables
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource: !Sub arn:aws:s3:::${EnvironmentName}-trade-reconciliation-*
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  #############################################################
+  # Disaster Recovery Test Schedule
+  #############################################################
+  DisasterRecoveryTestRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub ${EnvironmentName}-trade-reconciliation-dr-test
+      Description: 'Monthly scheduled disaster recovery test'
+      ScheduleExpression: cron(0 1 1 * ? *) # First day of each month at 1 AM UTC
+      State: ENABLED
+      Targets:
+        - Arn: !Ref DisasterRecoveryTopic
+          Id: 'NotifyDRTest'
+          InputTransformer:
+            InputPathsMap:
+              time: $.time
+            InputTemplate: |
+              {
+                "message": "Scheduled disaster recovery test for Trade Reconciliation System is due. Please conduct failover test according to DR procedures.",
+                "scheduledTime": <time>,
+                "environment": "${EnvironmentName}"
+              }
+
+Outputs:
+  BackupVaultName:
+    Description: Name of the backup vault
+    Value: !Ref BackupVault
+    Export:
+      Name: !Sub ${EnvironmentName}-backup-vault-name
+  
+  BackupVaultArn:
+    Description: ARN of the backup vault
+    Value: !GetAtt BackupVault.BackupVaultArn
+    Export:
+      Name: !Sub ${EnvironmentName}-backup-vault-arn
+  
+  BackupPlanId:
+    Description: ID of the backup plan
+    Value: !Ref BackupPlan
+    Export:
+      Name: !Sub ${EnvironmentName}-backup-plan-id
+  
+  DisasterRecoveryTopicArn:
+    Description: ARN of the disaster recovery SNS topic
+    Value: !Ref DisasterRecoveryTopic
+    Export:
+      Name: !Sub ${EnvironmentName}-dr-topic-arn
+  
+  DisasterRecoveryStateMachineArn:
+    Description: ARN of the disaster recovery state machine
+    Value: !Ref DisasterRecoveryStateMachine
+    Export:
+      Name: !Sub ${EnvironmentName}-dr-state-machine-arn

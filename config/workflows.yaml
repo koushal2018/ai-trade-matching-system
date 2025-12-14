@@ -1,0 +1,44 @@
+standard_trade_reconciliation:
+  steps:
+    - name: data_ingestion
+      type: data_format
+      configuration:
+        data_key: raw_data
+    - name: trade_matching
+      type: ai_analysis
+      configuration:
+        ai_provider: default
+        input_step: data_ingestion
+    - name: reconciliation
+      type: field_mapping
+      configuration:
+        format_name: email_format
+        input_step: trade_matching
+    - name: report_generation
+      type: reporting
+      configuration:
+        input_step: reconciliation
+
+enhanced_ai_reconciliation:
+  steps:
+    - name: context_analysis
+      type: ai_analysis
+      configuration:
+        ai_provider: bedrock
+        analysis_type: context
+    - name: semantic_matching
+      type: ai_analysis
+      configuration:
+        ai_provider: bedrock
+        analysis_type: semantic
+        input_step: context_analysis
+    - name: intelligent_reconciliation
+      type: field_mapping
+      configuration:
+        format_name: electronic_trading
+        input_step: semantic_matching
+    - name: enhanced_reporting
+      type: reporting
+      configuration:
+        include_ai_explanations: true
+        input_step: intelligent_reconciliation

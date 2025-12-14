@@ -1,0 +1,462 @@
+---
+# Custom Reconciliation Workflow Definitions
+# This file defines various reconciliation workflows that can be executed
+# based on different requirements and data types
+
+workflows:
+  # Standard trade reconciliation workflow
+  - name: "standard_trade_reconciliation"
+    description: "Standard workflow for reconciling trade data between bank and counterparty sources"
+    version: "1.0"
+    global_config:
+      timeout: 3600  # 1 hour
+      retry_policy: "exponential_backoff"
+      error_handling: "continue_on_error"
+      logging_level: "INFO"
+    steps:
+      - name: "data_ingestion"
+        step_type: "tool"
+        configuration:
+          tool_name: "ingest_trade_data"
+          input_sources: ["bank_data", "counterparty_data"]
+          format_detection: true
+        timeout: 300
+        retry_count: 3
+        dependencies: []
+
+      - name: "data_preprocessing"
+        step_type: "tool"
+        configuration:
+          tool_name: "preprocess_trade_data"
+          field_mapping_config: "standard_mapping"
+          validation_enabled: true
+        timeout: 600
+        retry_count: 2
+        dependencies: ["data_ingestion"]
+
+      - name: "context_analysis"
+        step_type: "agent"
+        configuration:
+          agent_name: "trade_matcher"
+          mode: "hybrid"
+          ai_provider: "bedrock"
+          context_analysis_enabled: true
+        timeout: 900
+        retry_count: 2
+        dependencies: ["data_preprocessing"]
+
+      - name: "trade_matching"
+        step_type: "agent"
+        configuration:
+          agent_name: "trade_matcher"
+          matching_algorithm: "intelligent"
+          similarity_threshold: 0.85
+          batch_size: 100
+        timeout: 1800
+        retry_count: 1
+        dependencies: ["context_analysis"]
+
+      - name: "field_reconciliation"
+        step_type: "agent"
+        configuration:
+          agent_name: "trade_reconciler"
+          reconciliation_mode: "detailed"
+          tolerance_config: "standard_tolerances"
+          ai_explanation_enabled: true
+        timeout: 1200
+        retry_count: 2
+        dependencies: ["trade_matching"]
+
+      - name: "report_generation"
+        step_type: "agent"
+        configuration:
+          agent_name: "report_generator"
+          report_format: "comprehensive"
+          include_ai_reasoning: true
+          export_formats: ["pdf", "excel", "json"]
+        timeout: 600
+        retry_count: 3
+        dependencies: ["field_reconciliation"]
+
+  # High-volume batch reconciliation workflow
+  - name: "batch_reconciliation_workflow"
+    description: "Optimized workflow for high-volume batch reconciliation processing"
+    version: "1.0"
+    global_config:
+      timeout: 7200  # 2 hours
+      parallel_processing: true
+      batch_size: 1000
+      memory_optimization: true
+    steps:
+      - name: "batch_data_ingestion"
+        step_type: "tool"
+        configuration:
+          tool_name: "batch_ingest_trade_data"
+          chunk_size: 1000
+          parallel_workers: 4
+          memory_limit: "2GB"
+        timeout: 1800
+        retry_count: 2
+        dependencies: []
+
+      - name: "parallel_preprocessing"
+        step_type: "tool"
+        configuration:
+          tool_name: "parallel_preprocess_data"
+          worker_count: 8
+          queue_size: 5000
+          field_mapping_config: "batch_mapping"
+        timeout: 3600
+        retry_count: 1
+        dependencies: ["batch_data_ingestion"]
+
+      - name: "intelligent_batching"
+        step_type: "tool"
+        configuration:
+          tool_name: "intelligent_batch_grouping"
+          grouping_strategy: "similarity_based"
+          ai_provider: "sagemaker"
+          batch_optimization: true
+        timeout: 900
+        retry_count: 2
+        dependencies: ["parallel_preprocessing"]
+
+      - name: "batch_matching"
+        step_type: "agent"
+        configuration:
+          agent_name: "enhanced_trade_matcher"
+          mode: "deterministic"  # Faster for large volumes
+          parallel_execution: true
+          progress_tracking: true
+        timeout: 3600
+        retry_count: 1
+        dependencies: ["intelligent_batching"]
+
+      - name: "exception_handling"
+        step_type: "rule_engine"
+        configuration:
+          rule_set: "batch_exception_rules"
+          ai_assisted_resolution: true
+          escalation_threshold: 0.1
+        timeout: 1200
+        retry_count: 2
+        dependencies: ["batch_matching"]
+
+      - name: "summary_reporting"
+        step_type: "agent"
+        configuration:
+          agent_name: "report_generator"
+          report_type: "batch_summary"
+          metrics_enabled: true
+          performance_analysis: true
+        timeout: 600
+        retry_count: 2
+        dependencies: ["exception_handling"]
+
+  # AI-powered reconciliation workflow
+  - name: "ai_enhanced_reconciliation"
+    description: "Workflow leveraging full AI capabilities for complex reconciliation scenarios"
+    version: "1.0"
+    global_config:
+      ai_provider: "bedrock"
+      decision_mode: "llm"
+      confidence_threshold: 0.8
+      explanation_required: true
+    steps:
+      - name: "ai_data_analysis"
+        step_type: "tool"
+        configuration:
+          tool_name: "ai_analyze_trade_context"
+          deep_analysis: true
+          context_extraction: true
+          semantic_understanding: true
+        timeout: 1200
+        retry_count: 2
+        dependencies: []
+
+      - name: "intelligent_field_mapping"
+        step_type: "tool"
+        configuration:
+          tool_name: "ai_field_mapping"
+          adaptive_mapping: true
+          learning_enabled: true
+          confidence_scoring: true
+        timeout: 900
+        retry_count: 2
+        dependencies: ["ai_data_analysis"]
+
+      - name: "semantic_matching"
+        step_type: "agent"
+        configuration:
+          agent_name: "enhanced_trade_matcher"
+          mode: "llm"
+          semantic_threshold: 0.9
+          context_aware: true
+          explanation_generation: true
+        timeout: 2400
+        retry_count: 1
+        dependencies: ["intelligent_field_mapping"]
+
+      - name: "ai_reconciliation"
+        step_type: "agent"
+        configuration:
+          agent_name: "enhanced_trade_reconciler"
+          mode: "llm"
+          intelligent_tolerances: true
+          mismatch_explanation: true
+          confidence_scoring: true
+        timeout: 1800
+        retry_count: 2
+        dependencies: ["semantic_matching"]
+
+      - name: "intelligent_reporting"
+        step_type: "agent"
+        configuration:
+          agent_name: "enhanced_report_generator"
+          ai_insights: true
+          natural_language_summary: true
+          recommendation_engine: true
+        timeout: 900
+        retry_count: 2
+        dependencies: ["ai_reconciliation"]
+
+  # Real-time reconciliation workflow
+  - name: "realtime_reconciliation"
+    description: "Real-time workflow for immediate trade reconciliation"
+    version: "1.0"
+    global_config:
+      timeout: 300  # 5 minutes
+      priority: "high"
+      real_time: true
+      streaming_enabled: true
+    steps:
+      - name: "stream_ingestion"
+        step_type: "tool"
+        configuration:
+          tool_name: "stream_trade_data"
+          streaming_source: "kafka"
+          buffer_size: 100
+          processing_mode: "micro_batch"
+        timeout: 60
+        retry_count: 1
+        dependencies: []
+
+      - name: "fast_preprocessing"
+        step_type: "tool"
+        configuration:
+          tool_name: "fast_preprocess_data"
+          minimal_validation: true
+          cache_enabled: true
+          field_mapping_config: "realtime_mapping"
+        timeout: 30
+        retry_count: 2
+        dependencies: ["stream_ingestion"]
+
+      - name: "quick_matching"
+        step_type: "agent"
+        configuration:
+          agent_name: "trade_matcher"
+          mode: "deterministic"
+          fast_mode: true
+          similarity_threshold: 0.9
+        timeout: 120
+        retry_count: 1
+        dependencies: ["fast_preprocessing"]
+
+      - name: "immediate_reconciliation"
+        step_type: "agent"
+        configuration:
+          agent_name: "trade_reconciler"
+          mode: "deterministic"
+          essential_fields_only: true
+          tolerance_config: "strict_tolerances"
+        timeout: 60
+        retry_count: 1
+        dependencies: ["quick_matching"]
+
+      - name: "alert_generation"
+        step_type: "tool"
+        configuration:
+          tool_name: "generate_alerts"
+          alert_threshold: "any_mismatch"
+          notification_channels: ["email", "slack", "dashboard"]
+        timeout: 30
+        retry_count: 3
+        dependencies: ["immediate_reconciliation"]
+
+  # Exception handling workflow
+  - name: "exception_resolution_workflow"
+    description: "Specialized workflow for handling reconciliation exceptions and edge cases"
+    version: "1.0"
+    global_config:
+      exception_handling: true
+      ai_assistance: true
+      escalation_enabled: true
+      manual_review_threshold: 0.5
+    steps:
+      - name: "exception_classification"
+        step_type: "rule_engine"
+        configuration:
+          rule_set: "exception_classification_rules"
+          ai_classification: true
+          severity_scoring: true
+        timeout: 300
+        retry_count: 2
+        dependencies: []
+
+      - name: "automated_resolution"
+        step_type: "rule_engine"
+        configuration:
+          rule_set: "automated_resolution_rules"
+          resolution_strategies: ["data_correction", "tolerance_adjustment", "manual_override"]
+          success_threshold: 0.8
+        timeout: 600
+        retry_count: 2
+        dependencies: ["exception_classification"]
+
+      - name: "ai_assisted_analysis"
+        step_type: "agent"
+        configuration:
+          agent_name: "exception_analyzer"
+          mode: "llm"
+          deep_analysis: true
+          recommendation_generation: true
+        timeout: 900
+        retry_count: 1
+        dependencies: ["automated_resolution"]
+
+      - name: "manual_review_preparation"
+        step_type: "tool"
+        configuration:
+          tool_name: "prepare_manual_review"
+          context_compilation: true
+          evidence_gathering: true
+          recommendation_summary: true
+        timeout: 300
+        retry_count: 2
+        dependencies: ["ai_assisted_analysis"]
+
+      - name: "escalation_handling"
+        step_type: "tool"
+        configuration:
+          tool_name: "handle_escalation"
+          escalation_rules: "standard_escalation"
+          notification_system: true
+          tracking_enabled: true
+        timeout: 180
+        retry_count: 3
+        dependencies: ["manual_review_preparation"]
+
+  # Compliance-focused reconciliation workflow
+  - name: "compliance_reconciliation"
+    description: "Workflow with enhanced compliance and audit trail features"
+    version: "1.0"
+    global_config:
+      compliance_mode: true
+      audit_trail: "comprehensive"
+      data_retention: "7_years"
+      encryption_required: true
+    steps:
+      - name: "compliance_validation"
+        step_type: "tool"
+        configuration:
+          tool_name: "validate_compliance"
+          regulatory_checks: ["MiFID", "Dodd-Frank", "EMIR"]
+          data_quality_validation: true
+          completeness_check: true
+        timeout: 600
+        retry_count: 2
+        dependencies: []
+
+      - name: "audit_trail_initialization"
+        step_type: "tool"
+        configuration:
+          tool_name: "initialize_audit_trail"
+          trail_level: "detailed"
+          immutable_logging: true
+          digital_signatures: true
+        timeout: 120
+        retry_count: 3
+        dependencies: ["compliance_validation"]
+
+      - name: "controlled_reconciliation"
+        step_type: "agent"
+        configuration:
+          agent_name: "compliance_reconciler"
+          mode: "hybrid"
+          approval_required: true
+          four_eyes_principle: true
+        timeout: 2400
+        retry_count: 1
+        dependencies: ["audit_trail_initialization"]
+
+      - name: "compliance_reporting"
+        step_type: "agent"
+        configuration:
+          agent_name: "compliance_reporter"
+          regulatory_format: true
+          attestation_required: true
+          archive_enabled: true
+        timeout: 900
+        retry_count: 2
+        dependencies: ["controlled_reconciliation"]
+
+      - name: "audit_finalization"
+        step_type: "tool"
+        configuration:
+          tool_name: "finalize_audit_trail"
+          integrity_verification: true
+          archival_preparation: true
+          compliance_certification: true
+        timeout: 300
+        retry_count: 2
+        dependencies: ["compliance_reporting"]
+
+# Global workflow configuration
+global_workflow_config:
+  default_timeout: 1800
+  default_retry_count: 2
+  error_handling_strategy: "fail_fast"
+  logging_level: "INFO"
+  metrics_collection: true
+  performance_monitoring: true
+  
+# Step processor configurations
+step_processors:
+  agent:
+    default_timeout: 900
+    memory_limit: "1GB"
+    concurrent_limit: 5
+    
+  tool:
+    default_timeout: 300
+    memory_limit: "512MB"
+    concurrent_limit: 10
+    
+  rule_engine:
+    default_timeout: 180
+    memory_limit: "256MB"
+    concurrent_limit: 20
+
+# Workflow execution policies
+execution_policies:
+  retry_policy:
+    max_retries: 3
+    backoff_strategy: "exponential"
+    base_delay: 1
+    max_delay: 60
+    
+  timeout_policy:
+    default_step_timeout: 300
+    default_workflow_timeout: 3600
+    timeout_escalation: true
+    
+  error_policy:
+    continue_on_error: false
+    error_aggregation: true
+    failure_threshold: 0.1
+    
+  resource_policy:
+    max_concurrent_workflows: 10
+    max_memory_per_workflow: "4GB"
+    cpu_limit_per_workflow: 2

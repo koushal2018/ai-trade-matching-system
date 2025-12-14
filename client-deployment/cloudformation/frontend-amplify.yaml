@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Trade Reconciliation Solution - Frontend Amplify Hosting'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: Environment name (dev, test, prod)
+    AllowedValues:
+      - dev
+      - test
+      - prod
+  
+  ApiEndpoint:
+    Type: String
+    Description: URL of the API Gateway endpoint
+  
+  UserPoolId:
+    Type: String
+    Description: ID of the Cognito User Pool
+  
+  UserPoolClientId:
+    Type: String
+    Description: ID of the Cognito User Pool Client
+  
+  RepositoryUrl:
+    Type: String
+    Description: URL of the Git repository containing the frontend code
+    Default: https://github.com/example/trade-reconciliation-frontend.git
+  
+  BranchName:
+    Type: String
+    Description: Git branch to deploy
+    Default: main
+
+Resources:
+  #############################################################
+  # Amplify App
+  #############################################################
+  AmplifyApp:
+    Type: AWS::Amplify::App
+    Properties:
+      Name: !Sub ${EnvironmentName}-trade-reconciliation
+      Description: Trade Reconciliation Frontend Application
+      Repository: !Ref RepositoryUrl
+      BuildSpec: !Sub |
+        version: 1
+        frontend:
+          phases:
+            preBuild:
+              commands:
+                - npm ci
+            build:
+              commands:
+                - npm run build
+          artifacts:
+            baseDirectory: build
+            files:
+              - '**/*'
+          cache:
+            paths:
+              - node_modules/**/*
+      EnvironmentVariables:
+        - Name: REACT_APP_API_ENDPOINT
+          Value: !Ref ApiEndpoint
+        - Name: REACT_APP_USER_POOL_ID
+          Value: !Ref UserPoolId
+        - Name: REACT_APP_USER_POOL_CLIENT_ID
+          Value: !Ref UserPoolClientId
+        - Name: REACT_APP_REGION
+          Value: !Ref AWS::Region
+        - Name: REACT_APP_ENVIRONMENT
+          Value: !Ref EnvironmentName
+      AutoBranchCreationConfig:
+        EnableAutoBranchCreation: false
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  AmplifyBranch:
+    Type: AWS::Amplify::Branch
+    Properties:
+      AppId: !GetAtt AmplifyApp.AppId
+      BranchName: !Ref BranchName
+      EnableAutoBuild: true
+      Description: !Sub ${EnvironmentName} branch for Trade Reconciliation Frontend
+      Stage: PRODUCTION
+      EnvironmentVariables:
+        - Name: REACT_APP_API_ENDPOINT
+          Value: !Ref ApiEndpoint
+        - Name: REACT_APP_USER_POOL_ID
+          Value: !Ref UserPoolId
+        - Name: REACT_APP_USER_POOL_CLIENT_ID
+          Value: !Ref UserPoolClientId
+        - Name: REACT_APP_REGION
+          Value: !Ref AWS::Region
+        - Name: REACT_APP_ENVIRONMENT
+          Value: !Ref EnvironmentName
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  #############################################################
+  # Amplify Domain (Optional - requires domain ownership)
+  #############################################################
+  # AmplifyDomain:
+  #   Type: AWS::Amplify::Domain
+  #   Properties:
+  #     AppId: !GetAtt AmplifyApp.AppId
+  #     DomainName: trade-reconciliation.example.com
+  #     SubDomainSettings:
+  #       - BranchName: !Ref BranchName
+  #         Prefix: !Ref EnvironmentName
+
+Outputs:
+  AmplifyAppId:
+    Description: ID of the Amplify App
+    Value: !GetAtt AmplifyApp.AppId
+    Export:
+      Name: !Sub ${EnvironmentName}-amplify-app-id
+  
+  AmplifyAppURL:
+    Description: URL of the Amplify App
+    Value: !Sub https://${BranchName}.${AmplifyApp.DefaultDomain}
+    Export:
+      Name: !Sub ${EnvironmentName}-amplify-app-url
+  
+  AmplifyBranchARN:
+    Description: ARN of the Amplify Branch
+    Value: !GetAtt AmplifyBranch.Arn
+    Export:
+      Name: !Sub ${EnvironmentName}-amplify-branch-arn

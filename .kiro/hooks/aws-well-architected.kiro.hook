@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "AWS Well-Architected Review",
+  "description": "Reviews changes to CloudFormation templates, Lambda functions, and infrastructure code to ensure compliance with AWS Well-Architected Framework pillars (Security, Reliability, Performance, Cost Optimization, Operational Excellence, Sustainability)",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "client-deployment/cloudformation/*.yaml",
+      "client-deployment/lambda/**/*.js",
+      "client-deployment/infrastructure/**/*.yaml",
+      "strandsagents/ai_providers/*.py",
+      "deploy.sh",
+      "client-deployment/validate_and_upload.sh"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the changed files for AWS Well-Architected Framework compliance. Check for:\n\nSECURITY PILLAR:\n- IAM roles follow least privilege principle\n- Encryption at rest and in transit\n- Secure API Gateway configurations\n- Proper VPC and security group settings\n- No hardcoded credentials or secrets\n\nRELIABILITY PILLAR:\n- Multi-AZ deployments where appropriate\n- Auto-scaling configurations\n- Error handling and retry logic\n- Backup and disaster recovery provisions\n- Health checks and monitoring\n\nPERFORMANCE EFFICIENCY PILLAR:\n- Right-sized Lambda functions and compute resources\n- Efficient data access patterns\n- CDN usage for static content\n- Database indexing strategies\n- Caching implementations\n\nCOST OPTIMIZATION PILLAR:\n- Resource tagging for cost allocation\n- Appropriate instance types and sizes\n- Reserved capacity where beneficial\n- Lifecycle policies for storage\n- Monitoring for unused resources\n\nOPERATIONAL EXCELLENCE PILLAR:\n- Infrastructure as Code practices\n- Comprehensive logging and monitoring\n- Automated deployment processes\n- Documentation and runbooks\n- Change management procedures\n\nSUSTAINABILITY PILLAR:\n- Efficient resource utilization\n- Serverless architectures where appropriate\n- Regional optimization for reduced latency\n- Right-sizing to minimize waste\n\nProvide specific recommendations for any violations found and suggest AWS native solutions that align with the Well-Architected Framework."
+  }
+}
