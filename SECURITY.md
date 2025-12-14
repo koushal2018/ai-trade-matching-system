@@ -262,6 +262,9 @@ This system processes financial documents and requires careful security configur
 - **AWS Config**: Configuration compliance monitoring
 - **AWS GuardDuty**: Threat detection service
 - **AWS Inspector**: Application security assessment
+- **AgentCore Observability**: Built-in agent monitoring and tracing
+- **X-Ray**: Distributed tracing for agent workflows
+- **CloudWatch Insights**: Log analysis for agent activities
 
 ### Security Scanning
 
@@ -290,6 +293,12 @@ detect-secrets scan --all-files
 
 # License compliance
 pip-licenses --format=table
+
+# Agent security validation
+python scripts/validate_agent_security.py
+
+# Test agent isolation
+python tests/security/test_agent_isolation.py
 ```
 
 ## Compliance
