@@ -28,13 +28,13 @@ process_pdf() {
     # Step 1: PDF Adapter
     echo ""
     echo "[Step 1] PDF Adapter - Extracting text from PDF..."
-    cd /Users/koushald/ai-trade-matching-system-2/deployment/pdf_adapter
+    cd ../../deployment/pdf_adapter
 
     agentcore invoke --agent pdf_adapter_agent "{\"document_id\": \"$doc_id\", \"document_path\": \"s3://$S3_BUCKET/$source_type/$filename\", \"source_type\": \"$source_type\"}"
 
     echo ""
     echo "[Step 2] Trade Extraction - Extracting trade data..."
-    cd /Users/koushald/ai-trade-matching-system-2/deployment/trade_extraction
+    cd ../../deployment/trade_extraction
 
     EXTRACTION_RESULT=$(agentcore invoke --agent trade_extraction_agent "{\"document_id\": \"$doc_id\", \"canonical_output_location\": \"s3://$S3_BUCKET/extracted/$source_type/$doc_id.json\", \"source_type\": \"$source_type\"}")
 
@@ -46,7 +46,7 @@ process_pdf() {
     if [ -n "$TRADE_ID" ]; then
         echo ""
         echo "[Step 3] Trade Matching - Attempting to match trade: $TRADE_ID (source: $source_type)"
-        cd /Users/koushald/ai-trade-matching-system-2/deployment/trade_matching
+        cd ../../deployment/trade_matching
 
         agentcore invoke --agent trade_matching_agent "{\"trade_id\": \"$TRADE_ID\", \"source_type\": \"$source_type\", \"correlation_id\": \"batch_$(date +%s)\"}"
     else

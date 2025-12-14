@@ -75,6 +75,13 @@ lambda-deploy/
 .mcp.json
 *-config.json
 
+# AgentCore configuration files (contain sensitive ARNs and account IDs)
+.bedrock_agentcore.yaml
+**/.bedrock_agentcore.yaml
+**/.bedrock_agentcore/
+.env.memory
+**/.env.memory
+
 # Vibe coding / AI-generated documentation
 vibe-session.log
 vibe*.log

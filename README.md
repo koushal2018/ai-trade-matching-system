@@ -364,7 +364,7 @@ def invoke(payload, context):
     
     # Hand off to next agent
     next_agent_response = context.invoke_agent(
-        agent_arn="arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/trade-extraction-agent",
+        agent_arn="arn:aws:bedrock-agentcore:us-east-1:YOUR_ACCOUNT_ID:runtime/trade-extraction-agent",
         payload={"canonical_output": result}
     )
     

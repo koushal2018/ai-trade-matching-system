@@ -1,0 +1,41 @@
+# AgentCore Configuration Template
+# Copy this file to .bedrock_agentcore.yaml and update with your values
+# WARNING: Never commit .bedrock_agentcore.yaml files - they contain sensitive ARNs
+
+agents:
+  your_agent_name:
+    name: your_agent_name
+    entrypoint: ./your_agent_file.py
+    deployment_type: direct_code_deploy
+    runtime_type: PYTHON_3_11
+    platform: linux/arm64
+    container_runtime: null
+    source_path: ./
+    aws:
+      execution_role: arn:aws:iam::YOUR_ACCOUNT_ID:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-XXXXXXXX
+      execution_role_auto_create: false
+      account: 'YOUR_ACCOUNT_ID'
+      region: us-east-1
+      ecr_repository: null
+      ecr_auto_create: false
+      s3_path: s3://bedrock-agentcore-codebuild-sources-YOUR_ACCOUNT_ID-us-east-1
+      s3_auto_create: false
+      network_configuration:
+        vpc_config:
+          security_group_ids: []
+          subnet_ids: []
+        assign_public_ip: false
+    bedrock_agentcore:
+      agent_id: your_agent_id-XXXXXXXXXX
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:YOUR_ACCOUNT_ID:runtime/your_agent_id-XXXXXXXXXX
+      agent_session_id: null
+    codebuild:
+      project_name: bedrock-agentcore-your_agent_name-builder
+      execution_role: arn:aws:iam::YOUR_ACCOUNT_ID:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-XXXXXXXX
+      source_bucket: bedrock-agentcore-codebuild-sources-YOUR_ACCOUNT_ID-us-east-1
+    memory:
+      mode: STM_ONLY  # or STM_AND_LTM or NO_MEMORY
+      memory_id: your_memory_id-XXXXXXXXXX
+      memory_arn: arn:aws:bedrock-agentcore:us-east-1:YOUR_ACCOUNT_ID:memory/your_memory_id-XXXXXXXXXX
+      memory_name: your_memory_name
+      event_expiry_days: 30
