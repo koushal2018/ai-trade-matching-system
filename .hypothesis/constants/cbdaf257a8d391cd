@@ -1,4 +1,0 @@
-# file: /Users/koushald/ai-trade-matching-system/src/latest_trade_matching_agent/models/adapter.py
-# hypothesis_version: 6.148.7
-
-[0.95, 300, 245678, '2025-01-15T10:31:30Z', '2025-01-15T11:00:00Z', 'BANK', 'C789012', 'CHAT', 'COUNTERPARTY', 'EMAIL', 'PDF', 'U123456', 'VOICE', 'adapter_type', 'after', 'channel_id', 'chat_platform', 'corr_abc', 'corr_def', 'correlation_id', 'doc_456', 'document_id', 'dpi', 'examples', 'extracted_text', 'file_size_bytes', 'metadata', 'msg_789', 'ocr_confidence', 'page_count', 'processing_timestamp', 's3_location', 'slack', 'source_type', 'user_id']

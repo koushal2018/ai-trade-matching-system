@@ -27,6 +27,7 @@ wheels/
 *.egg
 MANIFEST
 *.kiro/
+.kiro/
 
 # Virtual environments
 .venv/
