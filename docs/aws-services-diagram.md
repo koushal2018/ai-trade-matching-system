@@ -10,7 +10,7 @@ graph TB
         end
 
         subgraph "AI/ML Services"
-            Bedrock["AWS Bedrock<br/>────────────<br/>Model: Claude Sonnet 4<br/>us.anthropic.claude-<br/>sonnet-4-20250514-v1:0<br/>────────────<br/>Temperature: 0.1<br/>Max Tokens: 4096<br/>Framework: Strands SDK"]
+            Bedrock["AWS Bedrock<br/>────────────<br/>Model: Amazon Nova Pro<br/>amazon.nova-pro-v1:0<br/>────────────<br/>Temperature: 0.1<br/>Max Tokens: 4096<br/>Framework: Strands SDK"]
         end
 
         subgraph "Database Services"
@@ -78,7 +78,7 @@ graph TB
 | Service | Configuration | Purpose |
 |---------|--------------|---------|
 | **Amazon S3** | Bucket: `trade-matching-system-agentcore-production`<br/>Region: `us-east-1`<br/>Encryption: At rest | Document storage, canonical outputs, report storage |
-| **AWS Bedrock** | Model: Claude Sonnet 4 (US East)<br/>ID: `us.anthropic.claude-sonnet-4-20250514-v1:0`<br/>Temp: 0.1, Max Tokens: 4096 | AI-powered document processing, text extraction, entity extraction |
+| **AWS Bedrock** | Model: Amazon Nova Pro<br/>ID: `amazon.nova-pro-v1:0`<br/>Temp: 0.1, Max Tokens: 4096 | AI-powered document processing, text extraction, entity extraction |
 | **Amazon DynamoDB** | Tables: 4 (BankTradeData, CounterpartyTradeData, ExceptionsTable, AgentRegistry)<br/>Billing: PAY_PER_REQUEST<br/>PK: trade_id or agent_id | Trade data persistence, exception tracking, agent registry |
 | **Amazon SQS** | 10+ queues for event-driven communication<br/>FIFO and Standard queues | Agent coordination, event routing, HITL workflows |
 | **Bedrock AgentCore** | Runtime: Serverless<br/>Scaling: Auto (1-10 instances)<br/>Memory: 2-4GB per agent | Agent execution platform with managed infrastructure |

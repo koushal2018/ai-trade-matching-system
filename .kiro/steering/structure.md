@@ -25,11 +25,8 @@ ai-trade-matching-system/
 ├── legacy/                             # Archived code (not used)
 │   └── crewai/                         # Old CrewAI implementation
 ├── terraform/                          # Infrastructure as Code
-├── lambda/                             # Lambda function code
-├── config/                             # Application configuration
 ├── data/                               # Sample trade PDFs
 ├── docs/                               # Documentation
-├── storage/                            # Local storage directory
 └── .kiro/                              # Kiro AI assistant configuration
 ```
 

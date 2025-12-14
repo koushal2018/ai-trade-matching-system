@@ -194,12 +194,12 @@ For feature requests, please include:
 ### Code Organization
 
 ```
-src/latest_trade_matching_agent/
-├── matching/           # Fuzzy matching algorithms
-├── exception_handling/ # Exception classification and handling
-├── tools/             # Custom agent tools
-├── models/            # Pydantic data models
-└── evaluations/       # Testing and evaluation utilities
+deployment/
+├── swarm/             # Strands Swarm implementation
+├── pdf_adapter/       # PDF processing agent
+├── trade_extraction/  # Data extraction agent
+├── trade_matching/    # Matching agent
+└── exception_management/ # Exception handling agent
 
 deployment/
 ├── swarm/             # Strands Swarm implementation
@@ -229,7 +229,8 @@ from datetime import datetime
 from pydantic import BaseModel
 import boto3
 
-from src.latest_trade_matching_agent.models.trade import Trade
+# Example imports would be from deployment agents
+# from deployment.trade_extraction.trade_extraction_agent_strands import TradeExtractionAgent
 
 
 class TradeProcessor:

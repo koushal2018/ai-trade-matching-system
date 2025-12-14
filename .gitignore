@@ -43,7 +43,7 @@ env/
 
 # Generated files
 pdf_images/
-storage/*.db
+# Legacy storage directory removed
 logs/
 data/*.json
 data/*.md

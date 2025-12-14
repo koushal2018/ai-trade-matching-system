@@ -5,7 +5,7 @@
 ### Enterprise-Grade Trade Confirmation Matching Powered by AWS Bedrock
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org)
-[![AWS Bedrock](https://img.shields.io/badge/AWS-Bedrock-FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white)](https://aws.amazon.com/bedrock/)
+[![Amazon Nova Pro](https://img.shields.io/badge/Amazon-Nova%20Pro-FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white)](https://aws.amazon.com/bedrock/)
 [![Strands SDK](https://img.shields.io/badge/Strands-SDK-00A4BD.svg?style=for-the-badge)](https://strandsagents.com)
 [![AgentCore](https://img.shields.io/badge/Amazon-AgentCore-232F3E.svg?style=for-the-badge&logo=amazon-aws&logoColor=white)](https://aws.amazon.com/bedrock/agentcore/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
@@ -26,7 +26,7 @@
 
 ## Overview
 
-The **AI Trade Matching System** is an intelligent, cloud-native solution that automates the processing and matching of derivative trade confirmations using advanced AI capabilities. Built on AWS native services with a **multi-agent swarm architecture** powered by Strands SDK, the system leverages **AWS Bedrock Claude Sonnet 4** for document analysis and implements sophisticated trade matching algorithms for financial operations teams.
+The **AI Trade Matching System** is an intelligent, cloud-native solution that automates the processing and matching of derivative trade confirmations using advanced AI capabilities. Built on AWS native services with a **multi-agent swarm architecture** powered by Strands SDK, the system leverages **Amazon Nova Pro** for document analysis and implements sophisticated trade matching algorithms for financial operations teams.
 
 ### The Problem
 
@@ -52,7 +52,7 @@ An AI-powered system that:
 <td width="50%">
 
 ### AI-Powered Processing
-- **Claude Sonnet 4** multimodal extraction
+- **Amazon Nova Pro** multimodal extraction
 - Intelligent document understanding
 - 95%+ accuracy on trade field extraction
 
@@ -87,7 +87,7 @@ The system uses a **swarm architecture** where specialized agents collaborate au
 ```
                                     +------------------+
                                     |   AWS Bedrock    |
-                                    | Claude Sonnet 4  |
+                                    |  Amazon Nova Pro |
                                     +--------+---------+
                                              |
     +----------------+              +--------v---------+
@@ -187,8 +187,36 @@ terraform init
 terraform apply
 ```
 
-### 4. Run the System
+### 4. Deploy Agents to AgentCore Runtime
 
+```bash
+# Install AgentCore CLI
+pip install bedrock-agentcore-starter-toolkit
+
+# Deploy PDF Adapter Agent
+cd deployment/pdf_adapter
+agentcore configure --entrypoint pdf_adapter_agent_strands.py --non-interactive
+agentcore launch
+
+# Deploy Trade Extraction Agent
+cd ../trade_extraction
+agentcore configure --entrypoint trade_extraction_agent_strands.py --non-interactive
+agentcore launch
+
+# Deploy Trade Matching Agent
+cd ../trade_matching
+agentcore configure --entrypoint trade_matching_agent_strands.py --non-interactive
+agentcore launch
+
+# Deploy Exception Management Agent
+cd ../exception_management
+agentcore configure --entrypoint exception_management_agent_strands.py --non-interactive
+agentcore launch
+```
+
+### 5. Run the System
+
+**Local Development (Strands Swarm):**
 ```bash
 # Process a bank trade confirmation
 python deployment/swarm/trade_matching_swarm.py \
@@ -200,6 +228,20 @@ python deployment/swarm/trade_matching_swarm.py \
 python deployment/swarm/trade_matching_swarm.py \
   s3://your-bucket/COUNTERPARTY/GCS381315_V1.pdf \
   --source-type COUNTERPARTY
+```
+
+**Production (AgentCore Runtime):**
+```bash
+# Invoke the orchestrator agent with a trade document
+agentcore invoke '{
+  "document_path": "s3://your-bucket/BANK/FAB_26933659.pdf",
+  "source_type": "BANK",
+  "document_id": "FAB_26933659"
+}' --agent orchestrator_agent
+
+# Check agent status
+agentcore status --agent pdf_adapter_agent
+agentcore status --agent trade_extraction_agent
 ```
 
 ---
@@ -215,11 +257,7 @@ ai-trade-matching-system/
 │   ├── trade_matching/            # Matching agent
 │   ├── exception_management/      # Exception handling agent
 │   └── orchestrator/              # Orchestration agent
-├── src/latest_trade_matching_agent/
-│   ├── matching/                  # Fuzzy matching algorithms
-│   ├── exception_handling/        # Exception triage with RL
-│   ├── memory/                    # AgentCore memory integration
-│   └── tools/                     # Custom agent tools
+
 ├── terraform/                     # Infrastructure as Code
 │   └── agentcore/                 # AgentCore deployment
 ├── web-portal/                    # React dashboard
@@ -260,7 +298,7 @@ npm run dev
 
 | Service | Purpose |
 |---------|---------|
-| **Bedrock** | Claude Sonnet 4 for document analysis |
+| **Bedrock** | Amazon Nova Pro for document analysis |
 | **AgentCore** | Serverless agent runtime |
 | **DynamoDB** | Trade data & exceptions storage |
 | **S3** | Document & report storage |
