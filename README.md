@@ -82,7 +82,7 @@ An AI-powered system that:
 
 ## Architecture
 
-The system uses a **swarm architecture** where specialized agents collaborate autonomously:
+The system uses **AgentCore Runtime** with **Agent-to-Agent (A2A) communication** for scalable, serverless processing:
 
 ```
                                     +------------------+
@@ -91,27 +91,32 @@ The system uses a **swarm architecture** where specialized agents collaborate au
                                     +--------+---------+
                                              |
     +----------------+              +--------v---------+
-    |   S3 Bucket    |              |                  |
+    |   S3 Bucket    |              | AgentCore Runtime|
     | BANK/          +------------->+   PDF Adapter    +----+
     | COUNTERPARTY/  |              |     Agent        |    |
     +----------------+              +--------+---------+    |
                                              |              |
                                     +--------v---------+    |
-                                    |                  |    |
+                                    | AgentCore Runtime|    |
                                     | Trade Extractor  |    |
                                     |     Agent        |    |
                                     +--------+---------+    |
                                              |              |
          +-------------------+      +--------v---------+    |
-         |    DynamoDB       |<-----+                  |    |
+         |    DynamoDB       |<-----| AgentCore Runtime|    |
          | BankTradeData     |      |  Trade Matcher   |    |
          | CounterpartyData  |<-----+     Agent        |    |
          +-------------------+      +--------+---------+    |
                                              |              |
                                     +--------v---------+    |
-                                    |                  |<---+
+                                    | AgentCore Runtime|<---+
                                     |Exception Handler |
                                     |     Agent        |
+                                    +------------------+
+                                             |
+                                    +--------v---------+
+                                    | AgentCore Memory |
+                                    | & Observability  |
                                     +------------------+
 ```
 
@@ -296,14 +301,16 @@ npm run dev
 
 ## AWS Services
 
-| Service | Purpose |
-|---------|---------|
-| **Bedrock** | Amazon Nova Pro for document analysis |
-| **AgentCore** | Serverless agent runtime |
-| **DynamoDB** | Trade data & exceptions storage |
-| **S3** | Document & report storage |
-| **CloudWatch** | Monitoring & logging |
-| **IAM** | Security & access control |
+| Service | Purpose | Integration |
+|---------|---------|-------------|
+| **Bedrock** | Amazon Nova Pro for document analysis | Direct multimodal PDF processing |
+| **AgentCore Runtime** | Serverless agent deployment & scaling | Production agent hosting with A2A communication |
+| **AgentCore Memory** | Persistent agent context & knowledge | Trade history and matching patterns |
+| **AgentCore Observability** | Real-time monitoring & tracing | Agent performance and workflow tracking |
+| **DynamoDB** | Trade data & exceptions storage | Structured data persistence |
+| **S3** | Document & report storage | PDF inputs and canonical outputs |
+| **CloudWatch** | System monitoring & logging | Infrastructure and application metrics |
+| **IAM** | Security & access control | Fine-grained permissions for agents |
 
 ---
 
@@ -329,6 +336,87 @@ npm run dev
 
 ---
 
+## AgentCore Integration
+
+### Agent-to-Agent Communication
+
+The system leverages **AgentCore Runtime's native A2A capabilities** for seamless agent communication:
+
+```python
+# Agent 1 can invoke Agent 2 directly
+from bedrock_agentcore import BedrockAgentCoreApp
+
+app = BedrockAgentCoreApp()
+
+@app.entrypoint
+def invoke(payload, context):
+    # Process initial request
+    result = process_document(payload)
+    
+    # Hand off to next agent
+    next_agent_response = context.invoke_agent(
+        agent_arn="arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/trade-extraction-agent",
+        payload={"canonical_output": result}
+    )
+    
+    return next_agent_response
+```
+
+### Memory Integration
+
+**AgentCore Memory** provides persistent context across agent interactions:
+
+- **Trade History**: Remember previous matching patterns
+- **Counterparty Profiles**: Learn counterparty-specific document formats
+- **Exception Patterns**: Improve exception classification over time
+- **Performance Metrics**: Track and optimize agent performance
+
+### Observability & Monitoring
+
+**AgentCore Observability** provides comprehensive monitoring:
+
+- **Real-time Tracing**: Track requests across all agents
+- **Performance Metrics**: Latency, throughput, error rates
+- **Token Usage**: Monitor LLM costs and optimization opportunities
+- **Custom Metrics**: Trade-specific KPIs and SLA tracking
+
+### Production Deployment Patterns
+
+#### Multi-Agent Runtime Architecture
+
+```yaml
+# .bedrock_agentcore.yaml
+agents:
+  pdf_adapter:
+    entrypoint: pdf_adapter_agent_strands.py
+    memory_enabled: true
+    vpc_enabled: true
+    
+  trade_extraction:
+    entrypoint: trade_extraction_agent_strands.py
+    memory_enabled: true
+    depends_on: [pdf_adapter]
+    
+  trade_matching:
+    entrypoint: trade_matching_agent_strands.py
+    memory_enabled: true
+    depends_on: [trade_extraction]
+    
+  exception_management:
+    entrypoint: exception_management_agent_strands.py
+    memory_enabled: true
+    depends_on: [trade_matching]
+```
+
+#### Security & Compliance
+
+- **VPC Isolation**: Deploy agents in private subnets
+- **IAM Least Privilege**: Fine-grained permissions per agent
+- **Encryption**: End-to-end encryption for sensitive trade data
+- **Audit Logging**: Complete audit trail via CloudTrail and AgentCore logs
+
+---
+
 ## Development
 
 ### Running Tests
@@ -346,9 +434,70 @@ pytest tests/e2e/ -v
 
 ### Adding a New Agent
 
+**For Local Development (Strands Swarm):**
 1. Create agent factory function in `deployment/swarm/`
 2. Define tools with `@tool` decorator
 3. Update swarm configuration with handoff conditions
+
+**For Production (AgentCore Runtime):**
+1. Create agent file with `BedrockAgentCoreApp` wrapper:
+   ```python
+   from bedrock_agentcore import BedrockAgentCoreApp
+   from strands import Agent
+   
+   app = BedrockAgentCoreApp()
+   
+   @app.entrypoint
+   def invoke(payload, context):
+       # Your agent logic here
+       return {"result": result}
+   
+   if __name__ == "__main__":
+       app.run()
+   ```
+
+2. Deploy to AgentCore:
+   ```bash
+   agentcore configure --entrypoint new_agent.py --non-interactive
+   agentcore launch
+   ```
+
+### Troubleshooting
+
+#### AgentCore Deployment Issues
+
+**Common Issues:**
+
+1. **Missing BedrockAgentCoreApp Import**
+   ```bash
+   Error: Agent must import BedrockAgentCoreApp
+   ```
+   **Solution:** Add `from bedrock_agentcore import BedrockAgentCoreApp`
+
+2. **Missing @app.entrypoint Decorator**
+   ```bash
+   Error: No entrypoint function found
+   ```
+   **Solution:** Add `@app.entrypoint` decorator to your invoke function
+
+3. **Requirements.txt Issues**
+   ```bash
+   Error: bedrock-agentcore not found
+   ```
+   **Solution:** Add `bedrock-agentcore` to requirements.txt
+
+4. **Agent Communication Failures**
+   ```bash
+   Error: Unable to invoke target agent
+   ```
+   **Solution:** Check IAM permissions for `bedrock-agentcore:InvokeAgentRuntime`
+
+#### Performance Optimization
+
+- **Token Usage**: Monitor via AgentCore Observability dashboard
+- **Latency**: Use AgentCore Memory for caching frequent operations
+- **Throughput**: Scale agents independently based on workload
+- **Cost**: Optimize model selection per agent (Nova Pro vs Claude)
 
 ---
 
