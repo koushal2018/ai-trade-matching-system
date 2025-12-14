@@ -66,7 +66,8 @@ S3_BUCKET = _config["s3_bucket"]
 BANK_TABLE = _config["bank_table"]
 COUNTERPARTY_TABLE = _config["counterparty_table"]
 EXCEPTIONS_TABLE = _config["exceptions_table"]
-BEDROCK_MODEL_ID = _config["bedrock_model_id"]
+BEDROCK_MODEL_ID = _config["bedrock_model_id"]  # Use configured model (amazon.nova-pro-v1:0)
+
 
 
 # ============================================================================

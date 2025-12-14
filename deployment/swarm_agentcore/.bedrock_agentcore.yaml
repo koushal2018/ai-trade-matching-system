@@ -1,20 +1,20 @@
-default_agent: pdf_adapter_agent
+default_agent: trade_matching_swarm
 agents:
-  pdf_adapter_agent:
-    name: pdf_adapter_agent
-    entrypoint: pdf_adapter_agent.py
+  trade_matching_swarm:
+    name: trade_matching_swarm
+    entrypoint: /Users/koushald/ai-trade-matching-system-2/deployment/swarm_agentcore/trade_matching_swarm_agentcore_simple.py
     deployment_type: container
     runtime_type: null
     platform: linux/arm64
     container_runtime: none
-    source_path: null
+    source_path: /Users/koushald/ai-trade-matching-system-2/deployment/swarm_agentcore
     aws:
-      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-d49ec2442f
-      execution_role_auto_create: false
+      execution_role: null
+      execution_role_auto_create: true
       account: '401552979575'
       region: us-east-1
-      ecr_repository: 401552979575.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-pdf_adapter_agent
-      ecr_auto_create: false
+      ecr_repository: null
+      ecr_auto_create: true
       s3_path: null
       s3_auto_create: false
       network_configuration:
@@ -28,18 +28,18 @@ agents:
         idle_runtime_session_timeout: null
         max_lifetime: null
     bedrock_agentcore:
-      agent_id: pdf_adapter_agent-Az72YP53FJ
-      agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/pdf_adapter_agent-Az72YP53FJ
-      agent_session_id: trade_test_http_004__pdf_974abc1c
+      agent_id: null
+      agent_arn: null
+      agent_session_id: 3cc547d7-a8a1-478d-a00b-5ddc0d2dfb84
     codebuild:
-      project_name: bedrock-agentcore-pdf_adapter_agent-builder
-      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-d49ec2442f
-      source_bucket: bedrock-agentcore-codebuild-sources-401552979575-us-east-1
+      project_name: null
+      execution_role: null
+      source_bucket: null
     memory:
-      mode: NO_MEMORY
-      memory_id: null
+      mode: STM_AND_LTM
+      memory_id: TradeMatchingMemory-5f8wTKHzCs
       memory_arn: null
-      memory_name: null
+      memory_name: trade_matching_swarm_memory
       event_expiry_days: 30
       first_invoke_memory_check_done: false
       was_created_by_toolkit: false

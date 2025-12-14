@@ -1,0 +1,391 @@
+{
+  "widgets": [
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["AWS/Bedrock", "Invocations", "ModelId", "amazon.nova-pro-v1:0"]
+        ],
+        "view": "singleValue",
+        "stacked": false,
+        "region": "us-east-1",
+        "title": "Total Invocations (24h)",
+        "period": 86400,
+        "stat": "Sum"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 0,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["AWS/Bedrock", "Invocations", "ModelId", "amazon.nova-pro-v1:0"]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "title": "Requests per Minute (6h)",
+        "period": 300,
+        "stat": "Sum"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 0,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "((m1 + m2 + (m3 * 5)) / PERIOD(m1)) * 60",
+              "label": "Service TPM (Quota)"
+            }
+          ],
+          [
+            "AWS/Bedrock",
+            "InputTokenCount",
+            "ModelId",
+            "amazon.nova-pro-v1:0",
+            { "id": "m1", "visible": false }
+          ],
+          [
+            ".",
+            "CacheWriteInputTokenCount",
+            ".",
+            ".",
+            { "id": "m2", "visible": false }
+          ],
+          [
+            ".",
+            "OutputTokenCount",
+            ".",
+            ".",
+            { "id": "m3", "visible": false }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "title": "Service TPM (Quota Calculation)",
+        "period": 300,
+        "stat": "Sum"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 6,
+      "width": 6,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "RUNNING_SUM((m1/1000 * 0.0008) + (m2/1000 * 0.0008) + (m3/1000 * 0.00008) + (m4/1000 * 0.0032))",
+              "label": "Today's Total Cost ($)",
+              "id": "e1"
+            }
+          ],
+          [
+            "AWS/Bedrock",
+            "InputTokenCount",
+            "ModelId",
+            "amazon.nova-pro-v1:0",
+            { "id": "m1", "visible": false }
+          ],
+          [
+            "AWS/Bedrock",
+            "CacheWriteInputTokenCount",
+            "ModelId",
+            "amazon.nova-pro-v1:0",
+            { "id": "m2", "visible": false }
+          ],
+          [
+            "AWS/Bedrock",
+            "CacheReadInputTokenCount",
+            "ModelId",
+            "amazon.nova-pro-v1:0",
+            { "id": "m3", "visible": false }
+          ],
+          [
+            "AWS/Bedrock",
+            "OutputTokenCount",
+            "ModelId",
+            "amazon.nova-pro-v1:0",
+            { "id": "m4", "visible": false }
+          ]
+        ],
+        "view": "singleValue",
+        "stacked": false,
+        "region": "us-east-1",
+        "title": "Today's Total Cost ($)",
+        "period": 300,
+        "stat": "Sum"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 6,
+      "y": 6,
+      "width": 10,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "(m1/1000 * 0.0008) + (m2/1000 * 0.0008) + (m3/1000 * 0.00008) + (m4/1000 * 0.0032)",
+              "label": "Real-time Cost ($)",
+              "id": "e1",
+              "color": "#d62728"
+            }
+          ],
+          [
+            {
+              "expression": "RUNNING_SUM((m1/1000 * 0.0008) + (m2/1000 * 0.0008) + (m3/1000 * 0.00008) + (m4/1000 * 0.0032))",
+              "label": "Daily Total ($)",
+              "id": "e2",
+              "color": "#2ca02c"
+            }
+          ],
+          [
+            "AWS/Bedrock",
+            "InputTokenCount",
+            "ModelId",
+            "amazon.nova-pro-v1:0",
+            { "id": "m1", "visible": false }
+          ],
+          [
+            "AWS/Bedrock",
+            "CacheWriteInputTokenCount",
+            "ModelId",
+            "amazon.nova-pro-v1:0",
+            { "id": "m2", "visible": false }
+          ],
+          [
+            "AWS/Bedrock",
+            "CacheReadInputTokenCount",
+            "ModelId",
+            "amazon.nova-pro-v1:0",
+            { "id": "m3", "visible": false }
+          ],
+          [
+            "AWS/Bedrock",
+            "OutputTokenCount",
+            "ModelId",
+            "amazon.nova-pro-v1:0",
+            { "id": "m4", "visible": false }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "title": "Nova Pro - Cost Tracking (Corrected Formula)",
+        "period": 300,
+        "stat": "Sum",
+        "yAxis": {
+          "left": {
+            "label": "Cost (USD)"
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 6,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          ["AWS/Bedrock", "InvocationLatency", "ModelId", "amazon.nova-pro-v1:0"]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "title": "Latency (6h)",
+        "period": 300,
+        "stat": "Average"
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 12,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "query": "SOURCE '/aws/bedrock/modelinvocations'\n| fields @timestamp, @message\n| filter @message like /requestMetadata/\n| stats count() as total_requests",
+        "region": "us-east-1",
+        "title": "Total Requests with Metadata",
+        "view": "singleValue"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 12,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            {
+              "expression": "RUNNING_SUM(m1+m2+m3+m4)",
+              "label": "Daily Total Tokens",
+              "id": "e3"
+            }
+          ],
+          [
+            "AWS/Bedrock",
+            "InputTokenCount",
+            "ModelId",
+            "amazon.nova-pro-v1:0",
+            { "id": "m1", "visible": false }
+          ],
+          [
+            ".",
+            "OutputTokenCount",
+            ".",
+            ".",
+            { "id": "m2", "visible": false }
+          ],
+          [
+            ".",
+            "CacheReadInputTokenCount",
+            ".",
+            ".",
+            { "id": "m3", "visible": false }
+          ],
+          [
+            ".",
+            "CacheWriteInputTokenCount",
+            ".",
+            ".",
+            { "id": "m4", "visible": false }
+          ]
+        ],
+        "view": "singleValue",
+        "region": "us-east-1",
+        "title": "Today's Total Tokens",
+        "period": 300,
+        "stat": "Sum"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 12,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [
+            "AWS/Bedrock",
+            "InputTokenCount",
+            "ModelId",
+            "amazon.nova-pro-v1:0",
+            { "label": "Input Tokens" }
+          ],
+          [
+            ".",
+            "OutputTokenCount",
+            ".",
+            ".",
+            { "label": "Output Tokens" }
+          ],
+          [
+            ".",
+            "CacheReadInputTokenCount",
+            ".",
+            ".",
+            { "label": "Cache Read" }
+          ],
+          [
+            ".",
+            "CacheWriteInputTokenCount",
+            ".",
+            ".",
+            { "label": "Cache Write" }
+          ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "title": "Token Usage Breakdown",
+        "period": 300,
+        "stat": "Sum"
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 18,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "query": "SOURCE '/aws/bedrock/modelinvocations'\n| fields @timestamp, @message\n| filter @message like /requestMetadata/\n| parse @message /requestMetadata.*\"userId\":\\s*\"(?<userId>[^\"]+)\"/\n| stats count() by userId\n| sort count desc\n| limit 10",
+        "region": "us-east-1",
+        "title": "Top Users by Invocations",
+        "view": "table"
+      }
+    },
+    {
+      "type": "log",
+      "x": 12,
+      "y": 18,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "query": "SOURCE '/aws/bedrock/modelinvocations'\n| fields @timestamp, @message\n| filter @message like /requestMetadata/\n| parse @message /requestMetadata.*\"applicationName\":\\s*\"(?<appName>[^\"]+)\"/\n| stats count() by appName\n| sort count desc\n| limit 10",
+        "region": "us-east-1",
+        "title": "Top Applications by Invocations",
+        "view": "table"
+      }
+    },
+    {
+      "type": "log",
+      "x": 0,
+      "y": 24,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "query": "SOURCE '/aws/bedrock/modelinvocations'\n| fields @timestamp, @message\n| filter @message like /requestMetadata/\n| parse @message /requestMetadata.*\"userId\":\\s*\"(?<userId>[^\"]+)\"/\n| stats count() by userId\n| sort count desc\n| limit 5",
+        "region": "us-east-1",
+        "title": "Top 5 Users",
+        "view": "pie"
+      }
+    },
+    {
+      "type": "log",
+      "x": 8,
+      "y": 24,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "query": "SOURCE '/aws/bedrock/modelinvocations'\n| fields @timestamp, @message\n| filter @message like /requestMetadata/\n| parse @message /requestMetadata.*\"applicationName\":\\s*\"(?<appName>[^\"]+)\"/\n| stats count() by appName\n| sort count desc\n| limit 5",
+        "region": "us-east-1",
+        "title": "Top 5 Applications",
+        "view": "pie"
+      }
+    },
+    {
+      "type": "text",
+      "x": 16,
+      "y": 24,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "markdown": "## 💰 Cost Tracking Enhanced!\n\n**Fixed Issues:**\n- ✅ Corrected cost formula (was dividing by 1000 twice)\n- ✅ Added real-time cost tracking\n- ✅ Added daily running totals\n- ✅ Added token usage breakdown\n\n**New Widgets:**\n- Today's Total Cost (single value)\n- Real-time + Daily Cost Chart\n- Today's Total Tokens\n- Token Usage Breakdown\n\n**Formula:** `(tokens/1000) * rate`\n- Input: $0.0008 per 1K\n- Output: $0.0032 per 1K\n- Cache Read: $0.00008 per 1K\n- Cache Write: $0.0008 per 1K"
+      }
+    }
+  ]
+}

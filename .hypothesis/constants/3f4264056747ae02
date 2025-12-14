@@ -1,0 +1,4 @@
+# file: /Users/koushald/ai-trade-matching-system-2/deployment/swarm/aws_resources.py
+# hypothesis_version: 6.148.7
+
+[120, 300, 'AWS_REGION', 'BEDROCK_MODEL_ID', 'BankTradeData', 'DYNAMODB_BANK_TABLE', 'ExceptionsTable', 'S3_BUCKET_NAME', 'adaptive', 'amazon.nova-pro-v1:0', 'bank_table', 'bedrock-runtime', 'bedrock_model_id', 'counterparty_table', 'dynamodb', 'exceptions_table', 'max_attempts', 'mode', 'region', 's3', 's3_bucket', 'us-east-1']

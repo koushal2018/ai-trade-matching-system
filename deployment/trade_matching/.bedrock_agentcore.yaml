@@ -30,7 +30,7 @@ agents:
     bedrock_agentcore:
       agent_id: trade_matching_agent-3aAvK64dQz
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/trade_matching_agent-3aAvK64dQz
-      agent_session_id: 43266953-b465-4a58-922c-de96f38b2c4f
+      agent_session_id: trade_test_http_004__match_ed11952d
     codebuild:
       project_name: null
       execution_role: null

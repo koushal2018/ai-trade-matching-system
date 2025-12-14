@@ -1,0 +1,22 @@
+# Trade Matching Swarm - AgentCore Runtime Dependencies
+# These dependencies are required for deploying the swarm to AgentCore Runtime
+# with memory integration and AWS service access.
+
+# Strands SDK - Multi-agent swarm framework with A2A support
+strands>=0.1.0
+strands-agents[a2a]>=0.1.0
+
+# Strands Tools - AWS integration tools
+strands-tools>=0.1.0
+
+# Bedrock AgentCore - Serverless deployment and memory integration
+bedrock-agentcore[strands-agents]>=0.1.0
+
+# A2A Protocol - Agent-to-Agent communication
+httpx>=0.24.0
+
+# AWS SDK - Direct AWS service access
+boto3>=1.34.0
+
+# Data validation and serialization
+pydantic>=2.0.0

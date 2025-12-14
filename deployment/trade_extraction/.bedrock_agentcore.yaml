@@ -30,7 +30,7 @@ agents:
     bedrock_agentcore:
       agent_id: trade_extraction_agent-KnAx4O4ezw
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/trade_extraction_agent-KnAx4O4ezw
-      agent_session_id: 3777cb85-b952-41f6-be96-10af54e3fc00
+      agent_session_id: trade_test_http_004__ext_8117485a
     codebuild:
       project_name: null
       execution_role: null

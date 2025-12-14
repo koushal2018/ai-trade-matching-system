@@ -88,7 +88,7 @@ agents:
     bedrock_agentcore:
       agent_id: exception_manager-uliBS5DsX3
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/exception_manager-uliBS5DsX3
-      agent_session_id: 08de24e9-f0d1-4f20-a39a-0388bd534e9e
+      agent_session_id: trade_test_http_004__exc_ead92507
     codebuild:
       project_name: bedrock-agentcore-exception_manager-builder
       execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-ad04f7aab0
