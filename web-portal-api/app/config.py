@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     dynamodb_counterparty_table: str = os.getenv("DYNAMODB_COUNTERPARTY_TABLE", "CounterpartyTradeData")
     dynamodb_exceptions_table: str = os.getenv("DYNAMODB_EXCEPTIONS_TABLE", "ExceptionsTable")
     dynamodb_audit_table: str = os.getenv("DYNAMODB_AUDIT_TABLE", "AuditTrail")
-    dynamodb_agent_registry_table: str = os.getenv("DYNAMODB_AGENT_REGISTRY_TABLE", "AgentRegistry")
+    dynamodb_agent_registry_table: str = os.getenv("DYNAMODB_AGENT_REGISTRY_TABLE", "trade-matching-system-agent-registry-production")
     dynamodb_hitl_table: str = os.getenv("DYNAMODB_HITL_TABLE", "HITLReviews")
     s3_bucket: str = os.getenv("S3_BUCKET_NAME", "trade-matching-us-east-1")
     

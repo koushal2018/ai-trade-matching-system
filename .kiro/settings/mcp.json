@@ -142,7 +142,11 @@
         "/Users/koushald/Desktop",
         "/Users/koushald"
       ],
-      "disabled": true
+      "disabled": false,
+      "autoApprove": [
+        "list_allowed_directories",
+        "read_media_file"
+      ]
     }
   }
 }

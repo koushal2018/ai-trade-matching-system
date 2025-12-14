@@ -10,6 +10,13 @@ export interface AgentHealth {
     latencyMs: number
     throughput: number
     errorRate: number
+    // Strands-specific metrics
+    totalTokens: number
+    inputTokens: number
+    outputTokens: number
+    cycleCount: number
+    toolCallCount: number
+    successRate: number
   }
   activeTasks: number
 }

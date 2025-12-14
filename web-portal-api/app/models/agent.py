@@ -13,6 +13,13 @@ class AgentMetrics(BaseModel):
     latencyMs: int
     throughput: int
     errorRate: float
+    # Strands-specific metrics
+    totalTokens: int = 0
+    inputTokens: int = 0
+    outputTokens: int = 0
+    cycleCount: int = 0
+    toolCallCount: int = 0
+    successRate: float = 1.0
 
 
 class AgentHealth(BaseModel):
