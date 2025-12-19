@@ -18,7 +18,7 @@
 
 <br/>
 
-<img src="generated-diagrams/aws-architecture-scale-security.png" alt="AWS Architecture - Built for Scale & Security" width="900"/>
+<img src="generated-diagrams/ai-trade-matching-hero.png" alt="AWS Architecture - Built for Scale & Security" width="900"/>
 
 </div>
 
