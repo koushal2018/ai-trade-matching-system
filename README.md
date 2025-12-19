@@ -18,7 +18,7 @@
 
 <br/>
 
-<img src="generated-diagrams/ai-trade-matching-hero.png" alt="AWS Architecture - Built for Scale & Security" width="900"/>
+<img src="generated-diagrams/ai-trade-matching-hero.png" alt="AWS Architecture" width="900"/>
 
 </div>
 
@@ -167,8 +167,8 @@ graph LR
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/yourusername/ai-trade-matching-system.git
-cd ai-trade-matching-system
+git clone git@ssh.gitlab.aws.dev:koushald/agentic-ai-reconcillation.git
+cd agentic-ai-reconcillation
 
 # Create virtual environment
 python -m venv .venv
@@ -518,7 +518,7 @@ Contributions are welcome! Please:
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+5. Open a Merge Request
 
 ---
 
@@ -532,6 +532,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 **Built for derivatives operations teams worldwide**
 
-[Report Bug](../../issues) | [Request Feature](../../issues) | [Documentation](docs/)
+[Report Bug](https://ssh.gitlab.aws.dev/koushald/agentic-ai-reconcillation/-/issues) | [Request Feature](https://ssh.gitlab.aws.dev/koushald/agentic-ai-reconcillation/-/issues) | [Documentation](docs/)
 
 </div>
