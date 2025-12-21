@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "name": "AWS Well-Architected Security Assessment",
+  "description": "Monitors changes to AWS CDK infrastructure files and Lambda functions to automatically assess security posture against the AWS Well-Architected Framework Security Pillar. Evaluates compliance status, identifies security risks, and provides optimization recommendations for operational excellence.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "deployment/**/*"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Use the AWS Well-Architected Security Assessment Tool MCP Server to evaluate the security posture of the modified AWS infrastructure. Analyze the changes against the AWS Well-Architected Framework Security Pillar best practices. Assess:\n\n1. Identity and Access Management (IAM) - Check for least privilege, proper role definitions, and access controls\n2. Detective Controls - Evaluate logging, monitoring, and audit capabilities\n3. Infrastructure Protection - Review network security, encryption in transit, and resource isolation\n4. Data Protection - Assess encryption at rest, data classification, and backup strategies\n5. Incident Response - Check for proper error handling and security event management\n\nProvide a comprehensive security assessment report including:\n- Current compliance status against Well-Architected Framework\n- Identified security risks and vulnerabilities\n- Specific recommendations for improvement\n- Cost optimization opportunities while maintaining security\n- Operational excellence suggestions\n\nFocus on the specific changes made to the infrastructure and their security implications."
+  },
+  "workspaceFolderName": "ai-trade-matching-system",
+  "shortName": "aws-security-assessment"
+}

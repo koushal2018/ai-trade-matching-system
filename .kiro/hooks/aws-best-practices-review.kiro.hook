@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "AWS Best Practices Code Review",
+  "description": "Reviews code changes to ensure they follow AWS best practices: reusing established code from AWS Blogs, solutions, open source repos, and PoC Pack; running logic locally when possible; and avoiding generated code from non-official sources",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "deployment/**/*",
+      "scripts/**/*"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the code changes in this file and check:\n1. Is the code reusing established patterns from AWS Blogs, AWS Solutions Library, official AWS open source repos, or PoC Pack? If not, suggest official AWS resources that could be referenced.\n2. Can any of this logic be run locally to reduce deployment cycles? Suggest local testing approaches if applicable.\n3. Does this code appear to be generated from non-official sources or AI tools without proper AWS best practices? Flag any concerns.\n\nProvide specific recommendations for improvement based on AWS best practices."
+  },
+  "workspaceFolderName": "ai-trade-matching-system",
+  "shortName": "aws-best-practices-review"
+}

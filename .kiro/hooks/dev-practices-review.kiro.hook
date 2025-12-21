@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "name": "Development Practices Review",
+  "description": "Reviews code changes to ensure they follow best practices: decoupled and deployable code, documented and reusable tests, and end-to-end validation",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*.py",
+      "**/*.ts",
+      "**/*.js"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the recent code changes and verify they follow these development practices:\n\n1. **Easy to Deploy/Test**: Check if the code is properly decoupled, uses dependency injection where appropriate, and doesn't have hard-coded dependencies that would make testing difficult. Verify setup tasks can be automated.\n\n2. **Documented and Reusable Tests**: If test files were modified, ensure test inputs are saved/documented, test steps are clear, and there's documentation about what scenarios are being tested.\n\n3. **End-to-End Testing**: Verify that changes include or reference end-to-end validation. Check if the complete solution flow is being tested, not just individual units.\n\nProvide specific feedback on what's done well and what could be improved to better align with these practices."
+  },
+  "workspaceFolderName": "ai-trade-matching-system",
+  "shortName": "dev-practices-review"
+}

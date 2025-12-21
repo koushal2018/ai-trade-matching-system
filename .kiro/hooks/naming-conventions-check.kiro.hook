@@ -1,0 +1,25 @@
+{
+  "enabled": true,
+  "name": "Naming Conventions Checker",
+  "description": "Reviews code files to ensure naming conventions are followed: camelCase for Java/JS/TS variables and functions, PascalCase for classes, snake_case for Python, and CAPITAL_SNAKE_CASE for environment variables",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.py",
+      "*.java",
+      "*.js",
+      "*.ts",
+      "*.jsx",
+      "*.tsx",
+      ".env*",
+      "**/deployment/*.yaml"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the code changes in this file for naming convention compliance:\n\n1. **Python files**: Verify snake_case for variables and functions, PascalCase for classes\n2. **JavaScript/TypeScript files**: Verify camelCase for variables and functions, PascalCase for classes and components\n3. **Java files**: Verify camelCase for variables and methods, PascalCase for classes\n4. **Environment variables**: Verify CAPITAL_SNAKE_CASE for all environment variables\n5. **YAML configuration**: Verify kebab-case or snake_case for keys as appropriate\n\nFlag any violations and suggest corrections to align with language-specific naming conventions."
+  },
+  "workspaceFolderName": "ai-trade-matching-system",
+  "shortName": "naming-conventions-check"
+}

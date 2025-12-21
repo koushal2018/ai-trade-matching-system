@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "name": "Comprehensive Logging Enforcer",
+  "description": "Monitors code changes to ensure comprehensive logging is implemented with descriptive tags (ERROR, INFO, WARN), print statements for debugging, and logging of inputs, transformations, calculations, API results, and return values across network calls, compute operations, and API interactions",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "deployment/**/*",
+      "scripts/**/*.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the code changes and ensure comprehensive logging is implemented:\n\n1. Check that all network calls, compute operations, and API interactions have logging\n2. Verify descriptive tags are used (ERROR, INFO, WARN) for different log levels\n3. Ensure print statements or console.log are used for debugging where appropriate\n4. Confirm that inputs, transformations, calculations, API results, and return values are logged\n5. If logging is missing or inadequate, suggest specific improvements with code examples\n\nProvide actionable feedback on how to improve logging in the modified code."
+  },
+  "workspaceFolderName": "ai-trade-matching-system",
+  "shortName": "comprehensive-logging-enforcement"
+}

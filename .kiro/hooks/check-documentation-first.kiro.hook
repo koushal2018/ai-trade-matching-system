@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "Documentation-First Development",
+  "description": "When code files are edited, remind the developer to leverage official documentation through MCP servers rather than relying on StackOverflow, LLMs, or public repositories. Emphasize understanding module properties, required vs optional inputs, data types, and using up-to-date code snippets from official sources.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "**/*.py",
+      "**/*.ts",
+      "**/*.js",
+      "**/*.yaml"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the recent code changes. If the developer appears to be implementing new functionality or using unfamiliar APIs/modules:\n\n1. Check if they're consulting official documentation first via available MCP servers\n2. Remind them to prioritize: Official docs → Established repos → Stack Overflow (debugging only)\n3. Ensure they understand:\n   - Module organization and how to import\n   - Required vs optional inputs (marked with ?)\n   - Input/output data types\n   - What data goes in, what functionality is performed, what comes out\n4. Suggest using documentation code snippets for up-to-date, best-practice examples\n5. Warn against \"working but mysterious\" code that's hard to debug\n\nOnly provide this guidance if it's relevant to the changes being made. Be concise and actionable."
+  },
+  "workspaceFolderName": "ai-trade-matching-system",
+  "shortName": "check-documentation-first"
+}
