@@ -16,29 +16,26 @@ os.environ["BYPASS_TOOL_CONSENT"] = "true"
 
 import json
 import uuid
+import re
+from dataclasses import dataclass
+from decimal import Decimal
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List, Tuple
 import logging
 
 # Strands SDK imports
 from strands import Agent, tool
 from strands.models import BedrockModel
 
-# Try to import use_aws from different locations
+# Import use_aws from strands_tools
 try:
     from strands_tools import use_aws
     print("✓ Imported use_aws from strands_tools")
+    USE_STRANDS_TOOLS_AWS = True
 except ImportError:
-    try:
-        from strands import use_aws
-        print("✓ Imported use_aws from strands")
-    except ImportError:
-        try:
-            from strands.tools import use_aws
-            print("✓ Imported use_aws from strands.tools")
-        except ImportError:
-            print("⚠ use_aws not found, will define custom implementation")
-            use_aws = None
+    print("⚠ strands_tools.use_aws not found, will define custom implementation")
+    use_aws = None
+    USE_STRANDS_TOOLS_AWS = False
 
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from bedrock_agentcore.runtime.models import PingStatus
@@ -60,8 +57,8 @@ AGENT_NAME = "trade-extraction-agent"
 AGENT_VERSION = os.getenv("AGENT_VERSION", "1.0.0")
 DEPLOYMENT_STAGE = os.getenv("DEPLOYMENT_STAGE", "development")
 
-# Fallback use_aws implementation if not available
-if use_aws is None:
+# Fallback use_aws implementation if strands_tools not available
+if not USE_STRANDS_TOOLS_AWS:
     @tool
     def use_aws(service_name: str, operation_name: str, parameters: dict, region: str = REGION, label: str = "") -> str:
         """
@@ -77,9 +74,20 @@ if use_aws is None:
         Returns:
             JSON string with operation result
         """
+        operation_start = datetime.utcnow()
+        
+        # LOG: AWS operation start
+        logger.info(f"AWS_OPERATION_START - {service_name}.{operation_name}", extra={
+            'service_name': service_name,
+            'operation_name': operation_name,
+            'region': region,
+            'label': label,
+            'parameter_keys': list(parameters.keys()) if parameters else [],
+            'timestamp': operation_start.isoformat()
+        })
+        
         try:
             import boto3
-            logger.info(f"AWS Operation: {service_name}.{operation_name} - {label}")
             
             client = boto3.client(service_name, region_name=region)
             
@@ -88,36 +96,91 @@ if use_aws is None:
             operation_method = parts[0] + ''.join(word.capitalize() for word in parts[1:])
             
             if hasattr(client, operation_method):
+                # LOG: Before AWS API call
+                logger.debug(f"AWS_API_CALL - Executing {operation_method}", extra={
+                    'service_name': service_name,
+                    'operation_method': operation_method,
+                    'parameters': {k: str(v)[:100] for k, v in parameters.items()} if parameters else {}
+                })
+                
                 result = getattr(client, operation_method)(**parameters)
                 
                 # Handle streaming responses for S3 GetObject
                 if service_name == "s3" and operation_name == "get_object" and "Body" in result:
                     body_content = result["Body"].read()
+                    content_size = len(body_content)
+                    
                     if isinstance(body_content, bytes):
                         try:
                             body_content = body_content.decode('utf-8')
                         except UnicodeDecodeError:
                             body_content = body_content.decode('utf-8', errors='ignore')
                     result["Body"] = body_content
+                    
+                    # LOG: S3 content processing
+                    logger.info(f"AWS_S3_CONTENT - Processed S3 object content", extra={
+                        'service_name': service_name,
+                        'operation_name': operation_name,
+                        'content_size_bytes': content_size,
+                        'content_type': result.get('ContentType', 'unknown')
+                    })
+                
+                operation_time_ms = (datetime.utcnow() - operation_start).total_seconds() * 1000
+                
+                # LOG: Successful AWS operation
+                logger.info(f"AWS_OPERATION_SUCCESS - {service_name}.{operation_name} completed", extra={
+                    'service_name': service_name,
+                    'operation_name': operation_name,
+                    'operation_time_ms': operation_time_ms,
+                    'label': label,
+                    'result_keys': list(result.keys()) if isinstance(result, dict) else [],
+                    'success': True
+                })
                 
                 return json.dumps({
                     "success": True, 
                     "result": result, 
                     "service": service_name, 
-                    "operation": operation_name
+                    "operation": operation_name,
+                    "operation_time_ms": operation_time_ms
                 }, default=str)
             else:
+                error_msg = f"Operation {operation_method} not found on {service_name} client"
+                
+                # LOG: Operation not found error
+                logger.error(f"AWS_OPERATION_ERROR - {error_msg}", extra={
+                    'service_name': service_name,
+                    'operation_name': operation_name,
+                    'operation_method': operation_method,
+                    'available_methods': [m for m in dir(client) if not m.startswith('_')][:10],
+                    'error_type': 'method_not_found'
+                })
+                
                 return json.dumps({
                     "success": False, 
-                    "error": f"Operation {operation_method} not found on {service_name} client"
+                    "error": error_msg,
+                    "error_type": "method_not_found"
                 })
                 
         except Exception as e:
-            logger.error(f"AWS operation failed: {service_name}.{operation_name} - {e}")
+            operation_time_ms = (datetime.utcnow() - operation_start).total_seconds() * 1000
+            
+            # LOG: AWS operation failure with context
+            logger.error(f"AWS_OPERATION_FAILED - {service_name}.{operation_name} failed", extra={
+                'service_name': service_name,
+                'operation_name': operation_name,
+                'operation_time_ms': operation_time_ms,
+                'error_type': type(e).__name__,
+                'error_message': str(e),
+                'label': label,
+                'parameters': {k: str(v)[:50] for k, v in parameters.items()} if parameters else {}
+            }, exc_info=True)
+            
             return json.dumps({
                 "success": False, 
                 "error": str(e), 
-                "error_type": type(e).__name__
+                "error_type": type(e).__name__,
+                "operation_time_ms": operation_time_ms
             })
 
 @tool
@@ -157,11 +220,13 @@ def get_extraction_context() -> str:
             }
         },
         "required_fields": [
-            "Trade_ID (partition key)",
+            "trade_id (partition key - lowercase)",
+            "internal_reference (sort key - required for composite key)",
             "TRADE_SOURCE (must match table: BANK or COUNTERPARTY)"
         ],
         "validation_rules": {
-            "trade_id": "Must be unique and non-empty",
+            "trade_id": "Must be unique and non-empty (use lowercase 'trade_id' not 'Trade_ID')",
+            "internal_reference": "Required sort key - use document_id or generate unique reference",
             "TRADE_SOURCE": "Must be exactly 'BANK' or 'COUNTERPARTY'",
             "dates": "Recommended format: YYYY-MM-DD",
             "numbers": "Must use DynamoDB N type with string representation"
@@ -169,7 +234,7 @@ def get_extraction_context() -> str:
         "business_rules": {
             "table_routing": "BANK trades → BankTradeData, COUNTERPARTY trades → CounterpartyTradeData",
             "data_integrity": "TRADE_SOURCE field must match target table",
-            "critical_fields": ["Trade_ID", "notional", "currency", "trade_date", "counterparty"]
+            "critical_fields": ["trade_id", "internal_reference", "notional", "currency", "trade_date", "counterparty"]
         }
     }
     
@@ -192,9 +257,9 @@ def validate_extraction_result(trade_data: dict, target_table: str) -> str:
         "errors": [],
         "warnings": []
     }
-    
-    # Check required fields
-    required_fields = ["Trade_ID", "TRADE_SOURCE"]
+
+    # Check required fields (using lowercase trade_id to match actual DynamoDB schema)
+    required_fields = ["trade_id", "internal_reference", "TRADE_SOURCE"]
     for field in required_fields:
         if not trade_data.get(field):
             validation_results["valid"] = False
@@ -231,7 +296,21 @@ def send_metrics(metric_name: str, value: float, dimensions: dict = None, unit: 
         JSON string with operation result
     """
     try:
+        # LOG: Metrics operation start
+        logger.info(f"METRICS_SEND - Sending metric to CloudWatch", extra={
+            'metric_name': metric_name,
+            'value': value,
+            'unit': unit,
+            'dimensions': dimensions,
+            'deployment_stage': DEPLOYMENT_STAGE
+        })
+        
         if DEPLOYMENT_STAGE != "production":
+            logger.info(f"METRICS_SKIP - Metrics disabled in non-production environment", extra={
+                'deployment_stage': DEPLOYMENT_STAGE,
+                'metric_name': metric_name,
+                'value': value
+            })
             return json.dumps({"success": True, "message": "Metrics disabled in non-production"})
         
         import boto3
@@ -240,7 +319,8 @@ def send_metrics(metric_name: str, value: float, dimensions: dict = None, unit: 
         metric_data = {
             'MetricName': metric_name,
             'Value': value,
-            'Unit': unit
+            'Unit': unit,
+            'Timestamp': datetime.utcnow()
         }
         
         if dimensions:
@@ -249,13 +329,30 @@ def send_metrics(metric_name: str, value: float, dimensions: dict = None, unit: 
             ]
         
         cloudwatch.put_metric_data(
-            Namespace='AgentCore/TradeExtraction',
+            Namespace='TradeMatching/Agents',
             MetricData=[metric_data]
         )
+        
+        # LOG: Successful metrics send
+        logger.info(f"METRICS_SUCCESS - Metric sent successfully", extra={
+            'metric_name': metric_name,
+            'namespace': 'TradeMatching/Agents',
+            'value': value,
+            'unit': unit
+        })
         
         return json.dumps({"success": True, "metric_sent": metric_name})
         
     except Exception as e:
+        # LOG: Metrics send failure
+        logger.error(f"METRICS_ERROR - Failed to send metric", extra={
+            'metric_name': metric_name,
+            'error_type': type(e).__name__,
+            'error_message': str(e),
+            'value': value,
+            'unit': unit
+        }, exc_info=True)
+        
         return json.dumps({"success": False, "error": str(e)})
 
 @tool
@@ -276,14 +373,35 @@ def log_processing_event(event_type: str, details: dict) -> str:
             "agent_name": AGENT_NAME,
             "agent_version": AGENT_VERSION,
             "event_type": event_type,
-            "details": details
+            "details": details,
+            "deployment_stage": DEPLOYMENT_STAGE,
+            "region": REGION
         }
         
-        logger.info(f"Processing Event: {json.dumps(log_entry)}")
+        # LOG: Processing event with structured data
+        logger.info(f"PROCESSING_EVENT - {event_type}", extra={
+            'event_type': event_type,
+            'agent_name': AGENT_NAME,
+            'agent_version': AGENT_VERSION,
+            'details': details,
+            'deployment_stage': DEPLOYMENT_STAGE,
+            'correlation_id': details.get('correlation_id') if isinstance(details, dict) else None
+        })
+        
+        # Also log as JSON for easy parsing
+        logger.info(f"PROCESSING_EVENT_JSON: {json.dumps(log_entry)}")
         
         return json.dumps({"success": True, "logged": event_type})
         
     except Exception as e:
+        # LOG: Event logging failure
+        logger.error(f"EVENT_LOG_ERROR - Failed to log processing event", extra={
+            'event_type': event_type,
+            'error_type': type(e).__name__,
+            'error_message': str(e),
+            'details_keys': list(details.keys()) if isinstance(details, dict) else []
+        }, exc_info=True)
+        
         return json.dumps({"success": False, "error": str(e)})
 
 # Health Check Handler
@@ -292,63 +410,31 @@ def health_check() -> PingStatus:
     """Health check for AgentCore Runtime."""
     return PingStatus.HEALTHY
 
-# LLM-Centric System Prompt
-SYSTEM_PROMPT = f"""You are an expert Trade Data Extraction Agent running on Amazon Bedrock AgentCore.
+# LLM-Driven System Prompt - Let the LLM decide what to extract
+SYSTEM_PROMPT = f"""You are an expert Trade Data Extraction Agent with deep knowledge of capital markets, OTC derivatives, commodities trading, and financial instruments. Your goal is to extract comprehensive trade information from financial documents and store it for downstream matching.
 
 ## Your Mission
-Extract structured trade data from canonical adapter output and store it in the appropriate DynamoDB table. You have complete autonomy over your approach - analyze the situation, reason about the data, and determine the optimal extraction strategy.
+Analyze trade documents, identify ALL relevant trade attributes, and persist them to DynamoDB. Use your capital markets expertise to recognize important fields - trade economics, counterparty details, pricing terms, settlement conventions, and any attributes critical for trade reconciliation and matching.
 
 ## Environment
-- **Agent**: {AGENT_NAME} v{AGENT_VERSION}
-- **Model**: {BEDROCK_MODEL_ID}
-- **Region**: {REGION}
-- **S3 Bucket**: {S3_BUCKET}
-- **Bank Table**: {BANK_TABLE}
-- **Counterparty Table**: {COUNTERPARTY_TABLE}
+- Region: {REGION}
+- Bank trades table: {BANK_TABLE}
+- Counterparty trades table: {COUNTERPARTY_TABLE}
 
-## Available Tools
+## Constraints
+- DynamoDB partition key: trade_id (lowercase)
+- DynamoDB sort key: internal_reference (use document_id from request)
+- Required field: TRADE_SOURCE ("BANK" or "COUNTERPARTY")
+- DynamoDB format: {{"S": "string"}} for text, {{"N": "123.45"}} for numbers
+- Route based on source_type: BANK → {BANK_TABLE}, COUNTERPARTY → {COUNTERPARTY_TABLE}
 
-### AWS Operations
-- **use_aws**: Direct AWS service operations (S3, DynamoDB, etc.)
-  - Parameters: service_name, operation_name, parameters, region, label
-  - Examples: Get S3 object, store DynamoDB item, scan table
+## Your Approach
+1. Retrieve the document from S3
+2. Analyze its content and extract every meaningful trade attribute you find
+3. Store the complete extracted data in DynamoDB
+4. Log completion
 
-### Context & Validation
-- **get_extraction_context**: Get business rules, data formats, and validation requirements
-- **validate_extraction_result**: Validate extracted data against business rules
-- **log_processing_event**: Log important events for audit trail
-- **send_metrics**: Send performance metrics to CloudWatch
-
-## Decision-Making Framework
-
-You are an intelligent agent. For each extraction task:
-
-1. **Understand**: What information is available? What's the source type? What are the requirements?
-2. **Plan**: Which tools do you need? What's the optimal sequence? How will you validate?
-3. **Execute**: Use tools to achieve your goals. Adapt based on results.
-4. **Validate**: Does the data meet requirements? Are there any issues?
-5. **Store**: Save to the correct table with proper format.
-6. **Monitor**: Log events and send metrics for observability.
-
-## Key Constraints
-
-- BANK trades must go to {BANK_TABLE}
-- COUNTERPARTY trades must go to {COUNTERPARTY_TABLE}
-- TRADE_SOURCE field must match the table (data integrity requirement)
-- DynamoDB requires typed format: {{"S": "string"}}, {{"N": "number"}}, {{"BOOL": true}}
-- Primary key is Trade_ID
-
-## Your Autonomy
-
-You decide:
-- How to extract and structure the data
-- Which fields to include based on relevance
-- How to handle missing or ambiguous information
-- What validation checks to perform
-- The order of operations
-- When to log events or send metrics
-
-Think critically. Reason about edge cases. Optimize for accuracy and reliability.
+Extract comprehensively - dates, amounts, parties, terms, pricing, settlement details, and any other trade-relevant information. The more complete the extraction, the better for downstream trade matching.
 """
 
 def create_extraction_agent() -> Agent:
@@ -356,7 +442,7 @@ def create_extraction_agent() -> Agent:
     bedrock_model = BedrockModel(
         model_id=BEDROCK_MODEL_ID,
         region_name=REGION,
-        temperature=0.1,  # Low temperature for consistent financial data processing
+        temperature=0,  # Greedy decoding for tool calling (Nova Pro best practice)
         max_tokens=4096,
     )
     
@@ -387,15 +473,56 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
     source_type = payload.get("source_type", "")
     correlation_id = payload.get("correlation_id", f"corr_{uuid.uuid4().hex[:12]}")
     
+    # LOG: Request received with full payload details
+    logger.info(f"[{correlation_id}] INVOKE_START - Agent invocation started", extra={
+        'correlation_id': correlation_id,
+        'document_id': document_id,
+        'canonical_output_location': canonical_output_location,
+        'source_type': source_type,
+        'agent_name': AGENT_NAME,
+        'agent_version': AGENT_VERSION,
+        'payload_size_bytes': len(json.dumps(payload)),
+        'timestamp': start_time.isoformat()
+    })
+    
+    # LOG: Input validation
+    logger.debug(f"[{correlation_id}] INPUT_VALIDATION - Validating input parameters", extra={
+        'has_document_id': bool(document_id),
+        'has_canonical_output': bool(canonical_output_location),
+        'source_type_provided': bool(source_type),
+        'payload_keys': list(payload.keys())
+    })
+    
     # Basic validation (minimal hardcoded logic)
     if not document_id or not canonical_output_location:
+        error_msg = "Missing required fields: document_id or canonical_output_location"
+        logger.error(f"[{correlation_id}] VALIDATION_ERROR - {error_msg}", extra={
+            'correlation_id': correlation_id,
+            'missing_document_id': not bool(document_id),
+            'missing_canonical_output': not bool(canonical_output_location),
+            'provided_fields': [k for k, v in payload.items() if v],
+            'error_type': 'validation_error'
+        })
+        
         return {
             "success": False,
-            "error": "Missing required fields: document_id or canonical_output_location",
-            "agent_name": AGENT_NAME
+            "error": error_msg,
+            "agent_name": AGENT_NAME,
+            "correlation_id": correlation_id,
+            "error_type": "validation_error",
+            "timestamp": datetime.utcnow().isoformat()
         }
     
     try:
+        # LOG: Agent creation
+        logger.info(f"[{correlation_id}] AGENT_CREATE - Creating LLM agent", extra={
+            'correlation_id': correlation_id,
+            'model_id': BEDROCK_MODEL_ID,
+            'region': REGION,
+            'temperature': 0.1,
+            'max_tokens': 4096
+        })
+        
         # Create the agent
         agent = create_extraction_agent()
         
@@ -418,9 +545,24 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
 Analyze the situation and determine the best approach to achieve this goal. Use the available tools as needed.
 """
         
+        # LOG: LLM invocation start
+        logger.info(f"[{correlation_id}] LLM_INVOKE_START - Starting LLM processing", extra={
+            'correlation_id': correlation_id,
+            'prompt_length': len(prompt),
+            'tools_available': len(agent.tools) if hasattr(agent, 'tools') else 0
+        })
+        
         # Let the LLM agent drive the entire process
         logger.info("Invoking LLM-centric trade extraction agent")
         result = agent(prompt)
+        
+        # LOG: LLM invocation complete
+        logger.info(f"[{correlation_id}] LLM_INVOKE_COMPLETE - LLM processing completed", extra={
+            'correlation_id': correlation_id,
+            'result_type': type(result).__name__,
+            'has_message': hasattr(result, 'message'),
+            'has_metrics': hasattr(result, 'metrics') or hasattr(result, 'usage')
+        })
         
         # Calculate processing time
         processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
@@ -452,6 +594,29 @@ Analyze the situation and determine the best approach to achieve this goal. Use 
         except Exception:
             pass
         
+        # LOG: Successful completion with metrics
+        logger.info(f"[{correlation_id}] INVOKE_SUCCESS - Agent execution completed successfully", extra={
+            'correlation_id': correlation_id,
+            'document_id': document_id,
+            'source_type': source_type,
+            'processing_time_ms': processing_time_ms,
+            'token_usage': token_metrics,
+            'response_length': len(response_text),
+            'agent_name': AGENT_NAME,
+            'agent_version': AGENT_VERSION,
+            'model_id': BEDROCK_MODEL_ID,
+            'deployment_stage': DEPLOYMENT_STAGE
+        })
+        
+        # LOG: Performance metrics for monitoring
+        if processing_time_ms > 30000:  # Log slow requests
+            logger.warning(f"[{correlation_id}] PERFORMANCE_WARNING - Slow processing detected", extra={
+                'correlation_id': correlation_id,
+                'processing_time_ms': processing_time_ms,
+                'threshold_ms': 30000,
+                'document_id': document_id
+            })
+        
         return {
             "success": True,
             "document_id": document_id,
@@ -463,20 +628,51 @@ Analyze the situation and determine the best approach to achieve this goal. Use 
             "agent_version": AGENT_VERSION,
             "token_usage": token_metrics,
             "model_id": BEDROCK_MODEL_ID,
-            "deployment_stage": DEPLOYMENT_STAGE
+            "deployment_stage": DEPLOYMENT_STAGE,
+            "timestamp": datetime.utcnow().isoformat()
         }
         
     except Exception as e:
-        logger.error(f"Agent execution failed: {e}", exc_info=True)
         processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        
+        # LOG: Detailed error information
+        logger.error(f"[{correlation_id}] INVOKE_ERROR - Agent execution failed", extra={
+            'correlation_id': correlation_id,
+            'document_id': document_id,
+            'source_type': source_type,
+            'error_type': type(e).__name__,
+            'error_message': str(e),
+            'processing_time_ms': processing_time_ms,
+            'agent_name': AGENT_NAME,
+            'agent_version': AGENT_VERSION,
+            'model_id': BEDROCK_MODEL_ID,
+            'canonical_output_location': canonical_output_location
+        }, exc_info=True)
+        
+        # LOG: Additional context for debugging
+        logger.debug(f"[{correlation_id}] ERROR_CONTEXT - Additional debugging information", extra={
+            'correlation_id': correlation_id,
+            'payload_keys': list(payload.keys()),
+            'environment_vars': {
+                'AWS_REGION': REGION,
+                'S3_BUCKET_NAME': S3_BUCKET,
+                'DEPLOYMENT_STAGE': DEPLOYMENT_STAGE
+            },
+            'stack_trace': str(e)
+        })
         
         return {
             "success": False,
             "error": str(e),
             "error_type": type(e).__name__,
             "document_id": document_id,
+            "correlation_id": correlation_id,
             "agent_name": AGENT_NAME,
-            "processing_time_ms": processing_time_ms
+            "agent_version": AGENT_VERSION,
+            "processing_time_ms": processing_time_ms,
+            "timestamp": datetime.utcnow().isoformat(),
+            "canonical_output_location": canonical_output_location,
+            "source_type": source_type
         }
 
 # Register with AgentCore Runtime

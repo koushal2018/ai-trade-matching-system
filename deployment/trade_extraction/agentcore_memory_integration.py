@@ -37,7 +37,7 @@ class TradeExtractionMemoryManager:
         """
         try:
             pattern_data = {
-                "trade_id": trade_data.get("Trade_ID"),
+                "trade_id": trade_data.get("trade_id"),
                 "counterparty": trade_data.get("counterparty"),
                 "product_type": trade_data.get("product_type"),
                 "source_type": trade_data.get("TRADE_SOURCE"),

@@ -1,0 +1,38 @@
+# CloudFormation Guard rules for security validation
+
+# Ensure IAM roles follow least privilege
+rule iam_role_least_privilege {
+    Resources.*[ Type == "AWS::IAM::Role" ] {
+        Properties.AssumeRolePolicyDocument.Statement[*] {
+            Principal.AWS !exists OR
+            Principal.AWS != /arn:aws:iam::\d+:root/
+        }
+    }
+}
+
+# Ensure CloudWatch logs are encrypted
+rule cloudwatch_logs_encrypted {
+    Resources.*[ Type == "AWS::Logs::LogGroup" ] {
+        Properties.KmsKeyId exists
+    }
+}
+
+# Ensure S3 permissions are not overly broad
+rule s3_permissions_restricted {
+    Resources.*[ Type == "AWS::IAM::Policy" ] {
+        Properties.PolicyDocument.Statement[*] {
+            when Resource contains "s3:::*" {
+                Action !contains "s3:*"
+            }
+        }
+    }
+}
+
+# Ensure proper tagging
+rule resources_tagged {
+    Resources.*[ Type in ["AWS::IAM::Role", "AWS::Logs::LogGroup", "AWS::CloudWatch::Alarm"] ] {
+        Properties.Tags exists
+        Properties.Tags[*].Key contains "Environment"
+        Properties.Tags[*].Key contains "Agent"
+    }
+}
