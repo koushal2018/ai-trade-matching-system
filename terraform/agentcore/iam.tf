@@ -1,4 +1,35 @@
-# IAM Role for AgentCore Runtime Execution
+# IAM Role for AgentCore Runtime Execution (Default Service Role)
+resource "aws_iam_role" "agentcore_runtime_default_service_role" {
+  name = "AmazonBedrockAgentCoreRuntimeDefaultServiceRole-${random_string.role_suffix.result}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "bedrock-agentcore.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = merge(var.tags, {
+    Name        = "AgentCore Runtime Default Service Role"
+    Component   = "AgentCore"
+    Environment = var.environment
+  })
+}
+
+# Random string for role suffix to avoid conflicts
+resource "random_string" "role_suffix" {
+  length  = 5
+  special = false
+  upper   = false
+}
+
+# IAM Role for AgentCore Runtime Execution (Custom)
 resource "aws_iam_role" "agentcore_runtime_execution" {
   name = "${var.project_name}-agentcore-runtime-${var.environment}"
 
@@ -10,6 +41,7 @@ resource "aws_iam_role" "agentcore_runtime_execution" {
         Principal = {
           Service = [
             "bedrock.amazonaws.com",
+            "bedrock-agentcore.amazonaws.com",
             "lambda.amazonaws.com"
           ]
         }
@@ -221,6 +253,38 @@ resource "aws_iam_policy" "agentcore_cloudwatch_logs" {
     Component   = "AgentCore"
     Environment = var.environment
   })
+}
+
+# Attach policies to AgentCore Runtime Default Service Role
+resource "aws_iam_role_policy_attachment" "agentcore_default_s3" {
+  role       = aws_iam_role.agentcore_runtime_default_service_role.name
+  policy_arn = aws_iam_policy.agentcore_s3_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "agentcore_default_dynamodb" {
+  role       = aws_iam_role.agentcore_runtime_default_service_role.name
+  policy_arn = aws_iam_policy.agentcore_dynamodb_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "agentcore_default_sqs" {
+  role       = aws_iam_role.agentcore_runtime_default_service_role.name
+  policy_arn = aws_iam_policy.agentcore_sqs_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "agentcore_default_bedrock" {
+  role       = aws_iam_role.agentcore_runtime_default_service_role.name
+  policy_arn = aws_iam_policy.agentcore_bedrock_access.arn
+}
+
+resource "aws_iam_role_policy_attachment" "agentcore_default_cloudwatch" {
+  role       = aws_iam_role.agentcore_runtime_default_service_role.name
+  policy_arn = aws_iam_policy.agentcore_cloudwatch_logs.arn
+}
+
+# Attach AWS managed policy for AgentCore Runtime
+resource "aws_iam_role_policy_attachment" "agentcore_default_managed" {
+  role       = aws_iam_role.agentcore_runtime_default_service_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonBedrockAgentCoreRuntimeServiceRolePolicy"
 }
 
 # Attach policies to AgentCore Runtime Execution Role
@@ -520,6 +584,11 @@ resource "aws_iam_role_policy_attachment" "lambda_orchestrator_cloudwatch" {
 }
 
 # Outputs
+output "agentcore_runtime_default_service_role_arn" {
+  description = "ARN of the AgentCore Runtime default service role"
+  value       = aws_iam_role.agentcore_runtime_default_service_role.arn
+}
+
 output "agentcore_runtime_execution_role_arn" {
   description = "ARN of the AgentCore Runtime execution role"
   value       = aws_iam_role.agentcore_runtime_execution.arn

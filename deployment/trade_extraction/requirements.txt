@@ -1,12 +1,10 @@
 # Amazon Bedrock AgentCore SDK
-# Pinned to verified working versions (see deployment/swarm_agentcore/DEPENDENCY_VERSIONS.md)
-bedrock-agentcore==1.1.1
-bedrock-agentcore-starter-toolkit==0.2.4
+bedrock-agentcore>=1.1.1
+bedrock-agentcore-starter-toolkit>=0.2.4
 
 # Strands Agents Framework
-# Note: use_aws tool not available in current versions, using fallback implementation
-strands-agents==1.19.0
-strands-agents-tools==0.2.17
+strands-agents>=1.19.0
+strands-agents-tools>=0.1.0
 
 # AWS SDK
 boto3>=1.40.0
@@ -20,3 +18,12 @@ pydantic>=2.11.0
 # Utilities
 python-dotenv>=1.1.0
 structlog>=25.4.0
+
+# Testing framework
+hypothesis>=6.0.0
+pytest>=9.0.2
+requests>=2.31.0  # Required for test_dev.py HTTP testing
+
+# Local development only (not needed in AgentCore runtime)
+# fastapi>=0.118.0
+# uvicorn>=0.37.0

@@ -81,8 +81,8 @@ class EnhancedTradeExtractionObservability:
                 extracted_fields = len([v for v in trade_data.values() if v is not None and v != ""])
                 span.set_attribute("extracted_fields_count", extracted_fields)
                 
-                # Track field completeness
-                required_fields = ["Trade_ID", "TRADE_SOURCE", "notional", "currency", "counterparty"]
+                # Track field completeness (using lowercase trade_id to match actual DynamoDB schema)
+                required_fields = ["trade_id", "internal_reference", "TRADE_SOURCE", "notional", "currency", "counterparty"]
                 complete_fields = sum(1 for field in required_fields if trade_data.get(field))
                 completeness_ratio = complete_fields / len(required_fields)
                 span.set_attribute("field_completeness_ratio", completeness_ratio)

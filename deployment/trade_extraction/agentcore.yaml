@@ -188,12 +188,12 @@ testing:
       - document_id: "TEST_BANK_001"
         canonical_output_location: "s3://trade-matching-system-agentcore-production/extracted/BANK/TEST_BANK_001.json"
         source_type: "BANK"
-        expected_fields: ["Trade_ID", "TRADE_SOURCE", "notional", "currency", "counterparty"]
-        
+        expected_fields: ["trade_id", "internal_reference", "TRADE_SOURCE", "notional", "currency", "counterparty"]
+
       - document_id: "TEST_COUNTERPARTY_001"
         canonical_output_location: "s3://trade-matching-system-agentcore-production/extracted/COUNTERPARTY/TEST_COUNTERPARTY_001.json"
         source_type: "COUNTERPARTY"
-        expected_fields: ["Trade_ID", "TRADE_SOURCE", "notional", "currency", "counterparty"]
+        expected_fields: ["trade_id", "internal_reference", "TRADE_SOURCE", "notional", "currency", "counterparty"]
 
 # Documentation
 documentation:
