@@ -14,7 +14,6 @@ __pycache__*
 
 # Virtual environments
 .venv/
-.env
 venv/
 env/
 ENV/
@@ -59,7 +58,6 @@ docs/
 tests/
 
 # Bedrock AgentCore specific - keep config but exclude runtime files
-.bedrock_agentcore.yaml
 .dockerignore
 .bedrock_agentcore/
 

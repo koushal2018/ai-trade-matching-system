@@ -207,8 +207,9 @@ resource "aws_cloudwatch_metric_alarm" "cloudwatch_charges" {
 }
 
 # AWS Budget (Alternative to CloudWatch Alarms)
+# Only create if billing_alert_emails is not empty (budget notifications require subscribers)
 resource "aws_budgets_budget" "monthly_cost_budget" {
-  count        = var.enable_aws_budget ? 1 : 0
+  count        = var.enable_aws_budget && length(var.billing_alert_emails) > 0 ? 1 : 0
   name         = "${var.project_name}-monthly-budget-${var.environment}"
   budget_type  = "COST"
   limit_amount = var.billing_alarm_threshold

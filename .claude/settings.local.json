@@ -43,7 +43,32 @@
       "Bash(fi)",
       "Bash(done)",
       "Bash(# Trade Extraction - check current config cat /Users/koushald/ai-trade-matching-system/deployment/trade_extraction/.bedrock_agentcore.yaml)",
-      "Bash(for project in bedrock-agentcore-trade_extraction_agent-builder bedrock-agentcore-trade_matching_agent-builder bedrock-agentcore-exception_manager-builder)"
-    ]
+      "Bash(for project in bedrock-agentcore-trade_extraction_agent-builder bedrock-agentcore-trade_matching_agent-builder bedrock-agentcore-exception_manager-builder)",
+      "Bash(python:*)",
+      "Bash(aws dynamodb scan:*)",
+      "Bash(aws dynamodb get-item:*)",
+      "Bash(find:*)",
+      "Bash(git pull:*)",
+      "Bash(/opt/homebrew/opt/python@3.11/bin/python3.11 /opt/homebrew/bin/agentcore:*)",
+      "WebSearch",
+      "WebFetch(domain:strandsagents.com)",
+      "WebFetch(domain:pypi.org)",
+      "Bash(aws iam put-role-policy:*)",
+      "Bash(for:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)",
+      "Bash(grep:*)",
+      "Bash(agentcore launch --auto-update-on-conflict)",
+      "Bash(aws cloudtrail:*)",
+      "Bash(agentcore update)",
+      "Bash(agentcore:*)",
+      "Bash(aws codebuild batch-get-projects:*)",
+      "Bash(aws iam create-role:*)",
+      "Bash(aws s3api head-object:*)",
+      "Bash(aws s3api get-bucket-policy:*)",
+      "Bash(aws sts assume-role:*)",
+      "Bash(aws s3 cp:*)"
+    ],
+    "defaultMode": "acceptEdits"
   }
 }

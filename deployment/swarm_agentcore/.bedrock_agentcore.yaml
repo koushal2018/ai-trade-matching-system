@@ -1,19 +1,19 @@
-default_agent: trade_matching_swarm_agentcore_http
+default_agent: http_agent_orchestrator
 agents:
-  trade_matching_swarm_agentcore_http:
-    name: trade_matching_swarm_agentcore_http
-    entrypoint: /Users/koushald/ai-trade-matching-system/deployment/swarm_agentcore/trade_matching_swarm_agentcore_http.py
+  http_agent_orchestrator:
+    name: http_agent_orchestrator
+    entrypoint: /Volumes/FastSSD/Projects/agentic-ai-reconcillation/deployment/swarm_agentcore/http_agent_orchestrator.py
     deployment_type: container
     runtime_type: null
     platform: linux/arm64
-    container_runtime: none
-    source_path: /Users/koushald/ai-trade-matching-system/deployment/swarm_agentcore
+    container_runtime: docker
+    source_path: /Volumes/FastSSD/Projects/agentic-ai-reconcillation/deployment/swarm_agentcore
     aws:
-      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-116b035397
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-0f9cb91bfb
       execution_role_auto_create: false
       account: '401552979575'
       region: us-east-1
-      ecr_repository: 401552979575.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-trade_matching_swarm_agentcore_http
+      ecr_repository: 401552979575.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-http_agent_orchestrator
       ecr_auto_create: false
       s3_path: null
       s3_auto_create: false
@@ -28,18 +28,18 @@ agents:
         idle_runtime_session_timeout: null
         max_lifetime: null
     bedrock_agentcore:
-      agent_id: trade_matching_swarm_agentcore_http-PJeubFHvY3
-      agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/trade_matching_swarm_agentcore_http-PJeubFHvY3
-      agent_session_id: f91668a0-86aa-4437-868f-e0090c5a4700
+      agent_id: http_agent_orchestrator-lKzrI47Hgd
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/http_agent_orchestrator-lKzrI47Hgd
+      agent_session_id: null
     codebuild:
-      project_name: bedrock-agentcore-trade_matching_swarm_agentcore_http-builder
-      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-18b6840951
+      project_name: bedrock-agentcore-http_agent_orchestrator-builder
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-0f9cb91bfb
       source_bucket: bedrock-agentcore-codebuild-sources-401552979575-us-east-1
     memory:
       mode: STM_AND_LTM
       memory_id: TradeMatchingMemory-5f8wTKHzCs
       memory_arn: null
-      memory_name: trade_matching_swarm_agentcore_http_memory
+      memory_name: http_agent_orchestrator_memory
       event_expiry_days: 30
       first_invoke_memory_check_done: false
       was_created_by_toolkit: false

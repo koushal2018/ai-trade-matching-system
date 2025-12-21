@@ -33,10 +33,11 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Environment = var.environment
-      Project     = var.project_name
-      ManagedBy   = "terraform"
-      Component   = "AgentCore"
+      Environment     = var.environment
+      Project         = var.project_name
+      ManagedBy       = "terraform"
+      Component       = "AgentCore"
+      applicationName = "OTC_Agent"
     }
   }
 }

@@ -255,6 +255,110 @@ resource "aws_iam_policy" "agentcore_cloudwatch_logs" {
   })
 }
 
+# IAM Policy for AgentCore Runtime - OTEL/X-Ray Observability
+resource "aws_iam_policy" "agentcore_observability" {
+  name        = "${var.project_name}-agentcore-observability-${var.environment}"
+  description = "Policy for AgentCore agents to send traces and metrics via OTEL"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "XRayTracing"
+        Effect = "Allow"
+        Action = [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords",
+          "xray:GetSamplingRules",
+          "xray:GetSamplingTargets",
+          "xray:GetSamplingStatisticSummaries"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "CloudWatchMetrics"
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricData"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "cloudwatch:namespace" = [
+              "AgentCore/${var.project_name}",
+              "TradeMatching/Agents",
+              "AWS/OTEL"
+            ]
+          }
+        }
+      },
+      {
+        Sid    = "OTELCollector"
+        Effect = "Allow"
+        Action = [
+          "logs:PutLogEvents",
+          "logs:CreateLogStream",
+          "logs:DescribeLogStreams",
+          "logs:DescribeLogGroups"
+        ]
+        Resource = [
+          "arn:aws:logs:${var.aws_region}:*:log-group:/aws/otel/*",
+          "arn:aws:logs:${var.aws_region}:*:log-group:/aws/agentcore/*"
+        ]
+      }
+    ]
+  })
+
+  tags = merge(var.tags, {
+    Name        = "AgentCore Observability Policy"
+    Component   = "AgentCore"
+    Environment = var.environment
+  })
+}
+
+# IAM Policy for AgentCore Runtime - Memory Access
+# Required for agents to use AgentCore Memory for short-term and long-term memory
+resource "aws_iam_policy" "agentcore_memory_access" {
+  name        = "${var.project_name}-agentcore-memory-access-${var.environment}"
+  description = "Policy for AgentCore agents to access AgentCore Memory service"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AgentCoreMemoryOperations"
+        Effect = "Allow"
+        Action = [
+          # Memory resource management
+          "bedrock-agentcore:GetMemory",
+          "bedrock-agentcore:ListMemories",
+          # Session management
+          "bedrock-agentcore:CreateMemorySession",
+          "bedrock-agentcore:GetMemorySession",
+          "bedrock-agentcore:ListMemorySessions",
+          # Event operations (short-term memory)
+          "bedrock-agentcore:CreateEvent",
+          "bedrock-agentcore:GetEvent",
+          "bedrock-agentcore:ListEvents",
+          # Memory record operations (long-term memory)
+          "bedrock-agentcore:GetMemoryRecord",
+          "bedrock-agentcore:ListMemoryRecords",
+          "bedrock-agentcore:RetrieveMemoryRecords"
+        ]
+        Resource = [
+          "arn:aws:bedrock-agentcore:${var.aws_region}:*:memory/*"
+        ]
+      }
+    ]
+  })
+
+  tags = merge(var.tags, {
+    Name        = "AgentCore Memory Access Policy"
+    Component   = "AgentCore"
+    Environment = var.environment
+  })
+}
+
 # Attach policies to AgentCore Runtime Default Service Role
 resource "aws_iam_role_policy_attachment" "agentcore_default_s3" {
   role       = aws_iam_role.agentcore_runtime_default_service_role.name
@@ -281,11 +385,23 @@ resource "aws_iam_role_policy_attachment" "agentcore_default_cloudwatch" {
   policy_arn = aws_iam_policy.agentcore_cloudwatch_logs.arn
 }
 
-# Attach AWS managed policy for AgentCore Runtime
-resource "aws_iam_role_policy_attachment" "agentcore_default_managed" {
+resource "aws_iam_role_policy_attachment" "agentcore_default_observability" {
   role       = aws_iam_role.agentcore_runtime_default_service_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonBedrockAgentCoreRuntimeServiceRolePolicy"
+  policy_arn = aws_iam_policy.agentcore_observability.arn
 }
+
+resource "aws_iam_role_policy_attachment" "agentcore_default_memory" {
+  role       = aws_iam_role.agentcore_runtime_default_service_role.name
+  policy_arn = aws_iam_policy.agentcore_memory_access.arn
+}
+
+# Note: AWS managed policy for AgentCore Runtime (AmazonBedrockAgentCoreRuntimeServiceRolePolicy)
+# is not yet available in all regions. The custom policies above provide equivalent permissions.
+# Uncomment when the managed policy becomes available:
+# resource "aws_iam_role_policy_attachment" "agentcore_default_managed" {
+#   role       = aws_iam_role.agentcore_runtime_default_service_role.name
+#   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonBedrockAgentCoreRuntimeServiceRolePolicy"
+# }
 
 # Attach policies to AgentCore Runtime Execution Role
 resource "aws_iam_role_policy_attachment" "agentcore_s3" {
@@ -311,6 +427,16 @@ resource "aws_iam_role_policy_attachment" "agentcore_bedrock" {
 resource "aws_iam_role_policy_attachment" "agentcore_cloudwatch" {
   role       = aws_iam_role.agentcore_runtime_execution.name
   policy_arn = aws_iam_policy.agentcore_cloudwatch_logs.arn
+}
+
+resource "aws_iam_role_policy_attachment" "agentcore_observability" {
+  role       = aws_iam_role.agentcore_runtime_execution.name
+  policy_arn = aws_iam_policy.agentcore_observability.arn
+}
+
+resource "aws_iam_role_policy_attachment" "agentcore_memory" {
+  role       = aws_iam_role.agentcore_runtime_execution.name
+  policy_arn = aws_iam_policy.agentcore_memory_access.arn
 }
 
 # IAM Role for AgentCore Gateway
@@ -393,6 +519,16 @@ resource "aws_iam_role_policy_attachment" "lambda_pdf_adapter_cloudwatch" {
   policy_arn = aws_iam_policy.agentcore_cloudwatch_logs.arn
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_pdf_adapter_observability" {
+  role       = aws_iam_role.lambda_pdf_adapter.name
+  policy_arn = aws_iam_policy.agentcore_observability.arn
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_pdf_adapter_memory" {
+  role       = aws_iam_role.lambda_pdf_adapter.name
+  policy_arn = aws_iam_policy.agentcore_memory_access.arn
+}
+
 # IAM Role for Lambda Execution (Trade Extraction Agent)
 resource "aws_iam_role" "lambda_trade_extraction" {
   name = "${var.project_name}-lambda-trade-extraction-${var.environment}"
@@ -441,6 +577,16 @@ resource "aws_iam_role_policy_attachment" "lambda_trade_extraction_bedrock" {
 resource "aws_iam_role_policy_attachment" "lambda_trade_extraction_cloudwatch" {
   role       = aws_iam_role.lambda_trade_extraction.name
   policy_arn = aws_iam_policy.agentcore_cloudwatch_logs.arn
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_trade_extraction_observability" {
+  role       = aws_iam_role.lambda_trade_extraction.name
+  policy_arn = aws_iam_policy.agentcore_observability.arn
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_trade_extraction_memory" {
+  role       = aws_iam_role.lambda_trade_extraction.name
+  policy_arn = aws_iam_policy.agentcore_memory_access.arn
 }
 
 # IAM Role for Lambda Execution (Trade Matching Agent)
@@ -493,6 +639,16 @@ resource "aws_iam_role_policy_attachment" "lambda_trade_matching_cloudwatch" {
   policy_arn = aws_iam_policy.agentcore_cloudwatch_logs.arn
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_trade_matching_observability" {
+  role       = aws_iam_role.lambda_trade_matching.name
+  policy_arn = aws_iam_policy.agentcore_observability.arn
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_trade_matching_memory" {
+  role       = aws_iam_role.lambda_trade_matching.name
+  policy_arn = aws_iam_policy.agentcore_memory_access.arn
+}
+
 # IAM Role for Lambda Execution (Exception Management Agent)
 resource "aws_iam_role" "lambda_exception_management" {
   name = "${var.project_name}-lambda-exception-mgmt-${var.environment}"
@@ -538,6 +694,16 @@ resource "aws_iam_role_policy_attachment" "lambda_exception_management_cloudwatc
   policy_arn = aws_iam_policy.agentcore_cloudwatch_logs.arn
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_exception_management_observability" {
+  role       = aws_iam_role.lambda_exception_management.name
+  policy_arn = aws_iam_policy.agentcore_observability.arn
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_exception_management_memory" {
+  role       = aws_iam_role.lambda_exception_management.name
+  policy_arn = aws_iam_policy.agentcore_memory_access.arn
+}
+
 # IAM Role for Lambda Execution (Orchestrator Agent)
 resource "aws_iam_role" "lambda_orchestrator" {
   name = "${var.project_name}-lambda-orchestrator-${var.environment}"
@@ -581,6 +747,16 @@ resource "aws_iam_role_policy_attachment" "lambda_orchestrator_bedrock" {
 resource "aws_iam_role_policy_attachment" "lambda_orchestrator_cloudwatch" {
   role       = aws_iam_role.lambda_orchestrator.name
   policy_arn = aws_iam_policy.agentcore_cloudwatch_logs.arn
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_orchestrator_observability" {
+  role       = aws_iam_role.lambda_orchestrator.name
+  policy_arn = aws_iam_policy.agentcore_observability.arn
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_orchestrator_memory" {
+  role       = aws_iam_role.lambda_orchestrator.name
+  policy_arn = aws_iam_policy.agentcore_memory_access.arn
 }
 
 # Outputs

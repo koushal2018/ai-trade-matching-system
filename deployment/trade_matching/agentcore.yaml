@@ -7,7 +7,7 @@ agent:
   
 runtime:
   type: PYTHON_3_11
-  entry_point: trade_matching_agent.py
+  entry_point: trade_matching_agent_strands.py
   handler: invoke
   timeout: 900  # 15 minutes for matching analysis
   memory_mb: 4096

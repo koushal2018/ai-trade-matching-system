@@ -9,7 +9,7 @@ agents:
     container_runtime: none
     source_path: null
     aws:
-      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-116b035397
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-d49ec2442f
       execution_role_auto_create: false
       account: '401552979575'
       region: us-east-1
@@ -30,10 +30,10 @@ agents:
     bedrock_agentcore:
       agent_id: pdf_adapter_agent-Az72YP53FJ
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/pdf_adapter_agent-Az72YP53FJ
-      agent_session_id: cab26dfc-9407-4968-9661-4a971d206502
+      agent_session_id: null
     codebuild:
       project_name: bedrock-agentcore-pdf_adapter_agent-builder
-      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-18b6840951
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-d49ec2442f
       source_bucket: bedrock-agentcore-codebuild-sources-401552979575-us-east-1
     memory:
       mode: NO_MEMORY

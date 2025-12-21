@@ -15,9 +15,9 @@ agent:
     
   # Model Configuration
   model:
-    id: "amazon.nova-pro-v1:0"
+    id: "us.amazon.nova-pro-v1:0"
     region: "us-east-1"
-    temperature: 0.3
+    temperature: 0
     max_tokens: 4096
     
   # Environment Variables
@@ -26,7 +26,7 @@ agent:
     S3_BUCKET_NAME: "trade-matching-system-agentcore-production"
     DYNAMODB_BANK_TABLE: "BankTradeData"
     DYNAMODB_COUNTERPARTY_TABLE: "CounterpartyTradeData"
-    BEDROCK_MODEL_ID: "amazon.nova-pro-v1:0"
+    BEDROCK_MODEL_ID: "us.amazon.nova-pro-v1:0"
     DEPLOYMENT_STAGE: "production"
     OBSERVABILITY_STAGE: "production"
     COGNITO_USER_POOL_ID: "us-east-1_uQ2lN39dT"
@@ -43,7 +43,7 @@ agent:
       actions:
         - "bedrock:InvokeModel"
       resources:
-        - "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0"
+        - "arn:aws:bedrock:us-east-1::foundation-model/us.amazon.nova-pro-v1:0"
     
     - effect: Allow
       actions:

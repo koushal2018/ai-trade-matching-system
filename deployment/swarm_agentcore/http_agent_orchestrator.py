@@ -19,9 +19,8 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 from urllib.parse import quote
 
-# Load .env file before reading env vars
-from dotenv import load_dotenv
-load_dotenv()
+# Environment variables are set by AgentCore runtime
+# No need for dotenv when running in AgentCore container
 
 import httpx
 import boto3
@@ -41,11 +40,11 @@ logging.basicConfig(
 # Configuration
 REGION = os.getenv("AWS_REGION", "us-east-1")
 
-# Agent Runtime ARNs (set via environment variables)
-PDF_ADAPTER_ARN = os.getenv("PDF_ADAPTER_AGENT_ARN", "")
-TRADE_EXTRACTION_ARN = os.getenv("TRADE_EXTRACTION_AGENT_ARN", "")
-TRADE_MATCHING_ARN = os.getenv("TRADE_MATCHING_AGENT_ARN", "")
-EXCEPTION_MANAGEMENT_ARN = os.getenv("EXCEPTION_MANAGEMENT_AGENT_ARN", "")
+# Agent Runtime ARNs (hardcoded since environment variables are not being passed through)
+PDF_ADAPTER_ARN = os.getenv("PDF_ADAPTER_AGENT_ARN", "arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/pdf_adapter_agent-Az72YP53FJ")
+TRADE_EXTRACTION_ARN = os.getenv("TRADE_EXTRACTION_AGENT_ARN", "arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/agent_matching_ai-KrY5QeCyXe")
+TRADE_MATCHING_ARN = os.getenv("TRADE_MATCHING_AGENT_ARN", "arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/trade_matching_ai-r8eaGb4u7B")
+EXCEPTION_MANAGEMENT_ARN = os.getenv("EXCEPTION_MANAGEMENT_AGENT_ARN", "arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/exception_manager-uliBS5DsX3")
 
 # Timeouts and Retry Configuration
 AGENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_TIMEOUT_SECONDS", "300"))
@@ -85,17 +84,27 @@ class AgentCoreClient:
         Invoke a deployed AgentCore agent via HTTP with SigV4 signing.
         """
         if not runtime_arn:
+            logger.error("ERROR: Agent runtime ARN is required but not provided")
             raise ValueError("Agent runtime ARN is required")
         
         # Build URL - URL encode the ARN
         encoded_arn = quote(runtime_arn, safe="")
         url = f"{self.endpoint}/runtimes/{encoded_arn}/invocations"
         
-        logger.info(f"Invoking agent ARN: ...{runtime_arn[-40:]}")
-        logger.info(f"Payload: {json.dumps(payload)[:200]}...")
+        # Extract correlation_id for logging context
+        correlation_id = payload.get("correlation_id", "unknown")
+        agent_name = runtime_arn.split("/")[-1] if "/" in runtime_arn else "unknown"
+        
+        logger.info(f"[{correlation_id}] INFO: Invoking agent '{agent_name}'")
+        logger.info(f"[{correlation_id}] INFO: Agent ARN: ...{runtime_arn[-40:]}")
+        logger.info(f"[{correlation_id}] INFO: Endpoint: {self.endpoint}")
+        logger.info(f"[{correlation_id}] INFO: Timeout: {timeout}s, Max retries: {retries}")
+        logger.debug(f"[{correlation_id}] DEBUG: Payload: {json.dumps(payload)[:200]}...")
         
         # Prepare request body
         body = json.dumps(payload).encode("utf-8")
+        body_size_kb = len(body) / 1024
+        logger.debug(f"[{correlation_id}] DEBUG: Request body size: {body_size_kb:.2f} KB")
         
         # Headers
         headers = {
@@ -104,15 +113,23 @@ class AgentCoreClient:
         }
         if session_id:
             headers["X-Amzn-Bedrock-AgentCore-Runtime-Session-Id"] = session_id
+            logger.debug(f"[{correlation_id}] DEBUG: Session ID: {session_id}")
         
         # Sign the request
+        request_start = datetime.utcnow()
+        logger.debug(f"[{correlation_id}] DEBUG: Signing request with SigV4")
         signed_headers = self._sign_request("POST", url, headers, body)
+        signing_time_ms = (datetime.utcnow() - request_start).total_seconds() * 1000
+        logger.debug(f"[{correlation_id}] DEBUG: Request signed in {signing_time_ms:.2f}ms")
         
         # Make HTTP request with retries
         last_error = None
         for attempt in range(retries):
+            attempt_start = datetime.utcnow()
+            
             try:
-                logger.info(f"Attempt {attempt + 1}/{retries} - calling {url[:80]}...")
+                logger.info(f"[{correlation_id}] INFO: Attempt {attempt + 1}/{retries} - calling agent")
+                logger.debug(f"[{correlation_id}] DEBUG: URL: {url[:80]}...")
                 
                 async with httpx.AsyncClient(timeout=timeout) as client:
                     response = await client.post(
@@ -121,47 +138,90 @@ class AgentCoreClient:
                         content=body
                     )
                 
-                logger.info(f"Response status: {response.status_code}")
+                attempt_time_ms = (datetime.utcnow() - attempt_start).total_seconds() * 1000
+                response_size_kb = len(response.content) / 1024
+                
+                logger.info(f"[{correlation_id}] INFO: Response status: {response.status_code}")
+                logger.info(f"[{correlation_id}] INFO: Response time: {attempt_time_ms:.2f}ms")
+                logger.debug(f"[{correlation_id}] DEBUG: Response size: {response_size_kb:.2f} KB")
                 
                 if response.status_code == 200:
                     result = response.json()
                     result["success"] = result.get("success", True)
-                    logger.info(f"Agent returned success={result.get('success')}")
+                    result["http_status_code"] = response.status_code
+                    result["response_time_ms"] = attempt_time_ms
+                    
+                    logger.info(f"[{correlation_id}] INFO: Agent returned success={result.get('success')}")
+                    logger.debug(f"[{correlation_id}] DEBUG: Response keys: {list(result.keys())}")
+                    
                     return result
                 
-                # Log error response
-                logger.error(f"Agent error: {response.status_code} - {response.text[:500]}")
+                # Log error response with details
+                error_text = response.text[:500]
+                logger.error(f"[{correlation_id}] ERROR: Agent returned {response.status_code}")
+                logger.error(f"[{correlation_id}] ERROR: Response: {error_text}")
+                logger.error(f"[{correlation_id}] ERROR: Attempt {attempt + 1}/{retries} failed")
                 
                 # Retry on 5xx errors
                 if response.status_code >= 500 and attempt < retries - 1:
-                    await asyncio.sleep(1.0 * (attempt + 1))
+                    backoff_seconds = 1.0 * (attempt + 1)
+                    logger.warning(f"[{correlation_id}] WARN: Retrying after {backoff_seconds}s backoff")
+                    await asyncio.sleep(backoff_seconds)
+                    
                     # Re-sign for retry (credentials might have refreshed)
+                    logger.debug(f"[{correlation_id}] DEBUG: Re-signing request for retry")
                     signed_headers = self._sign_request("POST", url, headers, body)
                     continue
                 
+                logger.error(f"[{correlation_id}] ERROR: No more retries, returning error")
                 return {
                     "success": False,
-                    "error": f"HTTP {response.status_code}: {response.text[:500]}",
-                    "status_code": response.status_code
+                    "error": f"HTTP {response.status_code}: {error_text}",
+                    "status_code": response.status_code,
+                    "attempt": attempt + 1,
+                    "response_time_ms": attempt_time_ms
                 }
                 
-            except httpx.TimeoutException:
+            except httpx.TimeoutException as e:
+                attempt_time_ms = (datetime.utcnow() - attempt_start).total_seconds() * 1000
                 last_error = f"Timeout after {timeout}s"
-                logger.warning(f"Timeout on attempt {attempt + 1}")
+                
+                logger.error(f"[{correlation_id}] ERROR: Timeout on attempt {attempt + 1}/{retries}")
+                logger.error(f"[{correlation_id}] ERROR: Elapsed time: {attempt_time_ms:.2f}ms")
+                logger.error(f"[{correlation_id}] ERROR: Timeout threshold: {timeout}s")
+                
                 if attempt < retries - 1:
-                    await asyncio.sleep(1.0 * (attempt + 1))
+                    backoff_seconds = 1.0 * (attempt + 1)
+                    logger.warning(f"[{correlation_id}] WARN: Retrying after {backoff_seconds}s backoff")
+                    await asyncio.sleep(backoff_seconds)
                     signed_headers = self._sign_request("POST", url, headers, body)
                     continue
                     
             except Exception as e:
+                attempt_time_ms = (datetime.utcnow() - attempt_start).total_seconds() * 1000
                 last_error = str(e)
-                logger.error(f"Request error: {e}")
+                
+                logger.error(f"[{correlation_id}] ERROR: Request failed on attempt {attempt + 1}/{retries}")
+                logger.error(f"[{correlation_id}] ERROR: Exception type: {type(e).__name__}")
+                logger.error(f"[{correlation_id}] ERROR: Exception message: {e}")
+                logger.error(f"[{correlation_id}] ERROR: Elapsed time: {attempt_time_ms:.2f}ms")
+                
                 if attempt < retries - 1:
-                    await asyncio.sleep(1.0 * (attempt + 1))
+                    backoff_seconds = 1.0 * (attempt + 1)
+                    logger.warning(f"[{correlation_id}] WARN: Retrying after {backoff_seconds}s backoff")
+                    await asyncio.sleep(backoff_seconds)
                     signed_headers = self._sign_request("POST", url, headers, body)
                     continue
         
-        return {"success": False, "error": last_error or "Max retries exceeded"}
+        logger.error(f"[{correlation_id}] ERROR: All {retries} attempts exhausted")
+        logger.error(f"[{correlation_id}] ERROR: Final error: {last_error}")
+        
+        return {
+            "success": False,
+            "error": last_error or "Max retries exceeded",
+            "attempts": retries,
+            "agent_name": agent_name
+        }
 
 
 class TradeMatchingHTTPOrchestrator:
@@ -212,10 +272,19 @@ class TradeMatchingHTTPOrchestrator:
         workflow_steps = {}
         current_step = None
         
+        logger.info(f"[{correlation_id}] ========================================")
+        logger.info(f"[{correlation_id}] INFO: Starting trade confirmation workflow")
+        logger.info(f"[{correlation_id}] INFO: Document ID: {document_id}")
+        logger.info(f"[{correlation_id}] INFO: Source Type: {source_type}")
+        logger.info(f"[{correlation_id}] INFO: Document Path: {document_path}")
+        logger.info(f"[{correlation_id}] ========================================")
+        
         try:
             # Step 1: PDF Adapter - Extract text from PDF
             current_step = "pdf_adapter"
-            logger.info(f"[{correlation_id}] Step 1: Invoking PDF Adapter Agent")
+            step_start = datetime.utcnow()
+            logger.info(f"[{correlation_id}] INFO: Step 1/4: PDF Adapter Agent")
+            logger.info(f"[{correlation_id}] INFO: Extracting text from PDF document")
             
             pdf_result = await self._invoke_pdf_adapter(
                 document_path=document_path,
@@ -223,9 +292,16 @@ class TradeMatchingHTTPOrchestrator:
                 document_id=document_id,
                 correlation_id=correlation_id
             )
+            
+            step_time_ms = (datetime.utcnow() - step_start).total_seconds() * 1000
             workflow_steps["pdf_adapter"] = pdf_result
             
+            logger.info(f"[{correlation_id}] INFO: PDF Adapter completed in {step_time_ms:.2f}ms")
+            logger.info(f"[{correlation_id}] INFO: PDF Adapter success: {pdf_result.get('success')}")
+            
             if not pdf_result.get("success"):
+                logger.error(f"[{correlation_id}] ERROR: PDF extraction failed")
+                logger.error(f"[{correlation_id}] ERROR: Error: {pdf_result.get('error')}")
                 return self._build_error_response(
                     step=current_step,
                     error=pdf_result.get("error", "PDF extraction failed"),
@@ -237,10 +313,15 @@ class TradeMatchingHTTPOrchestrator:
             
             # Step 2: Trade Extraction - Extract structured data
             current_step = "trade_extraction"
-            logger.info(f"[{correlation_id}] Step 2: Invoking Trade Extraction Agent")
+            step_start = datetime.utcnow()
+            logger.info(f"[{correlation_id}] INFO: Step 2/4: Trade Extraction Agent")
+            logger.info(f"[{correlation_id}] INFO: Extracting structured trade data")
             
-            # Pass canonical_output_location from PDF Adapter to Trade Extraction
-            canonical_output_location = pdf_result.get("canonical_output_location")
+            # Extract canonical_output_location from PDF Adapter response
+            canonical_output_location = self._extract_canonical_location(
+                pdf_result, source_type, document_id
+            )
+            logger.debug(f"[{correlation_id}] DEBUG: Canonical location: {canonical_output_location}")
             
             extraction_result = await self._invoke_trade_extraction(
                 document_id=document_id,
@@ -248,9 +329,18 @@ class TradeMatchingHTTPOrchestrator:
                 correlation_id=correlation_id,
                 canonical_output_location=canonical_output_location
             )
+            
+            step_time_ms = (datetime.utcnow() - step_start).total_seconds() * 1000
             workflow_steps["trade_extraction"] = extraction_result
             
+            logger.info(f"[{correlation_id}] INFO: Trade Extraction completed in {step_time_ms:.2f}ms")
+            logger.info(f"[{correlation_id}] INFO: Trade Extraction success: {extraction_result.get('success')}")
+            
             if not extraction_result.get("success"):
+                logger.error(f"[{correlation_id}] ERROR: Trade extraction failed")
+                logger.error(f"[{correlation_id}] ERROR: Error: {extraction_result.get('error')}")
+                logger.info(f"[{correlation_id}] INFO: Routing to Exception Management")
+                
                 # Route to exception management
                 await self._handle_exception(
                     event_type="EXTRACTION_FAILED",
@@ -269,15 +359,19 @@ class TradeMatchingHTTPOrchestrator:
                 )
             
             # Extract trade_id from extraction result
-            # The extraction agent stores the actual Trade_ID from the document,
-            # which may differ from the document_id (e.g., "26933659" vs "FAB_26933659")
             trade_id = self._extract_trade_id(extraction_result, document_id)
-            logger.info(f"[{correlation_id}] Extracted trade_id: {trade_id} (document_id: {document_id})")
+            logger.info(f"[{correlation_id}] INFO: Extracted trade_id: {trade_id}")
+            if trade_id != document_id:
+                logger.info(f"[{correlation_id}] INFO: Trade ID differs from document ID")
+                logger.debug(f"[{correlation_id}] DEBUG: Document ID: {document_id}")
+                logger.debug(f"[{correlation_id}] DEBUG: Trade ID: {trade_id}")
             
             # Step 3: Trade Matching - Find matching trades
-            # Pass both trade_id and document_id so the agent can search for either
             current_step = "trade_matching"
-            logger.info(f"[{correlation_id}] Step 3: Invoking Trade Matching Agent")
+            step_start = datetime.utcnow()
+            logger.info(f"[{correlation_id}] INFO: Step 3/4: Trade Matching Agent")
+            logger.info(f"[{correlation_id}] INFO: Searching for matching trades")
+            logger.info(f"[{correlation_id}] INFO: Primary search key: {trade_id}")
             
             matching_result = await self._invoke_trade_matching(
                 trade_id=trade_id,
@@ -285,7 +379,12 @@ class TradeMatchingHTTPOrchestrator:
                 correlation_id=correlation_id,
                 document_id=document_id  # Pass original document_id as fallback
             )
+            
+            step_time_ms = (datetime.utcnow() - step_start).total_seconds() * 1000
             workflow_steps["trade_matching"] = matching_result
+            
+            logger.info(f"[{correlation_id}] INFO: Trade Matching completed in {step_time_ms:.2f}ms")
+            logger.info(f"[{correlation_id}] INFO: Trade Matching success: {matching_result.get('success')}")
             
             # Check if exception handling needed based on match result
             classification = matching_result.get("match_classification", "UNKNOWN")
@@ -293,24 +392,47 @@ class TradeMatchingHTTPOrchestrator:
             # If classification is UNKNOWN, try to extract from agent_response text
             if classification == "UNKNOWN":
                 classification = self._extract_classification(matching_result)
-                logger.info(f"[{correlation_id}] Extracted classification from response: {classification}")
+                logger.info(f"[{correlation_id}] INFO: Extracted classification from response: {classification}")
+            
+            confidence_score = matching_result.get("confidence_score", 0)
+            logger.info(f"[{correlation_id}] INFO: Match classification: {classification}")
+            logger.info(f"[{correlation_id}] INFO: Confidence score: {confidence_score}%")
             
             if classification in ["REVIEW_REQUIRED", "BREAK"]:
                 current_step = "exception_management"
-                logger.info(f"[{correlation_id}] Step 4: Invoking Exception Management (classification: {classification})")
+                step_start = datetime.utcnow()
+                logger.info(f"[{correlation_id}] INFO: Step 4/4: Exception Management Agent")
+                logger.info(f"[{correlation_id}] INFO: Classification requires exception handling: {classification}")
+                
+                reason_codes = self._extract_reason_codes(matching_result)
+                logger.info(f"[{correlation_id}] INFO: Reason codes: {reason_codes}")
                 
                 exception_result = await self._handle_exception(
                     event_type="MATCHING_EXCEPTION",
                     trade_id=trade_id,
-                    match_score=matching_result.get("confidence_score", 0) / 100.0,
-                    reason_codes=self._extract_reason_codes(matching_result),
+                    match_score=confidence_score / 100.0,
+                    reason_codes=reason_codes,
                     correlation_id=correlation_id,
                     workflow_steps=workflow_steps
                 )
+                
+                step_time_ms = (datetime.utcnow() - step_start).total_seconds() * 1000
                 workflow_steps["exception_management"] = exception_result
+                
+                logger.info(f"[{correlation_id}] INFO: Exception Management completed in {step_time_ms:.2f}ms")
+                logger.info(f"[{correlation_id}] INFO: Exception Management success: {exception_result.get('success')}")
+            else:
+                logger.info(f"[{correlation_id}] INFO: No exception handling needed for classification: {classification}")
             
             # Build success response
             processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+            
+            logger.info(f"[{correlation_id}] ========================================")
+            logger.info(f"[{correlation_id}] INFO: Workflow completed successfully")
+            logger.info(f"[{correlation_id}] INFO: Total processing time: {processing_time_ms:.2f}ms")
+            logger.info(f"[{correlation_id}] INFO: Steps executed: {len(workflow_steps)}")
+            logger.info(f"[{correlation_id}] INFO: Final classification: {classification}")
+            logger.info(f"[{correlation_id}] ========================================")
             
             return {
                 "success": True,
@@ -319,14 +441,19 @@ class TradeMatchingHTTPOrchestrator:
                 "source_type": source_type,
                 "correlation_id": correlation_id,
                 "match_classification": classification,
-                "confidence_score": matching_result.get("confidence_score", 0),
+                "confidence_score": confidence_score,
                 "workflow_steps": workflow_steps,
                 "processing_time_ms": processing_time_ms,
                 "execution_mode": "HTTP Orchestrator"
             }
             
         except Exception as e:
-            logger.error(f"[{correlation_id}] Workflow failed at {current_step}: {e}", exc_info=True)
+            logger.error(f"[{correlation_id}] ========================================")
+            logger.error(f"[{correlation_id}] ERROR: Workflow failed at step: {current_step}")
+            logger.error(f"[{correlation_id}] ERROR: Exception type: {type(e).__name__}")
+            logger.error(f"[{correlation_id}] ERROR: Exception message: {e}")
+            logger.error(f"[{correlation_id}] ========================================", exc_info=True)
+            
             return self._build_error_response(
                 step=current_step or "initialization",
                 error=str(e),
@@ -533,6 +660,33 @@ class TradeMatchingHTTPOrchestrator:
             return "BREAK"
         
         return "UNKNOWN"
+    
+    def _extract_canonical_location(
+        self, 
+        pdf_result: Dict, 
+        source_type: str, 
+        document_id: str
+    ) -> str:
+        """Extract canonical output location from PDF Adapter response.
+        
+        The PDF adapter agent returns the location in its agent_response text.
+        We parse it out or construct the standard path.
+        """
+        import re
+        
+        # Strategy 1: Look for explicit canonical_output_location in response
+        response_text = pdf_result.get("agent_response", "")
+        if response_text:
+            # Look for S3 path pattern
+            match = re.search(
+                r's3://[a-z0-9\-]+/extracted/(?:BANK|COUNTERPARTY)/[^"\s]+\.json',
+                response_text
+            )
+            if match:
+                return match.group(0)
+        
+        # Strategy 2: Construct standard path
+        return f"s3://trade-matching-system-agentcore-production/extracted/{source_type}/{document_id}.json"
     
     def _extract_reason_codes(self, matching_result: Dict) -> list:
         """Extract reason codes from matching result."""

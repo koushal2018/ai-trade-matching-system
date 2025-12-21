@@ -57,12 +57,9 @@ if use_aws is None:
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from bedrock_agentcore.runtime.models import PingStatus
 
-# AgentCore Observability
-try:
-    from bedrock_agentcore.observability import Observability
-    OBSERVABILITY_AVAILABLE = True
-except ImportError:
-    OBSERVABILITY_AVAILABLE = False
+# AgentCore Observability - Auto-instrumented via OTEL when strands-agents[otel] is installed
+# Manual span management removed - AgentCore Runtime handles this automatically
+# See: https://docs.aws.amazon.com/bedrock/latest/userguide/agentcore-observability.html
 
 # Set up logging
 logging.basicConfig(
@@ -70,6 +67,16 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# AgentCore Memory - Strands Integration (correct pattern per AWS docs)
+# See: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/strands-sdk-memory.html
+try:
+    from bedrock_agentcore.memory.integrations.strands.config import AgentCoreMemoryConfig, RetrievalConfig
+    from bedrock_agentcore.memory.integrations.strands.session_manager import AgentCoreMemorySessionManager
+    MEMORY_AVAILABLE = True
+except ImportError:
+    MEMORY_AVAILABLE = False
+    logger.warning("AgentCore Memory Strands integration not available - memory features disabled")
 
 # Initialize BedrockAgentCoreApp
 app = BedrockAgentCoreApp()
@@ -86,18 +93,17 @@ OBSERVABILITY_STAGE = os.getenv("OBSERVABILITY_STAGE", "development")
 # Agent identification constants
 AGENT_NAME = "exception-management-agent"
 
-# Initialize Observability
-observability = None
-if OBSERVABILITY_AVAILABLE:
-    try:
-        observability = Observability(
-            service_name=AGENT_NAME,
-            stage=OBSERVABILITY_STAGE,
-            verbosity="high" if OBSERVABILITY_STAGE == "development" else "low"
-        )
-        logger.info(f"Observability initialized for {AGENT_NAME}")
-    except Exception as e:
-        logger.warning(f"Failed to initialize observability: {e}")
+# AgentCore Memory Configuration
+# Memory ID for the shared trade matching memory resource
+# This memory uses 3 built-in strategies: semantic, preferences, summaries
+MEMORY_ID = os.getenv(
+    "AGENTCORE_MEMORY_ID",
+    "trade_matching_decisions-Z3tG4b4Xsd"  # Default memory resource ID - shared across all agents
+)
+
+# Observability Note: AgentCore Runtime auto-instruments via OTEL when strands-agents[otel] is installed
+# No manual Observability class needed - traces are automatically captured and sent to CloudWatch
+logger.info(f"[INIT] Agent initialized - service={AGENT_NAME}, stage={OBSERVABILITY_STAGE}")
 
 # Lazy-initialized boto3 clients for efficiency
 _boto_clients: Dict[str, Any] = {}
@@ -245,6 +251,7 @@ def determine_routing(
         priority = 3
     
     sla_hours = sla_hours_map.get(severity, 8)
+    sla_deadline = (datetime.utcnow() + timedelta(hours=sla_hours)).isoformat()s_map.get(severity, 8)
     sla_deadline = (datetime.utcnow() + timedelta(hours=sla_hours)).isoformat()
     
     return {
@@ -388,6 +395,80 @@ def get_similar_exceptions(trade_id: str, classification: str) -> Dict[str, Any]
 
 
 # ============================================================================
+# AgentCore Memory Session Manager Factory
+# ============================================================================
+
+def create_memory_session_manager(
+    correlation_id: str,
+    exception_id: str = None
+) -> Optional[AgentCoreMemorySessionManager]:
+    """
+    Create AgentCore Memory session manager for Strands agent integration.
+    
+    This follows the correct pattern per AWS documentation:
+    https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/strands-sdk-memory.html
+    
+    Args:
+        correlation_id: Correlation ID for tracing
+        exception_id: Optional exception ID for session naming
+        
+    Returns:
+        Configured AgentCoreMemorySessionManager or None if memory unavailable
+    """
+    if not MEMORY_AVAILABLE or not MEMORY_ID:
+        logger.debug(f"[{correlation_id}] Memory not available - skipping session manager creation")
+        return None
+    
+    try:
+        # Generate unique session ID for this invocation
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        session_id = f"exc_{exception_id or 'unknown'}_{timestamp}_{correlation_id[:8]}"
+        
+        # Configure memory with retrieval settings for all namespace strategies
+        config = AgentCoreMemoryConfig(
+            memory_id=MEMORY_ID,
+            session_id=session_id,
+            actor_id=AGENT_NAME,
+            retrieval_config={
+                # Semantic memory: factual exception patterns and resolutions
+                "/facts/{actorId}": RetrievalConfig(
+                    top_k=10,
+                    relevance_score=0.6
+                ),
+                # User preferences: learned triage preferences
+                "/preferences/{actorId}": RetrievalConfig(
+                    top_k=5,
+                    relevance_score=0.7
+                ),
+                # Session summaries: past exception handling summaries
+                "/summaries/{actorId}/{sessionId}": RetrievalConfig(
+                    top_k=5,
+                    relevance_score=0.5
+                )
+            }
+        )
+        
+        session_manager = AgentCoreMemorySessionManager(
+            agentcore_memory_config=config,
+            region_name=REGION
+        )
+        
+        logger.info(
+            f"[{correlation_id}] AgentCore Memory session created - "
+            f"memory_id={MEMORY_ID}, session_id={session_id}"
+        )
+        
+        return session_manager
+        
+    except Exception as e:
+        logger.warning(
+            f"[{correlation_id}] Failed to create memory session manager: {e}. "
+            "Continuing without memory integration."
+        )
+        return None
+
+
+# ============================================================================
 # Health Check Handler
 # ============================================================================
 
@@ -473,8 +554,20 @@ You make decisions based on the exception context, severity, and historical patt
 # Create Strands Agent
 # ============================================================================
 
-def create_exception_agent() -> Agent:
-    """Create and configure the Strands exception management agent."""
+def create_exception_agent(
+    session_manager: Optional[AgentCoreMemorySessionManager] = None
+) -> Agent:
+    """
+    Create and configure the Strands exception management agent with memory.
+    
+    Args:
+        session_manager: Optional AgentCore Memory session manager for automatic
+                        memory management. When provided, the agent automatically
+                        stores and retrieves conversation context.
+    
+    Returns:
+        Configured Strands Agent with tools and optional memory
+    """
     # Explicitly configure BedrockModel for consistent behavior
     bedrock_model = BedrockModel(
         model_id=BEDROCK_MODEL_ID,
@@ -483,17 +576,32 @@ def create_exception_agent() -> Agent:
         max_tokens=4096,
     )
     
-    return Agent(
-        model=bedrock_model,
-        system_prompt=SYSTEM_PROMPT,
-        tools=[
-            analyze_exception_severity,
-            determine_routing,
-            store_exception_record,
-            get_similar_exceptions,
-            use_aws
-        ]
-    )
+    # Create agent with optional memory integration
+    if session_manager:
+        return Agent(
+            model=bedrock_model,
+            system_prompt=SYSTEM_PROMPT,
+            tools=[
+                analyze_exception_severity,
+                determine_routing,
+                store_exception_record,
+                get_similar_exceptions,
+                use_aws
+            ],
+            session_manager=session_manager
+        )
+    else:
+        return Agent(
+            model=bedrock_model,
+            system_prompt=SYSTEM_PROMPT,
+            tools=[
+                analyze_exception_severity,
+                determine_routing,
+                store_exception_record,
+                get_similar_exceptions,
+                use_aws
+            ]
+        )
 
 
 # ============================================================================
@@ -571,22 +679,21 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
     }
     
     try:
-        # Start observability span for the main operation
-        span_context = None
-        if observability:
-            try:
-                span_context = observability.start_span("exception_triage")
-                span_context.__enter__()
-                for k, v in obs_attributes.items():
-                    span_context.set_attribute(k, v)
-                if match_score is not None:
-                    span_context.set_attribute("match_score", match_score)
-            except Exception as e:
-                logger.warning(f"Failed to start observability span: {e}")
-                span_context = None
+        # Create memory session manager for this invocation (if memory is enabled)
+        session_manager = None
+        if MEMORY_AVAILABLE and MEMORY_ID:
+            session_manager = create_memory_session_manager(
+                correlation_id=correlation_id,
+                exception_id=exception_id
+            )
         
-        # Create the agent
-        agent = create_exception_agent()
+        # Create the agent with optional memory integration
+        agent = create_exception_agent(session_manager=session_manager)
+        
+        if session_manager:
+            logger.info(f"[{correlation_id}] Agent created with AgentCore Memory integration")
+        else:
+            logger.info(f"[{correlation_id}] Agent created without memory (memory disabled or unavailable)")
         
         # Build context for the agent
         reason_codes_str = ", ".join(reason_codes) if reason_codes else "None"
@@ -644,16 +751,13 @@ Analyze this exception, determine its severity and classification, route it appr
         else:
             response_text = str(result)
         
-        # Record success metrics in observability span
-        if span_context:
-            try:
-                span_context.set_attribute("success", True)
-                span_context.set_attribute("processing_time_ms", processing_time_ms)
-                span_context.set_attribute("input_tokens", token_metrics["input_tokens"])
-                span_context.set_attribute("output_tokens", token_metrics["output_tokens"])
-                span_context.set_attribute("total_tokens", token_metrics["total_tokens"])
-            except Exception as e:
-                logger.warning(f"Failed to set span attributes: {e}")
+        # Log success metrics (OTEL auto-instrumentation captures spans)
+        logger.info(
+            f"[{correlation_id}] Exception triage completed - "
+            f"exception_id={exception_id}, trade_id={trade_id}, "
+            f"time={processing_time_ms:.0f}ms, tokens={token_metrics['total_tokens']}, "
+            f"memory_enabled={session_manager is not None}"
+        )
         
         return {
             "success": True,
@@ -669,18 +773,8 @@ Analyze this exception, determine its severity and classification, route it appr
         }
         
     except Exception as e:
-        logger.error(f"Error in exception management agent: {e}", exc_info=True)
+        logger.error(f"[{correlation_id}] Error in exception management agent: {e}", exc_info=True)
         processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
-        
-        # Record error in observability span
-        if span_context:
-            try:
-                span_context.set_attribute("success", False)
-                span_context.set_attribute("error_type", type(e).__name__)
-                span_context.set_attribute("error_message", str(e))
-                span_context.set_attribute("processing_time_ms", processing_time_ms)
-            except Exception:
-                pass
         
         return {
             "success": False,
@@ -688,17 +782,11 @@ Analyze this exception, determine its severity and classification, route it appr
             "error_type": type(e).__name__,
             "exception_id": exception_id,
             "trade_id": trade_id,
+            "correlation_id": correlation_id,
             "agent_name": AGENT_NAME,
             "agent_version": AGENT_VERSION,
             "processing_time_ms": processing_time_ms,
         }
-    finally:
-        # Close observability span
-        if span_context:
-            try:
-                span_context.__exit__(None, None, None)
-            except Exception:
-                pass
 
 
 if __name__ == "__main__":

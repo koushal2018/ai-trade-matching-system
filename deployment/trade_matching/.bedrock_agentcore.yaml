@@ -1,21 +1,21 @@
-default_agent: trade_matching_agent
+default_agent: trade_matching_ai
 agents:
-  trade_matching_agent:
-    name: trade_matching_agent
-    entrypoint: trade_matching_agent_strands.py
-    deployment_type: direct_code_deploy
-    runtime_type: PYTHON_3_11
+  trade_matching_ai:
+    name: trade_matching_ai
+    entrypoint: /Volumes/FastSSD/Projects/agentic-ai-reconcillation/deployment/trade_matching/trade_matching_agent_strands.py
+    deployment_type: container
+    runtime_type: null
     platform: linux/arm64
-    container_runtime: null
-    source_path: /Users/koushald/ai-trade-matching-system/deployment/trade_matching
+    container_runtime: docker
+    source_path: /Volumes/FastSSD/Projects/agentic-ai-reconcillation/deployment/trade_matching
     aws:
-      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-116b035397
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-0f9cb91bfb
       execution_role_auto_create: false
       account: '401552979575'
       region: us-east-1
-      ecr_repository: null
+      ecr_repository: 401552979575.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-trade_matching_ai
       ecr_auto_create: false
-      s3_path: s3://bedrock-agentcore-codebuild-sources-401552979575-us-east-1
+      s3_path: null
       s3_auto_create: false
       network_configuration:
         network_mode: PUBLIC
@@ -28,19 +28,19 @@ agents:
         idle_runtime_session_timeout: null
         max_lifetime: null
     bedrock_agentcore:
-      agent_id: trade_matching_agent-3aAvK64dQz
-      agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/trade_matching_agent-3aAvK64dQz
+      agent_id: trade_matching_ai-r8eaGb4u7B
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/trade_matching_ai-r8eaGb4u7B
       agent_session_id: null
     codebuild:
-      project_name: null
-      execution_role: null
-      source_bucket: null
+      project_name: bedrock-agentcore-trade_matching_ai-builder
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-0f9cb91bfb
+      source_bucket: bedrock-agentcore-codebuild-sources-401552979575-us-east-1
     memory:
       mode: STM_AND_LTM
-      memory_id: trade_matching_decisions-Z3tG4b4Xsd
-      memory_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:memory/trade_matching_decisions-Z3tG4b4Xsd
-      memory_name: trade_matching_decisions
-      event_expiry_days: 90
+      memory_id: TradeMatchingMemory-5f8wTKHzCs
+      memory_arn: null
+      memory_name: trade_matching_ai_memory
+      event_expiry_days: 30
       first_invoke_memory_check_done: false
       was_created_by_toolkit: false
     identity:
