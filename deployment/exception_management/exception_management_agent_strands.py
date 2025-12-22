@@ -11,7 +11,7 @@ Requirements: 2.1, 2.2, 3.5, 8.1, 8.2, 8.3, 8.4, 8.5
 import os
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 import logging
 
@@ -251,8 +251,7 @@ def determine_routing(
         priority = 3
     
     sla_hours = sla_hours_map.get(severity, 8)
-    sla_deadline = (datetime.utcnow() + timedelta(hours=sla_hours)).isoformat()s_map.get(severity, 8)
-    sla_deadline = (datetime.utcnow() + timedelta(hours=sla_hours)).isoformat()
+    sla_deadline = (datetime.now(timezone.utc) + timedelta(hours=sla_hours)).isoformat()
     
     return {
         "routing": routing,
@@ -306,7 +305,7 @@ def store_exception_record(
         
         item = {
             "exception_id": {"S": exception_id},
-            "timestamp": {"S": datetime.utcnow().isoformat()},
+            "timestamp": {"S": datetime.now(timezone.utc).isoformat()},
             "trade_id": {"S": trade_id},
             "event_type": {"S": event_type},
             "classification": {"S": classification},
@@ -421,7 +420,7 @@ def create_memory_session_manager(
     
     try:
         # Generate unique session ID for this invocation
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         session_id = f"exc_{exception_id or 'unknown'}_{timestamp}_{correlation_id[:8]}"
         
         # Configure memory with retrieval settings for all namespace strategies
@@ -609,18 +608,30 @@ def create_exception_agent(
 # ============================================================================
 
 def _extract_token_metrics(result) -> Dict[str, int]:
-    """Extract token usage metrics from Strands agent result."""
+    """
+    Extract token usage metrics from Strands agent result.
+    
+    The AgentResult.metrics is an EventLoopMetrics object.
+    Token usage is accessed via get_summary()["accumulated_usage"].
+    Per Strands SDK docs, keys are camelCase: inputTokens, outputTokens.
+    
+    Requirements: 10.1, 10.2, 10.4
+    """
     metrics = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
     try:
-        if hasattr(result, 'metrics'):
-            metrics["input_tokens"] = getattr(result.metrics, 'input_tokens', 0) or 0
-            metrics["output_tokens"] = getattr(result.metrics, 'output_tokens', 0) or 0
-        elif hasattr(result, 'usage'):
-            metrics["input_tokens"] = getattr(result.usage, 'input_tokens', 0) or 0
-            metrics["output_tokens"] = getattr(result.usage, 'output_tokens', 0) or 0
-        metrics["total_tokens"] = metrics["input_tokens"] + metrics["output_tokens"]
-    except Exception:
-        pass
+        if hasattr(result, 'metrics') and result.metrics:
+            summary = result.metrics.get_summary()
+            usage = summary.get("accumulated_usage", {})
+            # Note: Strands uses camelCase (inputTokens, outputTokens)
+            metrics["input_tokens"] = usage.get("inputTokens", 0) or 0
+            metrics["output_tokens"] = usage.get("outputTokens", 0) or 0
+            metrics["total_tokens"] = usage.get("totalTokens", 0) or (metrics["input_tokens"] + metrics["output_tokens"])
+            
+            # Log warning if token counts are zero (potential instrumentation issue)
+            if metrics["total_tokens"] == 0:
+                logger.warning("Token counting returned zero - potential instrumentation issue")
+    except Exception as e:
+        logger.warning(f"Failed to extract token metrics: {e}")
     return metrics
 
 
@@ -644,7 +655,7 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
     Returns:
         dict: Triage and delegation result
     """
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
     logger.info("Exception Management Agent (Strands) invoked")
     logger.info(f"Payload: {json.dumps(payload, default=str)}")
     
@@ -731,7 +742,7 @@ Analyze this exception, determine its severity and classification, route it appr
         logger.info("Invoking Strands agent for exception handling")
         result = agent(prompt)
         
-        processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         
         # Extract token metrics
         token_metrics = _extract_token_metrics(result)
@@ -774,7 +785,7 @@ Analyze this exception, determine its severity and classification, route it appr
         
     except Exception as e:
         logger.error(f"[{correlation_id}] Error in exception management agent: {e}", exc_info=True)
-        processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         
         return {
             "success": False,

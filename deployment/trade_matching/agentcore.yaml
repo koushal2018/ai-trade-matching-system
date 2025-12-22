@@ -18,6 +18,9 @@ environment:
   DYNAMODB_BANK_TABLE: BankTradeData
   DYNAMODB_COUNTERPARTY_TABLE: CounterpartyTradeData
   LOG_LEVEL: INFO
+  # OTLP configuration to prevent log export size issues
+  OTEL_EXPORTER_OTLP_LOGS_MAX_EXPORT_BATCH_SIZE: "100"
+  OTEL_EXPORTER_OTLP_COMPRESSION: gzip
   
 memory:
   enabled: true

@@ -19,7 +19,7 @@ import uuid
 import re
 from dataclasses import dataclass
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List, Tuple
 import logging
 
@@ -92,7 +92,7 @@ if not USE_STRANDS_TOOLS_AWS:
         Returns:
             JSON string with operation result
         """
-        operation_start = datetime.utcnow()
+        operation_start = datetime.now(timezone.utc)
         
         # LOG: AWS operation start
         logger.info(f"AWS_OPERATION_START - {service_name}.{operation_name}", extra={
@@ -143,7 +143,7 @@ if not USE_STRANDS_TOOLS_AWS:
                         'content_type': result.get('ContentType', 'unknown')
                     })
                 
-                operation_time_ms = (datetime.utcnow() - operation_start).total_seconds() * 1000
+                operation_time_ms = (datetime.now(timezone.utc) - operation_start).total_seconds() * 1000
                 
                 # LOG: Successful AWS operation
                 logger.info(f"AWS_OPERATION_SUCCESS - {service_name}.{operation_name} completed", extra={
@@ -181,7 +181,7 @@ if not USE_STRANDS_TOOLS_AWS:
                 })
                 
         except Exception as e:
-            operation_time_ms = (datetime.utcnow() - operation_start).total_seconds() * 1000
+            operation_time_ms = (datetime.now(timezone.utc) - operation_start).total_seconds() * 1000
             
             # LOG: AWS operation failure with context
             logger.error(f"AWS_OPERATION_FAILED - {service_name}.{operation_name} failed", extra={
@@ -336,7 +336,7 @@ def send_metrics(metric_name: str, value: float, dimensions: dict = None, unit: 
             'MetricName': metric_name,
             'Value': value,
             'Unit': unit,
-            'Timestamp': datetime.utcnow()
+            'Timestamp': datetime.now(timezone.utc)
         }
         
         if dimensions:
@@ -385,7 +385,7 @@ def log_processing_event(event_type: str, details: dict) -> str:
     """
     try:
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "agent_name": AGENT_NAME,
             "agent_version": AGENT_VERSION,
             "event_type": event_type,
@@ -447,7 +447,7 @@ def create_memory_session_manager(
     
     try:
         # Generate unique session ID for this invocation
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         session_id = f"extract_{document_id or 'unknown'}_{timestamp}_{correlation_id[:8]}"
         
         # Configure memory with retrieval settings for all namespace strategies
@@ -602,7 +602,7 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
     This function provides minimal scaffolding and lets the LLM agent
     drive all decision-making through tool usage.
     """
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
     
     # Extract basic information
     document_id = payload.get("document_id")
@@ -647,7 +647,7 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
             "agent_name": AGENT_NAME,
             "correlation_id": correlation_id,
             "error_type": "validation_error",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
     
     try:
@@ -715,7 +715,7 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
         })
         
         # Calculate processing time
-        processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         
         # Extract response text
         if hasattr(result, 'message') and result.message:
@@ -732,17 +732,23 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
             response_text = str(result)
         
         # Extract token metrics if available
+        # Per Strands SDK docs, use get_summary()["accumulated_usage"] with camelCase keys
+        # Requirements: 10.1, 10.2, 10.4
         token_metrics = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         try:
-            if hasattr(result, 'metrics'):
-                token_metrics["input_tokens"] = getattr(result.metrics, 'input_tokens', 0) or 0
-                token_metrics["output_tokens"] = getattr(result.metrics, 'output_tokens', 0) or 0
-            elif hasattr(result, 'usage'):
-                token_metrics["input_tokens"] = getattr(result.usage, 'input_tokens', 0) or 0
-                token_metrics["output_tokens"] = getattr(result.usage, 'output_tokens', 0) or 0
-            token_metrics["total_tokens"] = token_metrics["input_tokens"] + token_metrics["output_tokens"]
-        except Exception:
-            pass
+            if hasattr(result, 'metrics') and result.metrics:
+                summary = result.metrics.get_summary()
+                usage = summary.get("accumulated_usage", {})
+                # Note: Strands uses camelCase (inputTokens, outputTokens)
+                token_metrics["input_tokens"] = usage.get("inputTokens", 0) or 0
+                token_metrics["output_tokens"] = usage.get("outputTokens", 0) or 0
+                token_metrics["total_tokens"] = usage.get("totalTokens", 0) or (token_metrics["input_tokens"] + token_metrics["output_tokens"])
+                
+                # Log warning if token counts are zero (potential instrumentation issue)
+                if token_metrics["total_tokens"] == 0:
+                    logger.warning(f"[{correlation_id}] Token counting returned zero - potential instrumentation issue")
+        except Exception as e:
+            logger.warning(f"[{correlation_id}] Failed to extract token metrics: {e}")
         
         # LOG: Successful completion with metrics
         logger.info(f"[{correlation_id}] INVOKE_SUCCESS - Agent execution completed successfully", extra={
@@ -780,11 +786,11 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
             "token_usage": token_metrics,
             "model_id": BEDROCK_MODEL_ID,
             "deployment_stage": DEPLOYMENT_STAGE,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
     except Exception as e:
-        processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         
         # LOG: Detailed error information
         logger.error(f"[{correlation_id}] INVOKE_ERROR - Agent execution failed", extra={
@@ -821,7 +827,7 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
             "agent_name": AGENT_NAME,
             "agent_version": AGENT_VERSION,
             "processing_time_ms": processing_time_ms,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "canonical_output_location": canonical_output_location,
             "source_type": source_type
         }

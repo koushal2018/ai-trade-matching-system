@@ -2,12 +2,12 @@ default_agent: exception_manager
 agents:
   exception_management_agent:
     name: exception_management_agent
-    entrypoint: /Users/koushald/ai-trade-matching-system-2/deployment/exception_management/exception_management_agent.py
+    entrypoint: /Volumes/FastSSD/Projects/agentic-ai-reconcillation/deployment/exception_management/exception_management_agent.py
     deployment_type: direct_code_deploy
     runtime_type: PYTHON_3_11
     platform: linux/arm64
     container_runtime: null
-    source_path: /Users/koushald/ai-trade-matching-system-2/deployment/exception_management
+    source_path: /Volumes/FastSSD/Projects/agentic-ai-reconcillation/deployment/exception_management
     aws:
       execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-116b035397
       execution_role_auto_create: false
@@ -46,28 +46,19 @@ agents:
     identity:
       credential_providers: []
       workload: null
-    aws_jwt:
-      enabled: false
-      audiences: []
-      signing_algorithm: ES384
-      issuer_url: null
-      duration_seconds: 300
     authorizer_configuration: null
     request_header_configuration: null
     oauth_configuration: null
-    api_key_env_var_name: null
-    api_key_credential_provider_name: null
-    is_generated_by_agentcore_create: false
   exception_manager:
     name: exception_manager
-    entrypoint: /Users/koushald/ai-trade-matching-system-2/deployment/exception_management/exception_management_agent_strands.py
+    entrypoint: /Volumes/FastSSD/Projects/agentic-ai-reconcillation/deployment/exception_management/exception_management_agent_strands.py
     deployment_type: container
     runtime_type: null
     platform: linux/arm64
     container_runtime: none
-    source_path: /Users/koushald/ai-trade-matching-system-2/deployment/exception_management
+    source_path: /Volumes/FastSSD/Projects/agentic-ai-reconcillation/deployment/exception_management
     aws:
-      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-116b035397
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-0f9cb91bfb
       execution_role_auto_create: false
       account: '401552979575'
       region: us-east-1
@@ -88,7 +79,7 @@ agents:
     bedrock_agentcore:
       agent_id: exception_manager-uliBS5DsX3
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/exception_manager-uliBS5DsX3
-      agent_session_id: trade_test_http_004__exc_ead92507
+      agent_session_id: null
     codebuild:
       project_name: bedrock-agentcore-exception_manager-builder
       execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-18b6840951
@@ -104,15 +95,6 @@ agents:
     identity:
       credential_providers: []
       workload: null
-    aws_jwt:
-      enabled: false
-      audiences: []
-      signing_algorithm: ES384
-      issuer_url: null
-      duration_seconds: 300
     authorizer_configuration: null
     request_header_configuration: null
     oauth_configuration: null
-    api_key_env_var_name: null
-    api_key_credential_provider_name: null
-    is_generated_by_agentcore_create: false

@@ -14,7 +14,7 @@ os.environ["BYPASS_TOOL_CONSENT"] = "true"
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, List
 import logging
 
@@ -180,6 +180,57 @@ def get_boto_client(service: str):
 
 
 # ============================================================================
+# Trade ID Normalization
+# ============================================================================
+
+def normalize_trade_id(raw_id: str, source: Optional[str] = None) -> str:
+    """
+    Normalize trade ID to standard format for consistent matching.
+    
+    Handles various prefix formats (fab_, FAB_, cpty_, CPTY_, bank_, BANK_)
+    and extracts the numeric identifier. Optionally applies a standard prefix
+    based on the source type.
+    
+    Args:
+        raw_id: Raw trade ID (e.g., "27254314", "fab_27254314", "FAB_27254314")
+        source: Optional source type (BANK, COUNTERPARTY)
+        
+    Returns:
+        Normalized trade ID with consistent format
+        
+    Requirements: 5.1, 5.2, 5.3, 5.4
+    """
+    if not raw_id:
+        return raw_id
+    
+    import re
+    
+    # Strip existing prefixes (case-insensitive)
+    prefixes = ["fab_", "FAB_", "cpty_", "CPTY_", "bank_", "BANK_"]
+    numeric_id = raw_id
+    for prefix in prefixes:
+        if numeric_id.startswith(prefix):
+            numeric_id = numeric_id[len(prefix):]
+            break
+    
+    # Extract numeric portion if mixed alphanumeric
+    match = re.search(r'(\d+)', numeric_id)
+    if match:
+        numeric_id = match.group(1)
+    
+    # Apply standard prefix based on source
+    if source:
+        source_lower = source.lower()
+        if source_lower == "bank":
+            return f"bank_{numeric_id}"
+        elif source_lower == "counterparty":
+            return f"cpty_{numeric_id}"
+    
+    # Return just the numeric ID if no source specified
+    return numeric_id
+
+
+# ============================================================================
 # AgentCore Memory Session Manager Factory
 # ============================================================================
 
@@ -209,7 +260,7 @@ def create_memory_session_manager(
     
     try:
         # Generate unique session ID for this invocation
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         session_id = f"match_{trade_id or 'unknown'}_{timestamp}_{correlation_id[:8]}"
         
         # Configure memory with retrieval settings for all namespace strategies
@@ -440,18 +491,30 @@ def create_matching_agent(
 # ============================================================================
 
 def _extract_token_metrics(result) -> Dict[str, int]:
-    """Extract token usage metrics from Strands agent result."""
+    """
+    Extract token usage metrics from Strands agent result.
+    
+    The AgentResult.metrics is an EventLoopMetrics object.
+    Token usage is accessed via get_summary()["accumulated_usage"].
+    Per Strands SDK docs, keys are camelCase: inputTokens, outputTokens.
+    
+    Requirements: 10.1, 10.2, 10.4
+    """
     metrics = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
     try:
-        if hasattr(result, 'metrics'):
-            metrics["input_tokens"] = getattr(result.metrics, 'input_tokens', 0) or 0
-            metrics["output_tokens"] = getattr(result.metrics, 'output_tokens', 0) or 0
-        elif hasattr(result, 'usage'):
-            metrics["input_tokens"] = getattr(result.usage, 'input_tokens', 0) or 0
-            metrics["output_tokens"] = getattr(result.usage, 'output_tokens', 0) or 0
-        metrics["total_tokens"] = metrics["input_tokens"] + metrics["output_tokens"]
-    except Exception:
-        pass
+        if hasattr(result, 'metrics') and result.metrics:
+            summary = result.metrics.get_summary()
+            usage = summary.get("accumulated_usage", {})
+            # Note: Strands uses camelCase (inputTokens, outputTokens)
+            metrics["input_tokens"] = usage.get("inputTokens", 0) or 0
+            metrics["output_tokens"] = usage.get("outputTokens", 0) or 0
+            metrics["total_tokens"] = usage.get("totalTokens", 0) or (metrics["input_tokens"] + metrics["output_tokens"])
+            
+            # Log warning if token counts are zero (potential instrumentation issue)
+            if metrics["total_tokens"] == 0:
+                logger.warning("Token counting returned zero - potential instrumentation issue")
+    except Exception as e:
+        logger.warning(f"Failed to extract token metrics: {e}")
     return metrics
 
 
@@ -473,7 +536,7 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
     Returns:
         dict: Matching result with classification and confidence score
     """
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
     
     # Extract request parameters
     trade_id = payload.get("trade_id")
@@ -521,7 +584,7 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
         else:
             logger.info(f"[{correlation_id}] Agent created without memory (memory disabled or unavailable)")
         
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         
         # Construct goal-oriented prompt for the agent
         prompt = f"""Match a trade that was just extracted and stored.
@@ -563,7 +626,7 @@ You decide the best strategy. Use the use_aws tool for DynamoDB scans and S3 ope
         result = agent(prompt)
         token_metrics = _extract_token_metrics(result)
         
-        processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         logger.info(f"[{correlation_id}] Token usage: {token_metrics['input_tokens']} in / {token_metrics['output_tokens']} out")
         
         # Extract the agent's response
@@ -626,7 +689,7 @@ You decide the best strategy. Use the use_aws tool for DynamoDB scans and S3 ope
         
     except Exception as e:
         logger.error(f"[{correlation_id}] Error in matching agent: {e}", exc_info=True)
-        processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         
         return {
             "success": False,

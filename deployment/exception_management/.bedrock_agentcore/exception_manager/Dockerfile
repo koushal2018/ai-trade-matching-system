@@ -10,32 +10,27 @@ ENV UV_SYSTEM_PYTHON=1 \
     AWS_REGION=us-east-1 \
     AWS_DEFAULT_REGION=us-east-1
 
+# Copy entire project first (as root)
+COPY . /app/
 
+# Debug: List files to see what was copied
+RUN ls -la /app/
 
-COPY requirements.txt requirements.txt
-# Install from requirements file
-RUN uv pip install -r requirements.txt
+# Install dependencies
+RUN uv pip install -r /app/requirements.txt
 
-
-
-
+# Install OTEL
 RUN uv pip install aws-opentelemetry-distro==0.12.2
 
+# Create non-root user and change ownership
+RUN useradd -m -u 1000 bedrock_agentcore && \
+    chown -R bedrock_agentcore:bedrock_agentcore /app
 
-# Signal that this is running in Docker for host binding logic
-ENV DOCKER_CONTAINER=1
-
-# Create non-root user
-RUN useradd -m -u 1000 bedrock_agentcore
 USER bedrock_agentcore
 
 EXPOSE 9000
 EXPOSE 8000
 EXPOSE 8080
 
-# Copy entire project (respecting .dockerignore)
-COPY . .
-
 # Use the full module path
-
 CMD ["opentelemetry-instrument", "python", "-m", "exception_management_agent_strands"]

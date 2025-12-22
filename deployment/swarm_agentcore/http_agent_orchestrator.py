@@ -15,7 +15,7 @@ import os
 import json
 import logging
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from urllib.parse import quote
 
@@ -27,6 +27,8 @@ import boto3
 from botocore.auth import SigV4Auth
 from botocore.awsrequest import AWSRequest
 from botocore.config import Config
+
+from idempotency import IdempotencyCache
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,17 @@ EXCEPTION_MANAGEMENT_ARN = os.getenv("EXCEPTION_MANAGEMENT_AGENT_ARN", "arn:aws:
 # Timeouts and Retry Configuration
 AGENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_TIMEOUT_SECONDS", "300"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
+
+# Per-agent timeout configuration (in seconds)
+# Trade matching can be very slow due to fuzzy matching algorithms
+AGENT_TIMEOUTS = {
+    "pdf_adapter": 120,        # 2 minutes - PDF text extraction
+    "trade_extraction": 60,    # 1 minute - LLM extraction
+    "trade_matching": 600,     # 10 minutes - Fuzzy matching can be slow
+    "exception_management": 60  # 1 minute - Exception routing
+}
+
+DEFAULT_TIMEOUT = 300  # 5 minutes fallback
 
 
 class AgentCoreClient:
@@ -116,16 +129,16 @@ class AgentCoreClient:
             logger.debug(f"[{correlation_id}] DEBUG: Session ID: {session_id}")
         
         # Sign the request
-        request_start = datetime.utcnow()
+        request_start = datetime.now(timezone.utc)
         logger.debug(f"[{correlation_id}] DEBUG: Signing request with SigV4")
         signed_headers = self._sign_request("POST", url, headers, body)
-        signing_time_ms = (datetime.utcnow() - request_start).total_seconds() * 1000
+        signing_time_ms = (datetime.now(timezone.utc) - request_start).total_seconds() * 1000
         logger.debug(f"[{correlation_id}] DEBUG: Request signed in {signing_time_ms:.2f}ms")
         
         # Make HTTP request with retries
         last_error = None
         for attempt in range(retries):
-            attempt_start = datetime.utcnow()
+            attempt_start = datetime.now(timezone.utc)
             
             try:
                 logger.info(f"[{correlation_id}] INFO: Attempt {attempt + 1}/{retries} - calling agent")
@@ -138,7 +151,7 @@ class AgentCoreClient:
                         content=body
                     )
                 
-                attempt_time_ms = (datetime.utcnow() - attempt_start).total_seconds() * 1000
+                attempt_time_ms = (datetime.now(timezone.utc) - attempt_start).total_seconds() * 1000
                 response_size_kb = len(response.content) / 1024
                 
                 logger.info(f"[{correlation_id}] INFO: Response status: {response.status_code}")
@@ -164,7 +177,8 @@ class AgentCoreClient:
                 
                 # Retry on 5xx errors
                 if response.status_code >= 500 and attempt < retries - 1:
-                    backoff_seconds = 1.0 * (attempt + 1)
+                    # Exponential backoff: 1.0 * (2 ** attempt)
+                    backoff_seconds = min(1.0 * (2 ** attempt), 60.0)
                     logger.warning(f"[{correlation_id}] WARN: Retrying after {backoff_seconds}s backoff")
                     await asyncio.sleep(backoff_seconds)
                     
@@ -183,7 +197,7 @@ class AgentCoreClient:
                 }
                 
             except httpx.TimeoutException as e:
-                attempt_time_ms = (datetime.utcnow() - attempt_start).total_seconds() * 1000
+                attempt_time_ms = (datetime.now(timezone.utc) - attempt_start).total_seconds() * 1000
                 last_error = f"Timeout after {timeout}s"
                 
                 logger.error(f"[{correlation_id}] ERROR: Timeout on attempt {attempt + 1}/{retries}")
@@ -191,14 +205,15 @@ class AgentCoreClient:
                 logger.error(f"[{correlation_id}] ERROR: Timeout threshold: {timeout}s")
                 
                 if attempt < retries - 1:
-                    backoff_seconds = 1.0 * (attempt + 1)
+                    # Exponential backoff: 1.0 * (2 ** attempt)
+                    backoff_seconds = min(1.0 * (2 ** attempt), 60.0)
                     logger.warning(f"[{correlation_id}] WARN: Retrying after {backoff_seconds}s backoff")
                     await asyncio.sleep(backoff_seconds)
                     signed_headers = self._sign_request("POST", url, headers, body)
                     continue
                     
             except Exception as e:
-                attempt_time_ms = (datetime.utcnow() - attempt_start).total_seconds() * 1000
+                attempt_time_ms = (datetime.now(timezone.utc) - attempt_start).total_seconds() * 1000
                 last_error = str(e)
                 
                 logger.error(f"[{correlation_id}] ERROR: Request failed on attempt {attempt + 1}/{retries}")
@@ -207,7 +222,8 @@ class AgentCoreClient:
                 logger.error(f"[{correlation_id}] ERROR: Elapsed time: {attempt_time_ms:.2f}ms")
                 
                 if attempt < retries - 1:
-                    backoff_seconds = 1.0 * (attempt + 1)
+                    # Exponential backoff: 1.0 * (2 ** attempt)
+                    backoff_seconds = min(1.0 * (2 ** attempt), 60.0)
                     logger.warning(f"[{correlation_id}] WARN: Retrying after {backoff_seconds}s backoff")
                     await asyncio.sleep(backoff_seconds)
                     signed_headers = self._sign_request("POST", url, headers, body)
@@ -244,6 +260,13 @@ class TradeMatchingHTTPOrchestrator:
             "exception_management": EXCEPTION_MANAGEMENT_ARN
         }
         
+        # Initialize idempotency cache
+        # TTL of 300 seconds (5 minutes) prevents duplicate processing of recent workflows
+        self.idempotency_cache = IdempotencyCache(
+            table_name=os.getenv("IDEMPOTENCY_TABLE_NAME", "WorkflowIdempotency"),
+            ttl_seconds=int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "300"))
+        )
+        
         # Validate configuration
         missing = [k for k, v in self.agent_arns.items() if not v]
         if missing:
@@ -268,7 +291,7 @@ class TradeMatchingHTTPOrchestrator:
         Returns:
             Complete workflow result with all agent responses
         """
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         workflow_steps = {}
         current_step = None
         
@@ -279,10 +302,25 @@ class TradeMatchingHTTPOrchestrator:
         logger.info(f"[{correlation_id}] INFO: Document Path: {document_path}")
         logger.info(f"[{correlation_id}] ========================================")
         
+        # Check idempotency cache - prevent duplicate workflow execution
+        payload = {
+            "document_path": document_path,
+            "source_type": source_type,
+            "document_id": document_id,
+            "correlation_id": correlation_id
+        }
+        
+        cached_result = self.idempotency_cache.check_and_set(correlation_id, payload)
+        if cached_result is not None:
+            logger.info(f"[{correlation_id}] INFO: Returning cached result (idempotency)")
+            logger.info(f"[{correlation_id}] INFO: Workflow was already processed recently")
+            cached_result["from_cache"] = True
+            return cached_result
+        
         try:
             # Step 1: PDF Adapter - Extract text from PDF
             current_step = "pdf_adapter"
-            step_start = datetime.utcnow()
+            step_start = datetime.now(timezone.utc)
             logger.info(f"[{correlation_id}] INFO: Step 1/4: PDF Adapter Agent")
             logger.info(f"[{correlation_id}] INFO: Extracting text from PDF document")
             
@@ -293,7 +331,7 @@ class TradeMatchingHTTPOrchestrator:
                 correlation_id=correlation_id
             )
             
-            step_time_ms = (datetime.utcnow() - step_start).total_seconds() * 1000
+            step_time_ms = (datetime.now(timezone.utc) - step_start).total_seconds() * 1000
             workflow_steps["pdf_adapter"] = pdf_result
             
             logger.info(f"[{correlation_id}] INFO: PDF Adapter completed in {step_time_ms:.2f}ms")
@@ -313,7 +351,7 @@ class TradeMatchingHTTPOrchestrator:
             
             # Step 2: Trade Extraction - Extract structured data
             current_step = "trade_extraction"
-            step_start = datetime.utcnow()
+            step_start = datetime.now(timezone.utc)
             logger.info(f"[{correlation_id}] INFO: Step 2/4: Trade Extraction Agent")
             logger.info(f"[{correlation_id}] INFO: Extracting structured trade data")
             
@@ -330,7 +368,7 @@ class TradeMatchingHTTPOrchestrator:
                 canonical_output_location=canonical_output_location
             )
             
-            step_time_ms = (datetime.utcnow() - step_start).total_seconds() * 1000
+            step_time_ms = (datetime.now(timezone.utc) - step_start).total_seconds() * 1000
             workflow_steps["trade_extraction"] = extraction_result
             
             logger.info(f"[{correlation_id}] INFO: Trade Extraction completed in {step_time_ms:.2f}ms")
@@ -368,7 +406,7 @@ class TradeMatchingHTTPOrchestrator:
             
             # Step 3: Trade Matching - Find matching trades
             current_step = "trade_matching"
-            step_start = datetime.utcnow()
+            step_start = datetime.now(timezone.utc)
             logger.info(f"[{correlation_id}] INFO: Step 3/4: Trade Matching Agent")
             logger.info(f"[{correlation_id}] INFO: Searching for matching trades")
             logger.info(f"[{correlation_id}] INFO: Primary search key: {trade_id}")
@@ -380,7 +418,7 @@ class TradeMatchingHTTPOrchestrator:
                 document_id=document_id  # Pass original document_id as fallback
             )
             
-            step_time_ms = (datetime.utcnow() - step_start).total_seconds() * 1000
+            step_time_ms = (datetime.now(timezone.utc) - step_start).total_seconds() * 1000
             workflow_steps["trade_matching"] = matching_result
             
             logger.info(f"[{correlation_id}] INFO: Trade Matching completed in {step_time_ms:.2f}ms")
@@ -400,7 +438,7 @@ class TradeMatchingHTTPOrchestrator:
             
             if classification in ["REVIEW_REQUIRED", "BREAK"]:
                 current_step = "exception_management"
-                step_start = datetime.utcnow()
+                step_start = datetime.now(timezone.utc)
                 logger.info(f"[{correlation_id}] INFO: Step 4/4: Exception Management Agent")
                 logger.info(f"[{correlation_id}] INFO: Classification requires exception handling: {classification}")
                 
@@ -416,7 +454,7 @@ class TradeMatchingHTTPOrchestrator:
                     workflow_steps=workflow_steps
                 )
                 
-                step_time_ms = (datetime.utcnow() - step_start).total_seconds() * 1000
+                step_time_ms = (datetime.now(timezone.utc) - step_start).total_seconds() * 1000
                 workflow_steps["exception_management"] = exception_result
                 
                 logger.info(f"[{correlation_id}] INFO: Exception Management completed in {step_time_ms:.2f}ms")
@@ -425,7 +463,7 @@ class TradeMatchingHTTPOrchestrator:
                 logger.info(f"[{correlation_id}] INFO: No exception handling needed for classification: {classification}")
             
             # Build success response
-            processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+            processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             
             logger.info(f"[{correlation_id}] ========================================")
             logger.info(f"[{correlation_id}] INFO: Workflow completed successfully")
@@ -434,7 +472,7 @@ class TradeMatchingHTTPOrchestrator:
             logger.info(f"[{correlation_id}] INFO: Final classification: {classification}")
             logger.info(f"[{correlation_id}] ========================================")
             
-            return {
+            result = {
                 "success": True,
                 "document_id": document_id,
                 "trade_id": trade_id,
@@ -447,6 +485,11 @@ class TradeMatchingHTTPOrchestrator:
                 "execution_mode": "HTTP Orchestrator"
             }
             
+            # Cache the result for idempotency
+            self.idempotency_cache.set_result(correlation_id, result)
+            
+            return result
+            
         except Exception as e:
             logger.error(f"[{correlation_id}] ========================================")
             logger.error(f"[{correlation_id}] ERROR: Workflow failed at step: {current_step}")
@@ -454,7 +497,7 @@ class TradeMatchingHTTPOrchestrator:
             logger.error(f"[{correlation_id}] ERROR: Exception message: {e}")
             logger.error(f"[{correlation_id}] ========================================", exc_info=True)
             
-            return self._build_error_response(
+            error_result = self._build_error_response(
                 step=current_step or "initialization",
                 error=str(e),
                 workflow_steps=workflow_steps,
@@ -462,6 +505,11 @@ class TradeMatchingHTTPOrchestrator:
                 correlation_id=correlation_id,
                 start_time=start_time
             )
+            
+            # Cache the error result for idempotency
+            self.idempotency_cache.set_result(correlation_id, error_result)
+            
+            return error_result
     
     async def _invoke_pdf_adapter(
         self,
@@ -481,7 +529,8 @@ class TradeMatchingHTTPOrchestrator:
                 "source_type": source_type,
                 "document_id": document_id,
                 "correlation_id": correlation_id
-            }
+            },
+            timeout=AGENT_TIMEOUTS.get("pdf_adapter", DEFAULT_TIMEOUT)
         )
     
     async def _invoke_trade_extraction(
@@ -507,7 +556,8 @@ class TradeMatchingHTTPOrchestrator:
         
         return await self.client.invoke_agent(
             runtime_arn=self.agent_arns["trade_extraction"],
-            payload=payload
+            payload=payload,
+            timeout=AGENT_TIMEOUTS.get("trade_extraction", DEFAULT_TIMEOUT)
         )
     
     async def _invoke_trade_matching(
@@ -534,7 +584,8 @@ class TradeMatchingHTTPOrchestrator:
         
         return await self.client.invoke_agent(
             runtime_arn=self.agent_arns["trade_matching"],
-            payload=payload
+            payload=payload,
+            timeout=AGENT_TIMEOUTS.get("trade_matching", DEFAULT_TIMEOUT)
         )
     
     async def _handle_exception(
@@ -561,7 +612,8 @@ class TradeMatchingHTTPOrchestrator:
                 "reason_codes": reason_codes or [],
                 "error_message": error_message,
                 "correlation_id": correlation_id
-            }
+            },
+            timeout=AGENT_TIMEOUTS.get("exception_management", DEFAULT_TIMEOUT)
         )
     
     def _extract_trade_id(self, extraction_result: Dict, fallback: str) -> str:
@@ -714,7 +766,7 @@ class TradeMatchingHTTPOrchestrator:
         start_time: datetime
     ) -> Dict[str, Any]:
         """Build standardized error response."""
-        processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         
         return {
             "success": False,

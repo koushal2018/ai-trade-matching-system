@@ -23,3 +23,10 @@ dependencies = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = []
+only-include = []
+
+[tool.hatch.build]
+skip-excluded-dirs = true
