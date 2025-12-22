@@ -1,0 +1,60 @@
+default_agent: orchestrator_agent
+agents:
+  orchestrator_agent:
+    name: orchestrator_agent
+    entrypoint: /Volumes/FastSSD/Projects/agentic-ai-reconcillation/deployment/orchestrator/orchestrator_agent_strands.py
+    deployment_type: container
+    runtime_type: null
+    platform: linux/arm64
+    container_runtime: none
+    source_path: /Volumes/FastSSD/Projects/agentic-ai-reconcillation/deployment/orchestrator
+    aws:
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-0f9cb91bfb
+      execution_role_auto_create: false
+      account: '401552979575'
+      region: us-east-1
+      ecr_repository: 401552979575.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-orchestrator_agent
+      ecr_auto_create: false
+      s3_path: null
+      s3_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+        network_mode_config: null
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+      lifecycle_configuration:
+        idle_runtime_session_timeout: null
+        max_lifetime: null
+    bedrock_agentcore:
+      agent_id: orchestrator_agent-M3w6Eq7i6R
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/orchestrator_agent-M3w6Eq7i6R
+      agent_session_id: a73ad630-ed29-4742-9efb-a3364abde8c0
+    codebuild:
+      project_name: bedrock-agentcore-orchestrator_agent-builder
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-18b6840951
+      source_bucket: bedrock-agentcore-codebuild-sources-401552979575-us-east-1
+    memory:
+      mode: STM_AND_LTM
+      memory_id: orchestrator_agent_mem-PGYCwz5E78
+      memory_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:memory/orchestrator_agent_mem-PGYCwz5E78
+      memory_name: orchestrator_agent_mem
+      event_expiry_days: 90
+      first_invoke_memory_check_done: true
+      was_created_by_toolkit: false
+    identity:
+      credential_providers: []
+      workload: null
+    aws_jwt:
+      enabled: false
+      audiences: []
+      signing_algorithm: ES384
+      issuer_url: null
+      duration_seconds: 300
+    authorizer_configuration: null
+    request_header_configuration: null
+    oauth_configuration: null
+    api_key_env_var_name: null
+    api_key_credential_provider_name: null
+    is_generated_by_agentcore_create: false

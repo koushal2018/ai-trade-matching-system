@@ -75,9 +75,8 @@ lambda-deploy/
 .mcp.json
 *-config.json
 
-# AgentCore configuration files (contain sensitive ARNs and account IDs)
-.bedrock_agentcore.yaml
-**/.bedrock_agentcore.yaml
+# AgentCore configuration files - now tracked for team collaboration
+# Note: Review for sensitive data before committing
 **/.bedrock_agentcore/
 .env.memory
 **/.env.memory
