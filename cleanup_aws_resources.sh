@@ -3,17 +3,22 @@
 # Clean up S3 bucket contents (keep folders)
 echo "Cleaning S3 bucket contents..."
 
-# Delete all objects in BANK/ folder
-aws s3 rm s3://trade-matching-system-agentcore-production/BANK/ --recursive
+# Delete only files, not folders - exclude directories by filtering out keys ending with '/'
+aws s3api list-objects-v2 --bucket trade-matching-system-agentcore-production --prefix "BANK/" --query "Contents[?!ends_with(Key, '/')].Key" --output text | tr '\t' '\n' | while read -r key; do
+    [ -n "$key" ] && aws s3 rm "s3://trade-matching-system-agentcore-production/$key"
+done
 
-# Delete all objects in COUNTERPARTY/ folder  
-aws s3 rm s3://trade-matching-system-agentcore-production/COUNTERPARTY/ --recursive
+aws s3api list-objects-v2 --bucket trade-matching-system-agentcore-production --prefix "COUNTERPARTY/" --query "Contents[?!ends_with(Key, '/')].Key" --output text | tr '\t' '\n' | while read -r key; do
+    [ -n "$key" ] && aws s3 rm "s3://trade-matching-system-agentcore-production/$key"
+done
 
-# Delete all objects in extracted/ folder
-aws s3 rm s3://trade-matching-system-agentcore-production/extracted/ --recursive
+aws s3api list-objects-v2 --bucket trade-matching-system-agentcore-production --prefix "extracted/" --query "Contents[?!ends_with(Key, '/')].Key" --output text | tr '\t' '\n' | while read -r key; do
+    [ -n "$key" ] && aws s3 rm "s3://trade-matching-system-agentcore-production/$key"
+done
 
-# Delete all objects in reports/ folder
-aws s3 rm s3://trade-matching-system-agentcore-production/reports/ --recursive
+aws s3api list-objects-v2 --bucket trade-matching-system-agentcore-production --prefix "reports/" --query "Contents[?!ends_with(Key, '/')].Key" --output text | tr '\t' '\n' | while read -r key; do
+    [ -n "$key" ] && aws s3 rm "s3://trade-matching-system-agentcore-production/$key"
+done
 
 echo "S3 cleanup complete."
 
