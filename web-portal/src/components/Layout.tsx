@@ -21,6 +21,7 @@ import {
   RateReview as ReviewIcon,
   History as HistoryIcon,
   SmartToy as AIIcon,
+  Upload as UploadIcon,
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -31,6 +32,7 @@ const drawerWidth = 240
 
 const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+  { text: 'Upload', icon: <UploadIcon />, path: '/upload' },
   { text: 'HITL Reviews', icon: <ReviewIcon />, path: '/hitl' },
   { text: 'Audit Trail', icon: <HistoryIcon />, path: '/audit' },
 ]
