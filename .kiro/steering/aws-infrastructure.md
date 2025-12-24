@@ -36,6 +36,7 @@ terraform/
 ### Core Tables (PAY_PER_REQUEST billing)
 - **BankTradeData**: hash_key=`trade_id`, range_key=`internal_reference`
 - **CounterpartyTradeData**: hash_key=`trade_id`, range_key=`internal_reference`
+- **ai-trade-matching-processing-status**: hash_key=`sessionId`, workflow status tracking (Dec 2025)
 - **ExceptionsTable**: hash_key=`exception_id`, range_key=`timestamp`
 - **AgentRegistry**: hash_key=`agent_id`, stores agent metadata and endpoints
 
@@ -64,6 +65,35 @@ resource "aws_dynamodb_table" "example" {
   tags = {
     Environment = var.environment
     Project     = "trade-matching-system"
+    ManagedBy   = "terraform"
+  }
+}
+```
+
+### Status Table Pattern (Dec 2025)
+```hcl
+resource "aws_dynamodb_table" "processing_status" {
+  name         = "ai-trade-matching-processing-status"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "sessionId"
+
+  attribute {
+    name = "sessionId"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+
+  point_in_time_recovery { enabled = true }
+  server_side_encryption { enabled = true }
+
+  tags = {
+    Environment = var.environment
+    Project     = "trade-matching-system"
+    Purpose     = "workflow-status-tracking"
     ManagedBy   = "terraform"
   }
 }

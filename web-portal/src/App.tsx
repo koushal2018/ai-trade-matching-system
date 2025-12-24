@@ -16,10 +16,16 @@ import type {
 import { useNavigate, useLocation } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import HITLPanel from './pages/HITLPanel'
-import AuditTrail from './pages/AuditTrail'
-import TradeMatchingUpload from './pages/TradeMatchingUpload'
+import AuditTrailPage from './pages/AuditTrailPage'
+import TradeMatchingPage from './pages/TradeMatchingPage'
+import { LoginPage } from './pages/LoginPage'
 import { useNotifications } from './hooks/useNotifications'
+import { useDarkMode } from './hooks/useDarkMode'
+import { useSessionTimeout } from './hooks/useSessionTimeout'
+import { useAuth } from './contexts/AuthContext'
 import { navigationItems } from './config/navigation'
+import { ErrorBoundary } from './components/common/ErrorBoundary'
+import { ProtectedRoute } from './components/common/ProtectedRoute'
 
 // Help content based on current page
 const getHelpContent = (pathname: string) => {
@@ -174,6 +180,11 @@ function App() {
   const navigate = useNavigate()
   const location = useLocation()
   const { notifications, dismissNotification } = useNotifications()
+  const { isDarkMode, toggleDarkMode } = useDarkMode()
+  const { user, signOut: handleSignOut, isAuthenticated } = useAuth()
+  
+  // Session timeout management
+  useSessionTimeout()
 
   const handleNavigationChange = ({ detail }: { detail: { open: boolean } }) => {
     setNavigationOpen(detail.open)
@@ -188,7 +199,27 @@ function App() {
     navigate(event.detail.href)
   }
 
+  const handleUserMenuClick = async (itemId: string) => {
+    if (itemId === 'signout') {
+      try {
+        await handleSignOut()
+        navigate('/login')
+      } catch (error) {
+        console.error('Sign out error:', error)
+      }
+    }
+  }
+
   const helpContent = getHelpContent(location.pathname)
+
+  // Don't show app layout on login page
+  if (location.pathname === '/login') {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+      </Routes>
+    )
+  }
 
   const topNavigationUtilities: TopNavigationProps.Utility[] = [
     {
@@ -209,18 +240,28 @@ function App() {
       iconName: 'settings',
       items: [
         { id: 'preferences', text: 'Preferences' },
-        { id: 'theme', text: 'Theme' },
+        { 
+          id: 'theme', 
+          text: isDarkMode ? 'Light mode' : 'Dark mode',
+          iconName: isDarkMode ? 'view-full' : 'view-full',
+        },
       ],
+      onItemClick: ({ detail }) => {
+        if (detail.id === 'theme') {
+          toggleDarkMode()
+        }
+      },
     },
     {
       type: 'menu-dropdown',
-      text: 'User',
+      text: user?.username || 'User',
       iconName: 'user-profile',
       items: [
         { id: 'profile', text: 'Profile' },
         { id: 'preferences', text: 'Preferences' },
         { id: 'signout', text: 'Sign out' },
       ],
+      onItemClick: ({ detail }) => handleUserMenuClick(detail.id),
     },
   ]
 
@@ -263,13 +304,51 @@ function App() {
         toolsOpen={toolsOpen}
         onToolsChange={handleToolsChange}
         content={
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/upload" element={<TradeMatchingUpload />} />
-            <Route path="/hitl" element={<HITLPanel />} />
-            <Route path="/audit" element={<AuditTrail />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <ErrorBoundary>
+                      <Dashboard />
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/upload"
+                element={
+                  <ProtectedRoute>
+                    <ErrorBoundary>
+                      <TradeMatchingPage />
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/hitl"
+                element={
+                  <ProtectedRoute>
+                    <ErrorBoundary>
+                      <HITLPanel />
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/audit"
+                element={
+                  <ProtectedRoute>
+                    <ErrorBoundary>
+                      <AuditTrailPage />
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </ErrorBoundary>
         }
       />
     </>

@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
-from .routers import agents_router, hitl_router, audit_router, metrics_router, matching_router
+from .routers import agents_router, hitl_router, audit_router, metrics_router, matching_router, upload_router, workflow_router
 from .services.websocket import manager
 
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +34,8 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(upload_router, prefix="/api")
+app.include_router(workflow_router, prefix="/api")
 app.include_router(agents_router, prefix="/api")
 app.include_router(hitl_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")

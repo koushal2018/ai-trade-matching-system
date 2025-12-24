@@ -28,7 +28,10 @@ export const UploadSection: FC<UploadSectionProps> = ({
         </Header>
       }
     >
-      <ColumnLayout columns={2}>
+      <ColumnLayout 
+        columns={2}
+        variant="default"
+      >
         <FileUploadCard
           label="Bank Confirmation"
           sourceType="BANK"

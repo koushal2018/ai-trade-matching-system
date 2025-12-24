@@ -102,17 +102,42 @@ return {
         "input_tokens": int,
         "output_tokens": int,
         "total_tokens": int
-    }
-    # Agent-specific fields below
+    },
+    "data": {...},  # Agent-specific output
+    "error": str    # If success is False
 }
 ```
+
+## Status Tracking Integration (Dec 2025)
+
+**REQUIREMENT**: All agents must return token usage for cost monitoring.
+
+Orchestrator automatically writes agent status to DynamoDB table `ai-trade-matching-processing-status` after each agent execution:
+
+```python
+# Status written by orchestrator after agent completion
+status_update = {
+    "status": "success" | "error" | "in-progress",
+    "activity": "Human-readable description",
+    "startedAt": "2025-12-24T10:00:00.000Z",
+    "completedAt": "2025-12-24T10:00:05.000Z", 
+    "duration": processing_time_ms / 1000,
+    "tokenUsage": agent_response["token_usage"],
+    "error": agent_response.get("error")  # If failed
+}
+```
+
+**Agent Requirements:**
+- MUST return `token_usage` object in response
+- MUST set `token_usage` to `{input_tokens: 0, output_tokens: 0, total_tokens: 0}` if unavailable
+- SHOULD log warning if token usage unavailable
 
 ## Required Environment Variables
 - `AWS_REGION` - AWS region (default: us-east-1)
 - `S3_BUCKET_NAME` - S3 bucket for documents
 - `DYNAMODB_BANK_TABLE` - Bank trades table name
 - `DYNAMODB_COUNTERPARTY_TABLE` - Counterparty trades table name
-- `BEDROCK_MODEL_ID` - Bedrock model ID (e.g., anthropic.claude-sonnet-4-20250514-v1:0)
+- `BEDROCK_MODEL_ID` - Bedrock model ID (e.g., amazon.nova-pro-v1:0)
 - `BYPASS_TOOL_CONSENT=true` - Required for AgentCore Runtime tool execution
 - `AGENTCORE_MEMORY_ID` - Shared memory ID across agents
 

@@ -123,8 +123,34 @@ export const handlers = [
     const { sessionId } = params
 
     return HttpResponse.json({
-      sessionId,
-      exceptions: []
+      exceptions: [
+        {
+          id: 'exc-1',
+          sessionId,
+          agentName: 'PDF Adapter Agent',
+          severity: 'warning',
+          message: 'Low confidence in text extraction from page 2',
+          timestamp: new Date(Date.now() - 300000).toISOString(),
+          recoverable: true,
+          details: {
+            page: 2,
+            confidence: 0.75
+          }
+        },
+        {
+          id: 'exc-2', 
+          sessionId,
+          agentName: 'Trade Extraction Agent',
+          severity: 'info',
+          message: 'Used fallback parsing for currency field',
+          timestamp: new Date(Date.now() - 240000).toISOString(),
+          recoverable: false,
+          details: {
+            field: 'currency',
+            fallbackValue: 'USD'
+          }
+        }
+      ]
     })
   }),
 

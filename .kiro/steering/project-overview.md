@@ -46,7 +46,7 @@ AI-powered trade reconciliation platform that automates matching of OTC derivati
 - **Output**: Structured JSON to DynamoDB (BankTradeData/CounterpartyTradeData)
 - **Tools**: `use_aws` for S3/DynamoDB operations
 - **Memory**: Shared memory ID `trade_matching_decisions-Z3tG4b4Xsd`
-- **Model Override**: Some configs still reference Claude Sonnet
+- **Model Override**: All agents use Amazon Nova Pro v1 (some legacy configs may reference Claude)
 
 ### 3. Trade Matching Agent
 - **Purpose**: AI-driven fuzzy matching with confidence scoring
@@ -108,7 +108,8 @@ AI-powered trade reconciliation platform that automates matching of OTC derivati
 ### DynamoDB Tables
 - `BankTradeData` - Bank-side trade records (written by Trade Extraction)
 - `CounterpartyTradeData` - Counterparty-side trade records (written by Trade Extraction)
-- `trade-matching-system-exceptions-production` - Exceptions and errors (managed by Exception Management agent)
+- `ai-trade-matching-processing-status` - Real-time workflow status tracking (Dec 2025)
+- `trade-matching-system-exceptions-production` - Exceptions and errors (managed by Exception Management agent)  
 - `trade-matching-system-agent-registry-production` - Agent metadata and routing (used by Orchestrator)
 
 ### AgentCore Platform Services
@@ -256,7 +257,7 @@ HITL Review (web portal for manual review)
 - **Primary Model**: Amazon Nova Pro v1 (`us.amazon.nova-pro-v1:0`)
 - **Temperature**: 0 for deterministic financial outputs
 - **Max Tokens**: 4096
-- **Legacy References**: Some configs may still reference Claude Sonnet (needs cleanup)
+- **Model Migration**: All agents now use Amazon Nova Pro v1 (legacy Claude references removed)
 
 ### Trade Matching Intelligence
 - **ID Normalization**: Intelligent prefix system (bank_, cpty_) with numeric extraction
@@ -264,11 +265,21 @@ HITL Review (web portal for manual review)
 - **Pattern Learning**: Historical matching patterns inform future decisions
 - **Context Awareness**: Multi-field analysis beyond simple string matching
 
+### Real-Time Status Tracking (Dec 2025)
+- **Status Table**: `ai-trade-matching-processing-status` DynamoDB table
+- **Orchestrator Integration**: Writes status after each agent execution
+- **Web Portal Integration**: Real-time UI updates via polling/WebSocket  
+- **Token Usage Tracking**: Cost monitoring and LLM optimization metrics
+- **Schema**: sessionId (PK), agent status objects with timing/tokens/errors
+- **TTL**: 90-day retention for operational history
+- **Frontend Display**: Progressive steps UI with actual agent progress
+
 ### Observability & Monitoring
 - **Auto-Instrumentation**: OpenTelemetry integration via `strands-agents[otel]`
 - **No Manual Spans**: AgentCore Runtime handles trace management automatically
 - **CloudWatch Integration**: Logs and metrics automatically captured
 - **Correlation IDs**: End-to-end request tracing across agents
+- **Cost Tracking**: Token usage aggregation across all agents
 
 ### Error Handling & Resilience
 - **Graceful Degradation**: Fallback implementations when dependencies unavailable

@@ -117,12 +117,43 @@ export interface APIError {
 }
 
 // Audit trail types
+export type AuditActionType = 
+  | 'Upload'
+  | 'Invoke'
+  | 'Match Complete'
+  | 'Exception'
+  | 'Feedback'
+  | 'PDF_PROCESSED'
+  | 'TRADE_EXTRACTED'
+  | 'TRADE_MATCHED'
+  | 'EXCEPTION_RAISED'
+  | 'HITL_DECISION'
+  | 'AGENT_STARTED'
+  | 'AGENT_STOPPED'
+
 export interface AuditEntry {
   id: string
   timestamp: string
   sessionId: string
-  action: 'Upload' | 'Invoke' | 'Match Complete' | 'Exception' | 'Feedback'
+  action: AuditActionType
   user: string
   status: AgentStatusType
   details: Record<string, unknown>
 }
+
+export interface AuditRecord {
+  auditId: string
+  timestamp: string
+  sessionId: string
+  agentName: string
+  actionType: AuditActionType
+  tradeId?: string
+  outcome: 'SUCCESS' | 'FAILURE' | 'PENDING'
+  immutableHash: string
+  details?: Record<string, unknown>
+  user?: string
+  agentSteps?: AgentStepStatus[]
+  matchResult?: MatchResult
+  exceptions?: Exception[]
+}
+

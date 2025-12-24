@@ -4,3 +4,5 @@ export { hitlService } from './hitlService'
 export { auditService } from './auditService'
 export { wsService } from './websocket'
 export { uploadService } from './uploadService'
+export { workflowService } from './workflowService'
+

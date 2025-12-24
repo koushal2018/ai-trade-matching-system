@@ -67,7 +67,12 @@
       "Bash(aws s3api head-object:*)",
       "Bash(aws s3api get-bucket-policy:*)",
       "Bash(aws sts assume-role:*)",
-      "Bash(aws s3 cp:*)"
+      "Bash(aws s3 cp:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pip install:*)",
+      "Bash(uvicorn:*)",
+      "Bash(npx msw init:*)"
     ],
     "defaultMode": "acceptEdits"
   }

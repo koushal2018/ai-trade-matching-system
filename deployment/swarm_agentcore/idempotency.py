@@ -30,14 +30,15 @@ class IdempotencyCache:
         ttl_seconds: Time-to-live for cache entries in seconds
     """
     
-    def __init__(self, table_name: str = "WorkflowIdempotency", ttl_seconds: int = 300):
+    def __init__(self, table_name: str = "WorkflowIdempotency", ttl_seconds: int = 300, region_name: str = "us-east-1"):
         """Initialize the idempotency cache.
         
         Args:
             table_name: DynamoDB table name (default: WorkflowIdempotency)
             ttl_seconds: Cache entry TTL in seconds (default: 300 = 5 minutes)
+            region_name: AWS region (default: us-east-1)
         """
-        self.dynamodb = boto3.resource('dynamodb')
+        self.dynamodb = boto3.resource('dynamodb', region_name=region_name)
         self.table_name = table_name
         self.ttl_seconds = ttl_seconds
         

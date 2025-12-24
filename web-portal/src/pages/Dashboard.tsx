@@ -1,10 +1,6 @@
 import { useEffect } from 'react'
-import { Grid, Typography, Box } from '@mui/material'
+import { ContentLayout, Header, Container, SpaceBetween, Box, Alert } from '@cloudscape-design/components'
 import { useQuery } from '@tanstack/react-query'
-import HeroMetrics from '../components/dashboard/HeroMetrics'
-import AgentHealthPanel from '../components/dashboard/AgentHealthPanel'
-import ProcessingMetricsPanel from '../components/dashboard/ProcessingMetricsPanel'
-import MatchingResultsPanel from '../components/dashboard/MatchingResultsPanel'
 import { agentService } from '../services/agentService'
 import { hitlService } from '../services/hitlService'
 import { wsService } from '../services/websocket'
@@ -46,7 +42,6 @@ export default function Dashboard() {
     }
   }, [refetchAgents, refetchMetrics])
 
-
   // Calculate hero metrics
   const totalTrades = metrics?.totalProcessed || 0
   const matchRate = totalTrades > 0 ? (metrics?.matchedCount || 0) / totalTrades : 0
@@ -56,50 +51,30 @@ export default function Dashboard() {
   const activeAgents = agents?.filter(agent => agent.status === 'HEALTHY').length || 0
 
   return (
-    <Box
-      sx={{
-        animation: 'fadeIn 0.6s ease-out',
-        '@keyframes fadeIn': {
-          '0%': { opacity: 0, transform: 'translateY(20px)' },
-          '100%': { opacity: 1, transform: 'translateY(0)' },
-        },
-      }}
+    <ContentLayout
+      header={
+        <Header
+          variant="h1"
+          description="Real-time overview of trade confirmation matching"
+        >
+          Dashboard
+        </Header>
+      }
     >
-      <Typography 
-        variant="h4" 
-        gutterBottom 
-        sx={{ 
-          fontWeight: 700,
-          background: 'linear-gradient(135deg, #FF9900 0%, #146EB4 100%)',
-          backgroundClip: 'text',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          mb: 4
-        }}
-      >
-        Dashboard
-      </Typography>
-
-      {/* Hero Metrics */}
-      <HeroMetrics
-        totalTrades={totalTrades}
-        matchRate={matchRate}
-        avgLatency={Math.round(avgLatency)}
-        activeAgents={activeAgents}
-      />
-
-      {/* Main Content */}
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <AgentHealthPanel agents={agents || []} />
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <ProcessingMetricsPanel metrics={metrics} />
-        </Grid>
-        <Grid item xs={12}>
-          <MatchingResultsPanel results={matchingResults || []} />
-        </Grid>
-      </Grid>
-    </Box>
+      <SpaceBetween size="l">
+        <Alert type="info" header="Dashboard Under Construction">
+          The dashboard is being migrated to CloudScape Design System. Full functionality coming soon.
+        </Alert>
+        
+        <Container header={<Header variant="h2">Quick Stats</Header>}>
+          <SpaceBetween size="m">
+            <Box>Total Trades: {totalTrades}</Box>
+            <Box>Match Rate: {(matchRate * 100).toFixed(1)}%</Box>
+            <Box>Avg Latency: {Math.round(avgLatency)}ms</Box>
+            <Box>Active Agents: {activeAgents}</Box>
+          </SpaceBetween>
+        </Container>
+      </SpaceBetween>
+    </ContentLayout>
   )
 }

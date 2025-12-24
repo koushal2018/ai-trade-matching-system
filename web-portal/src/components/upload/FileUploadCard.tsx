@@ -139,7 +139,7 @@ export const FileUploadCard: FC<FileUploadCardProps> = ({
       {/* Display success indicator */}
       {state.status === 'success' && state.files.length > 0 && (
         <Box margin={{ top: 's' }}>
-          <StatusIndicator type="success">
+          <StatusIndicator type="success" ariaLabel={`File ${state.files[0].name} uploaded successfully`}>
             {state.files[0].name} uploaded successfully
           </StatusIndicator>
         </Box>
@@ -148,7 +148,7 @@ export const FileUploadCard: FC<FileUploadCardProps> = ({
       {/* Display error indicator */}
       {state.status === 'error' && !state.errorText && (
         <Box margin={{ top: 's' }}>
-          <StatusIndicator type="error">
+          <StatusIndicator type="error" ariaLabel="Upload failed">
             Upload failed. Please try again.
           </StatusIndicator>
         </Box>
