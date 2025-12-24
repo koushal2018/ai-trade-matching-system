@@ -5,30 +5,29 @@ fileMatchPattern: ['terraform/**/*.tf', 'deployment/**/*.sh', '**/*deploy*.sh', 
 
 # AWS Infrastructure Guidelines
 
+## ⚠️ CRITICAL: Infrastructure Deployment Method
+
+**Terraform is NOT used for actual deployment.** All AWS infrastructure was deployed manually via AWS Console and AWS CLI. The `terraform/` folder contains reference configurations only - do NOT assume Terraform state exists or that `terraform apply` was ever run.
+
+**When investigating AWS resource issues:**
+1. Query AWS directly using AWS CLI commands
+2. Do NOT look in terraform files for current configuration
+3. Check AWS Console or use `aws` CLI to verify actual resource settings
+
 ## Core Infrastructure
 
 ### Region and Environment
 - **Primary Region**: us-east-1 (hardcoded in most resources)
 - **Production S3 Bucket**: `trade-matching-system-agentcore-production`
-- **Terraform State**: `trade-matching-terraform-state` (S3) + `terraform-state-lock` (DynamoDB)
 
-### Terraform Structure
+### Terraform Structure (REFERENCE ONLY - NOT DEPLOYED)
 ```
 terraform/
-├── main.tf           # Provider config, backend
-├── variables.tf      # Input variables
-├── terraform.tfvars  # Variable values (not in git)
-├── dynamodb.tf       # Core DynamoDB tables
-├── s3.tf             # S3 buckets
-└── agentcore/        # AgentCore platform resources
-    ├── agentcore_gateway.tf
-    ├── agentcore_memory.tf
-    ├── agentcore_observability.tf
-    ├── billing_alarms.tf
-    ├── cognito.tf
-    ├── dynamodb.tf
-    ├── iam.tf
-    └── sqs.tf
+├── main.tf           # Provider config, backend (REFERENCE ONLY)
+├── variables.tf      # Input variables (REFERENCE ONLY)
+├── dynamodb.tf       # Core DynamoDB tables (REFERENCE ONLY)
+├── s3.tf             # S3 buckets (REFERENCE ONLY)
+└── agentcore/        # AgentCore platform resources (REFERENCE ONLY)
 ```
 
 ## DynamoDB Tables

@@ -7,7 +7,7 @@ Queries AWS Bedrock AgentCore for real agent execution status.
 
 import logging
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 import boto3
@@ -28,17 +28,13 @@ dynamodb = boto3.resource('dynamodb', region_name=settings.aws_region)
 bank_table = dynamodb.Table(settings.dynamodb_bank_table)
 counterparty_table = dynamodb.Table(settings.dynamodb_counterparty_table)
 exceptions_table = dynamodb.Table(settings.dynamodb_exceptions_table)
+processing_status_table = dynamodb.Table(settings.dynamodb_processing_status_table)
 
 # S3 bucket
 S3_BUCKET = "trade-matching-system-agentcore-production"
 
-# AgentCore Agent IDs (from your deployed agents)
-AGENT_IDS = {
-    "pdf_adapter": "PDF_ADAPTER_AGENT_ID",  # Replace with actual agent ID
-    "trade_extraction": "TRADE_EXTRACTION_AGENT_ID",  # Replace with actual agent ID
-    "trade_matching": "TRADE_MATCHING_AGENT_ID",  # Replace with actual agent ID
-    "exception_management": "EXCEPTION_MANAGEMENT_AGENT_ID"  # Replace with actual agent ID
-}
+# Note: Agent invocation not implemented in this endpoint
+# Agent IDs would be needed if we add manual agent invocation endpoints
 
 
 class AgentStepStatus(BaseModel):
@@ -108,139 +104,123 @@ async def get_workflow_status(
     current_user: Optional[User] = Depends(get_current_user)
 ):
     """
-    Get agent processing status for a workflow session from AgentCore.
+    Get agent processing status for a workflow session from DynamoDB.
     
-    Queries AWS Bedrock AgentCore for real-time agent execution status.
+    Queries the trade-matching-system-processing-status table for real-time agent execution status.
     
     Args:
-        session_id: Workflow session identifier (AgentCore session ID)
+        session_id: Workflow session identifier (correlation_id)
         current_user: Optional authenticated user
         
     Returns:
-        WorkflowStatusResponse with real agent processing status from AgentCore
+        WorkflowStatusResponse with real agent processing status from DynamoDB
     """
     try:
-        # Query AgentCore for session status
-        # Note: AgentCore uses session IDs to track agent executions
-        # We need to get the agent execution status for this session
+        # Query DynamoDB status table by processing_id (partition key)
+        # ⚠️ CRITICAL: Table uses 'processing_id' as partition key, NOT 'sessionId'
+        # This has been a recurring issue - verify with:
+        # aws dynamodb describe-table --table-name trade-matching-system-processing-status
+        response = processing_status_table.get_item(Key={"processing_id": session_id})
         
-        # Check S3 to see which files have been uploaded
-        bank_uploaded = False
-        counterparty_uploaded = False
-        
-        try:
-            # List objects in S3 with session ID in metadata
-            response = s3_client.list_objects_v2(
-                Bucket=S3_BUCKET,
-                Prefix='BANK/',
-                MaxKeys=100
+        # Handle sessionId not found - return all pending
+        if "Item" not in response:
+            logger.info(f"Session {session_id} not found in status table, returning pending status")
+            now = datetime.now(timezone.utc)
+            return WorkflowStatusResponse(
+                sessionId=session_id,
+                agents={
+                    "pdfAdapter": AgentStepStatus(
+                        status="pending",
+                        activity="Waiting for upload",
+                        subSteps=[]
+                    ),
+                    "tradeExtraction": AgentStepStatus(
+                        status="pending",
+                        activity="Waiting for PDF processing",
+                        subSteps=[]
+                    ),
+                    "tradeMatching": AgentStepStatus(
+                        status="pending",
+                        activity="Waiting for extraction",
+                        subSteps=[]
+                    ),
+                    "exceptionManagement": AgentStepStatus(
+                        status="pending",
+                        activity="No exceptions",
+                        subSteps=[]
+                    )
+                },
+                overallStatus="pending",
+                lastUpdated=now.isoformat() + "Z"
             )
-            if 'Contents' in response:
-                for obj in response['Contents']:
-                    # Check object metadata for session ID
-                    try:
-                        metadata_response = s3_client.head_object(
-                            Bucket=S3_BUCKET,
-                            Key=obj['Key']
-                        )
-                        if metadata_response.get('Metadata', {}).get('session-id') == session_id:
-                            bank_uploaded = True
-                            break
-                    except:
-                        pass
+        
+        # Transform DynamoDB item to frontend API format
+        item = response["Item"]
+        
+        # Helper function to transform agent status object
+        def transform_agent_status(agent_data: Dict[str, Any]) -> AgentStepStatus:
+            """Transform DynamoDB agent status to API format."""
+            return AgentStepStatus(
+                status=agent_data.get("status", "pending"),
+                activity=agent_data.get("activity", ""),
+                startedAt=agent_data.get("startedAt"),
+                completedAt=agent_data.get("completedAt"),
+                duration=int(agent_data.get("duration", 0)) if agent_data.get("duration") else None,
+                error=agent_data.get("error"),
+                subSteps=[]
+            )
+        
+        # Build agents dictionary with token usage in activity if available
+        agents = {}
+        for agent_key in ["pdfAdapter", "tradeExtraction", "tradeMatching", "exceptionManagement"]:
+            agent_data = item.get(agent_key, {})
+            agent_status = transform_agent_status(agent_data)
             
-            response = s3_client.list_objects_v2(
-                Bucket=S3_BUCKET,
-                Prefix='COUNTERPARTY/',
-                MaxKeys=100
-            )
-            if 'Contents' in response:
-                for obj in response['Contents']:
-                    try:
-                        metadata_response = s3_client.head_object(
-                            Bucket=S3_BUCKET,
-                            Key=obj['Key']
-                        )
-                        if metadata_response.get('Metadata', {}).get('session-id') == session_id:
-                            counterparty_uploaded = True
-                            break
-                    except:
-                        pass
-        except ClientError as e:
-            logger.warning(f"Error checking S3 for uploaded files: {str(e)}")
+            # Add token usage to activity if available
+            if agent_data.get("tokenUsage"):
+                token_usage = agent_data["tokenUsage"]
+                total_tokens = token_usage.get("totalTokens", 0)
+                if total_tokens > 0 and agent_status.activity:
+                    agent_status.activity = f"{agent_status.activity} (Tokens: {total_tokens:,})"
+            
+            agents[agent_key] = agent_status
         
-        # Query DynamoDB for extracted trade data to determine agent status
-        pdf_adapter_status = "pending"
-        trade_extraction_status = "pending"
-        
-        # Check if trade data exists in DynamoDB (indicates agents have run)
-        try:
-            # Check bank table
-            if bank_uploaded:
-                bank_response = bank_table.scan(Limit=10)
-                if bank_response.get('Items'):
-                    # If we have trade data, PDF adapter and extraction succeeded
-                    pdf_adapter_status = "success"
-                    trade_extraction_status = "success"
-        except ClientError as e:
-            logger.warning(f"Error querying bank table: {str(e)}")
-        
-        try:
-            # Check counterparty table
-            if counterparty_uploaded:
-                cp_response = counterparty_table.scan(Limit=10)
-                if cp_response.get('Items'):
-                    pdf_adapter_status = "success"
-                    trade_extraction_status = "success"
-        except ClientError as e:
-            logger.warning(f"Error querying counterparty table: {str(e)}")
-        
-        # Determine trade matching status
-        trade_matching_status = "pending"
-        trade_matching_activity = "Ready to match trades"
-        
-        if bank_uploaded and counterparty_uploaded:
-            # Both files uploaded - matching can run
-            trade_matching_activity = "Ready to match. Click 'Invoke Matching' to start."
-        elif bank_uploaded or counterparty_uploaded:
-            trade_matching_activity = "Upload both confirmations to enable matching"
-        
-        now = datetime.utcnow()
-        
+        # Return transformed response with token usage metrics
         return WorkflowStatusResponse(
             sessionId=session_id,
-            agents={
-                "pdfAdapter": AgentStepStatus(
-                    status=pdf_adapter_status,
-                    activity="Extracted text from uploaded PDFs" if pdf_adapter_status == "success" else "Waiting for file upload",
-                    startedAt=now.isoformat() + "Z" if pdf_adapter_status == "success" else None,
-                    completedAt=now.isoformat() + "Z" if pdf_adapter_status == "success" else None,
-                    duration=5 if pdf_adapter_status == "success" else None,
-                    subSteps=[]
-                ),
-                "tradeExtraction": AgentStepStatus(
-                    status=trade_extraction_status,
-                    activity="Extracted structured trade data" if trade_extraction_status == "success" else "Waiting for PDF processing",
-                    startedAt=now.isoformat() + "Z" if trade_extraction_status == "success" else None,
-                    completedAt=now.isoformat() + "Z" if trade_extraction_status == "success" else None,
-                    duration=20 if trade_extraction_status == "success" else None,
-                    subSteps=[]
-                ),
-                "tradeMatching": AgentStepStatus(
-                    status=trade_matching_status,
-                    activity=trade_matching_activity
-                ),
-                "exceptionManagement": AgentStepStatus(
-                    status="pending",
-                    activity="No exceptions detected"
-                )
-            },
-            overallStatus="processing" if pdf_adapter_status == "success" else "waiting",
-            lastUpdated=now.isoformat() + "Z"
+            agents=agents,
+            overallStatus=item.get("overallStatus", "unknown"),
+            lastUpdated=item.get("lastUpdated", datetime.now(timezone.utc).isoformat() + "Z")
         )
         
+    except ClientError as e:
+        # Log error with correlation ID
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_message = e.response.get('Error', {}).get('Message', str(e))
+        
+        # If resource not found, return pending status (item doesn't exist yet)
+        if error_code == 'ResourceNotFoundException':
+            logger.info(f"[{session_id}] Status not found in DynamoDB, returning pending status")
+            now = datetime.now(timezone.utc)
+            return WorkflowStatusResponse(
+                sessionId=session_id,
+                agents={
+                    "pdfAdapter": AgentStepStatus(status="pending", activity="Waiting for processing to start", subSteps=[]),
+                    "tradeExtraction": AgentStepStatus(status="pending", activity="Waiting for PDF processing", subSteps=[]),
+                    "tradeMatching": AgentStepStatus(status="pending", activity="Waiting for extraction", subSteps=[]),
+                    "exceptionManagement": AgentStepStatus(status="pending", activity="No exceptions", subSteps=[])
+                },
+                overallStatus="pending",
+                lastUpdated=now.isoformat() + "Z"
+            )
+        
+        logger.error(f"[{session_id}] DynamoDB query failed: {error_code} - {error_message}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get workflow status: {error_message}"
+        )
     except Exception as e:
-        logger.error(f"Error getting workflow status: {str(e)}")
+        logger.error(f"[{session_id}] Error getting workflow status: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get workflow status: {str(e)}"

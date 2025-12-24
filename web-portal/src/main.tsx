@@ -18,14 +18,19 @@ const queryClient = new QueryClient({
   },
 })
 
-// Enable MSW in development mode
+// Enable MSW in development mode (disabled when VITE_DISABLE_MSW=true)
 async function enableMocking() {
-  if (import.meta.env.DEV) {
+  console.log('[DEBUG] VITE_DISABLE_MSW:', import.meta.env.VITE_DISABLE_MSW)
+  console.log('[DEBUG] DEV mode:', import.meta.env.DEV)
+  
+  if (import.meta.env.DEV && import.meta.env.VITE_DISABLE_MSW !== 'true') {
+    console.log('[DEBUG] Starting MSW...')
     const { worker } = await import('./mocks/browser')
     return worker.start({
       onUnhandledRequest: 'warn',
     })
   }
+  console.log('[DEBUG] MSW disabled - using real API')
   return Promise.resolve()
 }
 

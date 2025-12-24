@@ -136,7 +136,7 @@ def main():
         ('AgentRegistry', 'Agent registry'),
         ('HITLReviews', 'HITL reviews'),
         ('AuditTrail', 'Audit trail'),
-        ('ai-trade-matching-processing-status', 'Processing status')
+        ('trade-matching-system-processing-status', 'Processing status')
     ]
     
     for table_name, description in tables:

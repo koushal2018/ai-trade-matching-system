@@ -29,6 +29,7 @@ from botocore.awsrequest import AWSRequest
 from botocore.config import Config
 
 from idempotency import IdempotencyCache
+from status_tracker import StatusTracker
 
 logger = logging.getLogger(__name__)
 
@@ -260,11 +261,19 @@ class TradeMatchingHTTPOrchestrator:
             "exception_management": EXCEPTION_MANAGEMENT_ARN
         }
         
-        # Initialize idempotency cache
+        # Initialize idempotency cache - ENABLED to prevent duplicate workflow executions
         # TTL of 300 seconds (5 minutes) prevents duplicate processing of recent workflows
+        # Root cause: Lambda timeout (60s) < orchestrator duration (160-280s) causes retries
         self.idempotency_cache = IdempotencyCache(
-            table_name=os.getenv("IDEMPOTENCY_TABLE_NAME", "WorkflowIdempotency"),
-            ttl_seconds=int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "300"))
+            table_name=os.getenv("IDEMPOTENCY_TABLE_NAME", "trade-matching-system-idempotency"),
+            ttl_seconds=int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "300")),
+            region_name=REGION
+        )
+        
+        # Initialize status tracker for real-time workflow monitoring
+        self.status_tracker = StatusTracker(
+            table_name=os.getenv("STATUS_TABLE_NAME", "trade-matching-system-processing-status"),
+            region_name=REGION
         )
         
         # Validate configuration
@@ -302,20 +311,33 @@ class TradeMatchingHTTPOrchestrator:
         logger.info(f"[{correlation_id}] INFO: Document Path: {document_path}")
         logger.info(f"[{correlation_id}] ========================================")
         
-        # Check idempotency cache - prevent duplicate workflow execution
-        payload = {
-            "document_path": document_path,
-            "source_type": source_type,
-            "document_id": document_id,
-            "correlation_id": correlation_id
-        }
+        # Generate session ID for status tracking
+        # Use document_id as the processing_id for status tracking (consistent across upload and orchestrator)
+        session_id = f"session-{document_id}"
         
-        cached_result = self.idempotency_cache.check_and_set(correlation_id, payload)
-        if cached_result is not None:
-            logger.info(f"[{correlation_id}] INFO: Returning cached result (idempotency)")
-            logger.info(f"[{correlation_id}] INFO: Workflow was already processed recently")
-            cached_result["from_cache"] = True
-            return cached_result
+        # Initialize status tracking (non-blocking - failures don't stop workflow)
+        self.status_tracker.initialize_status(
+            session_id=session_id,
+            correlation_id=correlation_id,
+            document_id=document_id,
+            source_type=source_type
+        )
+        
+        # Check idempotency cache - prevent duplicate workflow execution (DISABLED)
+        if self.idempotency_cache:
+            payload = {
+                "document_path": document_path,
+                "source_type": source_type,
+                "document_id": document_id,
+                "correlation_id": correlation_id
+            }
+            
+            cached_result = self.idempotency_cache.check_and_set(correlation_id, payload)
+            if cached_result is not None:
+                logger.info(f"[{correlation_id}] INFO: Returning cached result (idempotency)")
+                logger.info(f"[{correlation_id}] INFO: Workflow was already processed recently")
+                cached_result["from_cache"] = True
+                return cached_result
         
         try:
             # Step 1: PDF Adapter - Extract text from PDF
@@ -323,6 +345,14 @@ class TradeMatchingHTTPOrchestrator:
             step_start = datetime.now(timezone.utc)
             logger.info(f"[{correlation_id}] INFO: Step 1/4: PDF Adapter Agent")
             logger.info(f"[{correlation_id}] INFO: Extracting text from PDF document")
+            
+            # Update status: PDF Adapter in-progress
+            self.status_tracker.update_agent_status(
+                session_id=session_id,
+                correlation_id=correlation_id,
+                agent_key="pdfAdapter",
+                status="in-progress"
+            )
             
             pdf_result = await self._invoke_pdf_adapter(
                 document_path=document_path,
@@ -334,12 +364,26 @@ class TradeMatchingHTTPOrchestrator:
             step_time_ms = (datetime.now(timezone.utc) - step_start).total_seconds() * 1000
             workflow_steps["pdf_adapter"] = pdf_result
             
+            # Update status: PDF Adapter completed
+            self.status_tracker.update_agent_status(
+                session_id=session_id,
+                correlation_id=correlation_id,
+                agent_key="pdfAdapter",
+                status="success" if pdf_result.get("success") else "error",
+                agent_response=pdf_result,
+                started_at=step_start.isoformat() + "Z"
+            )
+            
             logger.info(f"[{correlation_id}] INFO: PDF Adapter completed in {step_time_ms:.2f}ms")
             logger.info(f"[{correlation_id}] INFO: PDF Adapter success: {pdf_result.get('success')}")
             
             if not pdf_result.get("success"):
                 logger.error(f"[{correlation_id}] ERROR: PDF extraction failed")
                 logger.error(f"[{correlation_id}] ERROR: Error: {pdf_result.get('error')}")
+                
+                # Finalize status as failed
+                self.status_tracker.finalize_status(session_id, correlation_id, "failed")
+                
                 return self._build_error_response(
                     step=current_step,
                     error=pdf_result.get("error", "PDF extraction failed"),
@@ -361,6 +405,14 @@ class TradeMatchingHTTPOrchestrator:
             )
             logger.debug(f"[{correlation_id}] DEBUG: Canonical location: {canonical_output_location}")
             
+            # Update status: Trade Extraction in-progress
+            self.status_tracker.update_agent_status(
+                session_id=session_id,
+                correlation_id=correlation_id,
+                agent_key="tradeExtraction",
+                status="in-progress"
+            )
+            
             extraction_result = await self._invoke_trade_extraction(
                 document_id=document_id,
                 source_type=source_type,
@@ -370,6 +422,16 @@ class TradeMatchingHTTPOrchestrator:
             
             step_time_ms = (datetime.now(timezone.utc) - step_start).total_seconds() * 1000
             workflow_steps["trade_extraction"] = extraction_result
+            
+            # Update status: Trade Extraction completed
+            self.status_tracker.update_agent_status(
+                session_id=session_id,
+                correlation_id=correlation_id,
+                agent_key="tradeExtraction",
+                status="success" if extraction_result.get("success") else "error",
+                agent_response=extraction_result,
+                started_at=step_start.isoformat() + "Z"
+            )
             
             logger.info(f"[{correlation_id}] INFO: Trade Extraction completed in {step_time_ms:.2f}ms")
             logger.info(f"[{correlation_id}] INFO: Trade Extraction success: {extraction_result.get('success')}")
@@ -387,6 +449,10 @@ class TradeMatchingHTTPOrchestrator:
                     correlation_id=correlation_id,
                     workflow_steps=workflow_steps
                 )
+                
+                # Finalize status as failed
+                self.status_tracker.finalize_status(session_id, correlation_id, "failed")
+                
                 return self._build_error_response(
                     step=current_step,
                     error=extraction_result.get("error", "Trade extraction failed"),
@@ -411,6 +477,14 @@ class TradeMatchingHTTPOrchestrator:
             logger.info(f"[{correlation_id}] INFO: Searching for matching trades")
             logger.info(f"[{correlation_id}] INFO: Primary search key: {trade_id}")
             
+            # Update status: Trade Matching in-progress
+            self.status_tracker.update_agent_status(
+                session_id=session_id,
+                correlation_id=correlation_id,
+                agent_key="tradeMatching",
+                status="in-progress"
+            )
+            
             matching_result = await self._invoke_trade_matching(
                 trade_id=trade_id,
                 source_type=source_type,
@@ -420,6 +494,16 @@ class TradeMatchingHTTPOrchestrator:
             
             step_time_ms = (datetime.now(timezone.utc) - step_start).total_seconds() * 1000
             workflow_steps["trade_matching"] = matching_result
+            
+            # Update status: Trade Matching completed
+            self.status_tracker.update_agent_status(
+                session_id=session_id,
+                correlation_id=correlation_id,
+                agent_key="tradeMatching",
+                status="success" if matching_result.get("success") else "error",
+                agent_response=matching_result,
+                started_at=step_start.isoformat() + "Z"
+            )
             
             logger.info(f"[{correlation_id}] INFO: Trade Matching completed in {step_time_ms:.2f}ms")
             logger.info(f"[{correlation_id}] INFO: Trade Matching success: {matching_result.get('success')}")
@@ -445,6 +529,14 @@ class TradeMatchingHTTPOrchestrator:
                 reason_codes = self._extract_reason_codes(matching_result)
                 logger.info(f"[{correlation_id}] INFO: Reason codes: {reason_codes}")
                 
+                # Update status: Exception Management in-progress
+                self.status_tracker.update_agent_status(
+                    session_id=session_id,
+                    correlation_id=correlation_id,
+                    agent_key="exceptionManagement",
+                    status="in-progress"
+                )
+                
                 exception_result = await self._handle_exception(
                     event_type="MATCHING_EXCEPTION",
                     trade_id=trade_id,
@@ -457,6 +549,16 @@ class TradeMatchingHTTPOrchestrator:
                 step_time_ms = (datetime.now(timezone.utc) - step_start).total_seconds() * 1000
                 workflow_steps["exception_management"] = exception_result
                 
+                # Update status: Exception Management completed
+                self.status_tracker.update_agent_status(
+                    session_id=session_id,
+                    correlation_id=correlation_id,
+                    agent_key="exceptionManagement",
+                    status="success" if exception_result.get("success") else "error",
+                    agent_response=exception_result,
+                    started_at=step_start.isoformat() + "Z"
+                )
+                
                 logger.info(f"[{correlation_id}] INFO: Exception Management completed in {step_time_ms:.2f}ms")
                 logger.info(f"[{correlation_id}] INFO: Exception Management success: {exception_result.get('success')}")
             else:
@@ -464,6 +566,9 @@ class TradeMatchingHTTPOrchestrator:
             
             # Build success response
             processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            
+            # Finalize status as completed
+            self.status_tracker.finalize_status(session_id, correlation_id, "completed")
             
             logger.info(f"[{correlation_id}] ========================================")
             logger.info(f"[{correlation_id}] INFO: Workflow completed successfully")
@@ -478,6 +583,7 @@ class TradeMatchingHTTPOrchestrator:
                 "trade_id": trade_id,
                 "source_type": source_type,
                 "correlation_id": correlation_id,
+                "session_id": session_id,  # Include session_id for status tracking
                 "match_classification": classification,
                 "confidence_score": confidence_score,
                 "workflow_steps": workflow_steps,
@@ -485,8 +591,9 @@ class TradeMatchingHTTPOrchestrator:
                 "execution_mode": "HTTP Orchestrator"
             }
             
-            # Cache the result for idempotency
-            self.idempotency_cache.set_result(correlation_id, result)
+            # Cache the result for idempotency (if enabled)
+            if self.idempotency_cache:
+                self.idempotency_cache.set_result(correlation_id, result)
             
             return result
             
@@ -497,6 +604,9 @@ class TradeMatchingHTTPOrchestrator:
             logger.error(f"[{correlation_id}] ERROR: Exception message: {e}")
             logger.error(f"[{correlation_id}] ========================================", exc_info=True)
             
+            # Finalize status as failed
+            self.status_tracker.finalize_status(session_id, correlation_id, "failed")
+            
             error_result = self._build_error_response(
                 step=current_step or "initialization",
                 error=str(e),
@@ -506,8 +616,9 @@ class TradeMatchingHTTPOrchestrator:
                 start_time=start_time
             )
             
-            # Cache the error result for idempotency
-            self.idempotency_cache.set_result(correlation_id, error_result)
+            # Cache the error result for idempotency (if enabled)
+            if self.idempotency_cache:
+                self.idempotency_cache.set_result(correlation_id, error_result)
             
             return error_result
     

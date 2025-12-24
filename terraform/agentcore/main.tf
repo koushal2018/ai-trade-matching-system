@@ -38,6 +38,7 @@ provider "aws" {
       ManagedBy       = "terraform"
       Component       = "AgentCore"
       applicationName = "OTC_Agent"
+      awsApplication  = "arn:aws:resource-groups:us-east-1:401552979575:group/OTC_Agent/038wkdij7bnpfmi7bbkvpt87s1"
     }
   }
 }

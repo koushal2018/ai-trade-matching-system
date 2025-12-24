@@ -271,6 +271,40 @@ resource "aws_dynamodb_table" "agent_registry" {
   })
 }
 
+# DynamoDB Table for Orchestrator Status Tracking
+resource "aws_dynamodb_table" "orchestrator_status" {
+  name         = "trade-matching-system-processing-status"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "sessionId"
+
+  attribute {
+    name = "sessionId"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = aws_kms_key.dynamodb.arn
+  }
+
+  tags = merge(var.tags, {
+    Name        = "Orchestrator Processing Status"
+    Type        = "Database"
+    Component   = "AgentCore"
+    Environment = var.environment
+    Purpose     = "Real-time workflow status tracking"
+  })
+}
+
 # KMS Key for DynamoDB Encryption
 resource "aws_kms_key" "dynamodb" {
   description             = "KMS key for DynamoDB table encryption"
@@ -328,6 +362,16 @@ output "agent_registry_table_name" {
 output "agent_registry_table_arn" {
   description = "ARN of the Agent Registry table"
   value       = aws_dynamodb_table.agent_registry.arn
+}
+
+output "orchestrator_status_table_name" {
+  description = "Name of the Orchestrator Status table"
+  value       = aws_dynamodb_table.orchestrator_status.name
+}
+
+output "orchestrator_status_table_arn" {
+  description = "ARN of the Orchestrator Status table"
+  value       = aws_dynamodb_table.orchestrator_status.arn
 }
 
 output "dynamodb_kms_key_id" {

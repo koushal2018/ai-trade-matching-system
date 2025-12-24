@@ -1,8 +1,8 @@
-default_agent: http_agent_orchestrator
+default_agent: trade_matching_swarm_agentcore_http
 agents:
-  http_agent_orchestrator:
-    name: http_agent_orchestrator
-    entrypoint: /Volumes/FastSSD/Projects/agentic-ai-reconcillation/deployment/swarm_agentcore/http_agent_orchestrator.py
+  trade_matching_swarm_agentcore_http:
+    name: trade_matching_swarm_agentcore_http
+    entrypoint: /Volumes/FastSSD/Projects/agentic-ai-reconcillation/deployment/swarm_agentcore/trade_matching_swarm_agentcore_http.py
     deployment_type: container
     runtime_type: null
     platform: linux/arm64

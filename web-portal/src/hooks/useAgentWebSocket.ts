@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { WebSocketMessage, AgentStatus, AgentStepStatus } from '../types'
 import { agentStatusKeys } from './useAgentStatus'
 
-const WS_BASE_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8001'
+const WS_BASE_URL = import.meta.env.VITE_WS_URL || ''
 
 /**
  * WebSocket connection states
@@ -167,7 +167,13 @@ export function useAgentWebSocket(
     try {
       updateConnectionState('connecting', 'Connecting to real-time updates...')
 
-      const ws = new WebSocket(`${WS_BASE_URL}/ws?sessionId=${sessionId}`)
+      // Build WebSocket URL - use relative path to leverage Vite proxy in dev
+      const wsUrl = WS_BASE_URL 
+        ? `${WS_BASE_URL}/ws?sessionId=${sessionId}`
+        : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws?sessionId=${sessionId}`
+      
+      console.log('Connecting to WebSocket:', wsUrl)
+      const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
       ws.onopen = () => {

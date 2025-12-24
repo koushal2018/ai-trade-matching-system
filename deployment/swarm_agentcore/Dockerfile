@@ -40,6 +40,7 @@ COPY --from=builder /root/.local /root/.local
 COPY http_agent_orchestrator.py .
 COPY trade_matching_swarm_agentcore_http.py .
 COPY idempotency.py .
+COPY status_tracker.py .
 
 # Create non-root user and group
 RUN groupadd -r agentcore --gid 1000 && \

@@ -125,7 +125,9 @@ resource "aws_iam_policy" "agentcore_dynamodb_access" {
           aws_dynamodb_table.exceptions.arn,
           "${aws_dynamodb_table.exceptions.arn}/index/*",
           aws_dynamodb_table.agent_registry.arn,
-          "${aws_dynamodb_table.agent_registry.arn}/index/*"
+          "${aws_dynamodb_table.agent_registry.arn}/index/*",
+          aws_dynamodb_table.orchestrator_status.arn,
+          "${aws_dynamodb_table.orchestrator_status.arn}/index/*"
         ]
       },
       {

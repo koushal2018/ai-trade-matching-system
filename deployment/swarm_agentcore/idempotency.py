@@ -101,11 +101,14 @@ class IdempotencyCache:
             
             # No valid cache entry found - create new entry
             logger.info(f"Creating new cache entry for correlation_id: {correlation_id}")
+            now = datetime.now(timezone.utc)
+            ttl_timestamp = int((now + timedelta(seconds=self.ttl_seconds)).timestamp())
             self.table.put_item(Item={
                 "correlation_id": correlation_id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now.isoformat(),
                 "payload_hash": self._compute_payload_hash(payload),
-                "status": "in_progress"
+                "status": "in_progress",
+                "ttl": ttl_timestamp  # DynamoDB TTL for automatic cleanup
             })
             
             return None

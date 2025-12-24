@@ -8,6 +8,9 @@ agents:
     platform: linux/arm64
     container_runtime: none
     source_path: null
+    environment:
+      STATUS_TABLE_NAME: trade-matching-system-processing-status
+      IDEMPOTENCY_TABLE_NAME: WorkflowIdempotency
     aws:
       execution_role_auto_create: true
       account: '401552979575'

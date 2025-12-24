@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     dynamodb_audit_table: str = os.getenv("DYNAMODB_AUDIT_TRAIL_TABLE", "AuditTrail")
     dynamodb_agent_registry_table: str = os.getenv("DYNAMODB_AGENT_REGISTRY_TABLE", "AgentRegistry")
     dynamodb_hitl_table: str = os.getenv("DYNAMODB_HITL_REVIEWS_TABLE", "HITLReviews")
-    dynamodb_processing_status_table: str = os.getenv("DYNAMODB_PROCESSING_STATUS_TABLE", "ai-trade-matching-processing-status")
+    dynamodb_processing_status_table: str = os.getenv("DYNAMODB_PROCESSING_STATUS_TABLE", "trade-matching-system-processing-status")
     
     # Production S3 Bucket
     s3_bucket: str = os.getenv("S3_BUCKET_NAME", "trade-matching-bucket")

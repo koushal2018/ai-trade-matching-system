@@ -72,7 +72,8 @@
       "Bash(npx tsc:*)",
       "Bash(pip install:*)",
       "Bash(uvicorn:*)",
-      "Bash(npx msw init:*)"
+      "Bash(npx msw init:*)",
+      "Bash(aws lambda get-function:*)"
     ],
     "defaultMode": "acceptEdits"
   }

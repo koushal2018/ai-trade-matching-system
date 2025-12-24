@@ -14,7 +14,7 @@ import sys
 import os
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Load environment variables
@@ -104,17 +104,17 @@ async def test_orchestrator():
     
     # Test orchestration
     print("\n🤖 Starting orchestration...")
-    start_time = datetime.utcnow()
+    start_time = datetime.now(timezone.utc)
     
     try:
         result = await orchestrator.process_trade_confirmation(
             document_path=document_path,
             source_type=source_type,
             document_id=document_id,
-            correlation_id=f"test_local_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+            correlation_id=f"test_local_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         )
         
-        elapsed_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         
         # Print results
         print("\n" + "=" * 80)
@@ -143,7 +143,7 @@ async def test_orchestrator():
             sys.exit(1)
             
     except Exception as e:
-        elapsed_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         print("\n" + "=" * 80)
         print("ORCHESTRATION ERROR")
         print("=" * 80)

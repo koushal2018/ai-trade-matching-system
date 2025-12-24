@@ -120,12 +120,13 @@ async def upload_confirmation(
     
     # Generate unique identifiers
     upload_id = str(uuid.uuid4())
-    # Use existing session ID or create new one (allows matching bank and counterparty uploads)
-    session_id = sessionId or f"session-{uuid.uuid4()}"
     trace_id = f"trace-{uuid.uuid4()}"
     
     # Sanitize filename and construct S3 key with appropriate prefix
     safe_filename = sanitize_filename(file.filename or 'unknown.pdf')
+    # Remove .pdf extension for document_id (orchestrator uses this for session_id)
+    safe_filename_no_ext = safe_filename.rsplit('.', 1)[0] if '.' in safe_filename else safe_filename
+    document_id = f"{upload_id}-{safe_filename_no_ext}"
     s3_key = f"{sourceType}/{upload_id}-{safe_filename}"
     
     try:
@@ -138,7 +139,6 @@ async def upload_confirmation(
             Metadata={
                 'source-type': sourceType,
                 'upload-id': upload_id,
-                'session-id': session_id,
                 'trace-id': trace_id,
                 # URL-encode filename to handle special characters
                 'original-filename': urllib.parse.quote(file.filename or 'unknown.pdf'),
@@ -152,7 +152,6 @@ async def upload_confirmation(
             f"File uploaded successfully: {s3_uri}",
             extra={
                 'upload_id': upload_id,
-                'session_id': session_id,
                 'trace_id': trace_id,
                 'source_type': sourceType,
                 'file_size': len(file_content),
@@ -160,11 +159,13 @@ async def upload_confirmation(
             }
         )
         
+        # Session ID must match orchestrator format: session-{document_id}
+        # document_id = {upload_id}-{filename_without_extension}
         return UploadResponse(
             uploadId=upload_id,
             s3Uri=s3_uri,
             status='success',
-            sessionId=session_id,
+            sessionId=f"session-{document_id}",  # Match orchestrator format exactly
             traceId=trace_id
         )
         
