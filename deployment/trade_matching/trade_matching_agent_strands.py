@@ -160,7 +160,7 @@ AGENT_NAME = "trade-matching-agent"
 # This memory uses 3 built-in strategies: semantic, preferences, summaries
 MEMORY_ID = os.getenv(
     "AGENTCORE_MEMORY_ID",
-    "trade_matching_decisions-Z3tG4b4Xsd"  # Default memory resource ID
+    ""  # Set via environment variable - create memory resource with setup_memory.py
 )
 
 # Observability Note: AgentCore Runtime auto-instruments via OTEL when strands-agents[otel] is installed
