@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2024-12-25
+
+### Added
+- **Real-Time Status Tracking**: Live workflow status updates via WebSocket
+- **OrchestratorStatus DynamoDB Table**: Persistent status storage for workflows
+- **Status Writer Module**: Dedicated module for writing workflow status
+- **Status Tracker Module**: Real-time status tracking and retrieval
+- **Idempotency Support**: Prevent duplicate workflow executions
+- **Trade Matching Page**: New dedicated page for trade matching workflows
+- **Audit Trail Page**: Comprehensive audit logging and history viewing
+- **Login Page**: Cognito-integrated authentication page
+- **File Upload Component**: Drag-and-drop file upload with progress tracking
+- **Agent Processing Section**: Visual representation of agent workflow steps
+- **Exception Section**: Enhanced exception handling and display
+- **Match Result Section**: Display matching results with confidence scores
+- **Workflow Identifier Section**: Display and copy workflow/session IDs
+- **Upload API Endpoint**: `POST /api/upload` for document uploads
+- **Workflow Status API**: `GET /api/workflow/{id}/status` endpoint
+- **Workflow History API**: `GET /api/workflow/{id}/history` endpoint
+- **WebSocket Status Updates**: Real-time push notifications
+- **Property-Based Tests**: Trade ID normalization, idempotency, backoff, datetime tests
+- **Unit Tests**: Status writer, workflow router, React hooks, and component tests
+
+### Changed
+- **Authentication**: Full AWS Cognito integration with environment-based configuration
+- **Protected Routes**: Secure route protection with automatic session management
+- **Session Timeout**: Configurable session timeout with user notifications
+- **Responsive Design**: Mobile-friendly layouts across all pages
+- **Accessibility**: WCAG 2.1 AA compliance with keyboard navigation and screen reader support
+- **Structured Logging**: Correlation IDs throughout orchestrator
+- **Error Recovery**: Enhanced error handling and recovery mechanisms
+
+### Fixed
+- Duplicate orchestrator invocations
+- Frontend status not updating in real-time
+- Session ID handling in orchestrator
+- Table name references in status tracking
+- Memory permission issues
+- Datetime deprecation warnings
+
+### Security
+- All sensitive values moved to environment variables
+- Proper JWT validation for API endpoints
+- Secure session handling with timeout
+- Enhanced input validation across all endpoints
+
+### Infrastructure
+- Added `OrchestratorStatus` DynamoDB table
+- Updated IAM policies for status table access
+- New deployment scripts for status table validation
+
 ## [1.0.0] - 2024-12-14
 
 ### Added - First Public Release
