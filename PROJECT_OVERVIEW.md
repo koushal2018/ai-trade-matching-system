@@ -71,7 +71,7 @@ This system transforms trade reconciliation from a manual, error-prone process i
 
 #### Status Tracking Table
 - **Correct Name:** `trade-matching-system-processing-status`
-- **Table ARN:** `arn:aws:dynamodb:us-east-1:401552979575:table/trade-matching-system-processing-status`
+- **Table ARN:** `arn:aws:dynamodb:us-east-1:YOUR_AWS_ACCOUNT_ID:table/trade-matching-system-processing-status`
 - **Used By:** HTTP Agent Orchestrator for real-time workflow status tracking
 - **Partition Key:** `processing_id` (String) ⚠️ **CRITICAL - NOT sessionId!**
 - **Environment Variable:** `STATUS_TABLE_NAME` (defaults to correct name)

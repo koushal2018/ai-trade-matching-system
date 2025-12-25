@@ -5,11 +5,12 @@ This module verifies JWT tokens issued by AWS Cognito User Pool.
 Frontend uses AWS Amplify with Cognito authentication.
 
 Cognito Configuration:
-- User Pool ID: us-east-1_uQ2lN39dT
-- Region: us-east-1
-- Client ID: 78daptta2m4lb6k5jm3n2hd8oc
+- User Pool ID: Set via COGNITO_USER_POOL_ID environment variable
+- Region: Set via COGNITO_REGION environment variable  
+- Client ID: Set via COGNITO_APP_CLIENT_ID environment variable
 """
 
+import os
 from typing import Optional, Dict, Any
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -20,10 +21,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Cognito configuration (should match frontend .env)
-COGNITO_REGION = "us-east-1"
-COGNITO_USER_POOL_ID = "us-east-1_uQ2lN39dT"
-COGNITO_APP_CLIENT_ID = "78daptta2m4lb6k5jm3n2hd8oc"
+# Cognito configuration from environment variables
+COGNITO_REGION = os.getenv("COGNITO_REGION", "us-east-1")
+COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID", "YOUR_COGNITO_USER_POOL_ID")
+COGNITO_APP_CLIENT_ID = os.getenv("COGNITO_APP_CLIENT_ID", "YOUR_COGNITO_CLIENT_ID")
 
 # Cognito JWKS URL for token verification
 COGNITO_JWKS_URL = (

@@ -29,8 +29,8 @@ agent:
     BEDROCK_MODEL_ID: "us.amazon.nova-pro-v1:0"
     DEPLOYMENT_STAGE: "production"
     OBSERVABILITY_STAGE: "production"
-    COGNITO_USER_POOL_ID: "us-east-1_uQ2lN39dT"
-    COGNITO_CLIENT_ID: "78daptta2m4lb6k5jm3n2hd8oc"
+    COGNITO_USER_POOL_ID: "${COGNITO_USER_POOL_ID}"
+    COGNITO_CLIENT_ID: "${COGNITO_CLIENT_ID}"
     ENABLE_MFA: "true"
     AGENTCORE_GATEWAY_DYNAMODB: "trade-matching-system-dynamodb-gateway-production"
     AGENTCORE_GATEWAY_S3: "trade-matching-system-s3-gateway-production"
@@ -126,8 +126,8 @@ agent:
     # Identity Integration (Optional)
     identity:
       enabled: true
-      user_pool_id: "us-east-1_uQ2lN39dT"
-      client_id: "78daptta2m4lb6k5jm3n2hd8oc"
+      user_pool_id: "${COGNITO_USER_POOL_ID}"
+      client_id: "${COGNITO_CLIENT_ID}"
       mfa_required: true
 
   # Health Check Configuration
