@@ -1,8 +1,12 @@
 # Environment files
 .env
 .env.local
+.env.dev
 .env.production
 .env.staging
+
+# Internal documentation (dev branch only - not for public release)
+internal-docs/
 
 # Python
 __pycache__/
@@ -75,9 +79,8 @@ lambda-deploy/
 .mcp.json
 *-config.json
 
-# AgentCore configuration files (contain sensitive ARNs and account IDs)
-.bedrock_agentcore.yaml
-**/.bedrock_agentcore.yaml
+# AgentCore configuration files - now tracked for team collaboration
+# Note: Review for sensitive data before committing
 **/.bedrock_agentcore/
 .env.memory
 **/.env.memory

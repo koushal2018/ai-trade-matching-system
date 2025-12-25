@@ -1,9 +1,10 @@
+import json
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
-from .routers import agents_router, hitl_router, audit_router, metrics_router, matching_router
+from .routers import agents_router, hitl_router, audit_router, metrics_router, matching_router, upload_router, workflow_router
 from .services.websocket import manager
 
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +35,8 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(upload_router, prefix="/api")
+app.include_router(workflow_router, prefix="/api")
 app.include_router(agents_router, prefix="/api")
 app.include_router(hitl_router, prefix="/api")
 app.include_router(audit_router, prefix="/api")
@@ -47,12 +50,22 @@ async def health_check():
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+async def websocket_endpoint(websocket: WebSocket, sessionId: str = None):
+    await manager.connect(websocket, session_id=sessionId)
     try:
         while True:
             data = await websocket.receive_text()
-            # Echo back for now - in production, handle specific message types
-            await manager.send_personal_message({"type": "ACK", "data": data}, websocket)
+            # Handle incoming messages (e.g., subscribe to different sessions)
+            try:
+                msg = json.loads(data)
+                if msg.get("type") == "SUBSCRIBE" and msg.get("sessionId"):
+                    # Client wants to subscribe to a different session
+                    new_session_id = msg["sessionId"]
+                    await manager.connect(websocket, session_id=new_session_id)
+                    await manager.send_personal_message({"type": "SUBSCRIBED", "sessionId": new_session_id}, websocket)
+                else:
+                    await manager.send_personal_message({"type": "ACK", "data": data}, websocket)
+            except json.JSONDecodeError:
+                await manager.send_personal_message({"type": "ACK", "data": data}, websocket)
     except WebSocketDisconnect:
         manager.disconnect(websocket)

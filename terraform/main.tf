@@ -30,9 +30,10 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Environment = var.environment
-      Project     = "trade-matching-system"
-      ManagedBy   = "terraform"
+      Environment     = var.environment
+      Project         = "trade-matching-system"
+      ManagedBy       = "terraform"
+      applicationName = "OTC_Agent"
     }
   }
 }

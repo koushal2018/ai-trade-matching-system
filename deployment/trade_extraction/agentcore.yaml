@@ -15,9 +15,9 @@ agent:
     
   # Model Configuration
   model:
-    id: "amazon.nova-pro-v1:0"
+    id: "us.amazon.nova-pro-v1:0"
     region: "us-east-1"
-    temperature: 0.3
+    temperature: 0
     max_tokens: 4096
     
   # Environment Variables
@@ -26,11 +26,11 @@ agent:
     S3_BUCKET_NAME: "trade-matching-system-agentcore-production"
     DYNAMODB_BANK_TABLE: "BankTradeData"
     DYNAMODB_COUNTERPARTY_TABLE: "CounterpartyTradeData"
-    BEDROCK_MODEL_ID: "amazon.nova-pro-v1:0"
+    BEDROCK_MODEL_ID: "us.amazon.nova-pro-v1:0"
     DEPLOYMENT_STAGE: "production"
     OBSERVABILITY_STAGE: "production"
-    COGNITO_USER_POOL_ID: "us-east-1_uQ2lN39dT"
-    COGNITO_CLIENT_ID: "78daptta2m4lb6k5jm3n2hd8oc"
+    COGNITO_USER_POOL_ID: "${COGNITO_USER_POOL_ID}"
+    COGNITO_CLIENT_ID: "${COGNITO_CLIENT_ID}"
     ENABLE_MFA: "true"
     AGENTCORE_GATEWAY_DYNAMODB: "trade-matching-system-dynamodb-gateway-production"
     AGENTCORE_GATEWAY_S3: "trade-matching-system-s3-gateway-production"
@@ -43,7 +43,7 @@ agent:
       actions:
         - "bedrock:InvokeModel"
       resources:
-        - "arn:aws:bedrock:us-east-1::foundation-model/amazon.nova-pro-v1:0"
+        - "arn:aws:bedrock:us-east-1::foundation-model/us.amazon.nova-pro-v1:0"
     
     - effect: Allow
       actions:
@@ -126,8 +126,8 @@ agent:
     # Identity Integration (Optional)
     identity:
       enabled: true
-      user_pool_id: "us-east-1_uQ2lN39dT"
-      client_id: "78daptta2m4lb6k5jm3n2hd8oc"
+      user_pool_id: "${COGNITO_USER_POOL_ID}"
+      client_id: "${COGNITO_CLIENT_ID}"
       mfa_required: true
 
   # Health Check Configuration

@@ -59,3 +59,52 @@ Key components include:
 - Creates competitive differentiation in trade processing capabilities
 
 This system transforms trade reconciliation from a manual, error-prone process into an intelligent, automated workflow that enhances operational efficiency, reduces risk, and provides strategic business value.
+
+
+---
+
+## Critical Configuration Notes
+
+### DynamoDB Table Names (Dec 24, 2025)
+
+**IMPORTANT:** There have been recurring table name mismatches. Always use these exact names:
+
+#### Status Tracking Table
+- **Correct Name:** `trade-matching-system-processing-status`
+- **Table ARN:** `arn:aws:dynamodb:us-east-1:YOUR_AWS_ACCOUNT_ID:table/trade-matching-system-processing-status`
+- **Used By:** HTTP Agent Orchestrator for real-time workflow status tracking
+- **Partition Key:** `processing_id` (String) ⚠️ **CRITICAL - NOT sessionId!**
+- **Environment Variable:** `STATUS_TABLE_NAME` (defaults to correct name)
+
+**⚠️ RECURRING ISSUE - READ CAREFULLY:**
+The actual deployed table uses `processing_id` as the partition key, NOT `sessionId`.
+This has been missed 10-20+ times. Always verify:
+```python
+# CORRECT - Use processing_id
+Key={"processing_id": {"S": session_id}}
+
+# WRONG - Do NOT use sessionId
+Key={"sessionId": {"S": session_id}}  # ❌ This will fail!
+```
+
+**Common Mistakes:** 
+1. Code previously used `ai-trade-matching-processing-status` (wrong table name)
+2. Code previously used `sessionId` as partition key (wrong key name - should be `processing_id`)
+
+#### Idempotency Table
+- **Status:** DISABLED - Not in design
+- **Previous Name:** `WorkflowIdempotency` (table does not exist)
+- **Reason:** Idempotency caching is not part of the current architecture
+- **Code Behavior:** Orchestrator has `idempotency_cache = None` with null checks
+
+**Files to Check When Debugging:**
+- `deployment/swarm_agentcore/http_agent_orchestrator.py` - Orchestrator initialization
+- `deployment/swarm_agentcore/status_tracker.py` - Status tracking helper (uses `processing_id` key)
+- `deployment/swarm_agentcore/idempotency.py` - Idempotency cache (disabled)
+
+**Deployment Impact:**
+After fixing table names, always redeploy the orchestrator:
+```bash
+cd deployment/swarm_agentcore
+agentcore launch --auto-update-on-conflict
+```

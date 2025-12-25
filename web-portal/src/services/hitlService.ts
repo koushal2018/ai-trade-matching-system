@@ -1,5 +1,5 @@
 import { apiClient } from './api'
-import type { HITLReview, MatchingResult } from '../types'
+import type { HITLReview, MatchResult } from '../types'
 
 export interface HITLDecision {
   reviewId: string
@@ -16,8 +16,8 @@ export const hitlService = {
     return apiClient.get<HITLReview>(`/hitl/${reviewId}`)
   },
 
-  async submitDecision(decision: HITLDecision): Promise<MatchingResult> {
-    return apiClient.post<MatchingResult>(`/hitl/${decision.reviewId}/decision`, {
+  async submitDecision(decision: HITLDecision): Promise<MatchResult> {
+    return apiClient.post<MatchResult>(`/hitl/${decision.reviewId}/decision`, {
       decision: decision.decision,
       reason: decision.reason,
     })
@@ -27,7 +27,7 @@ export const hitlService = {
     startDate?: string
     endDate?: string
     classification?: string
-  }): Promise<MatchingResult[]> {
-    return apiClient.get<MatchingResult[]>('/matching/results', params)
+  }): Promise<MatchResult[]> {
+    return apiClient.get<MatchResult[]>('/matching/results', params)
   },
 }

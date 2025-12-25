@@ -33,10 +33,12 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Environment = var.environment
-      Project     = var.project_name
-      ManagedBy   = "terraform"
-      Component   = "AgentCore"
+      Environment     = var.environment
+      Project         = var.project_name
+      ManagedBy       = "terraform"
+      Component       = "AgentCore"
+      applicationName = "OTC_Agent"
+      awsApplication  = "arn:aws:resource-groups:us-east-1:401552979575:group/OTC_Agent/038wkdij7bnpfmi7bbkvpt87s1"
     }
   }
 }

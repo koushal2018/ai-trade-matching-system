@@ -9,10 +9,10 @@ import {
   TableChart as TableIcon,
 } from '@mui/icons-material'
 import DataTable, { Column } from '../common/DataTable'
-import type { MatchingResult, MatchClassification } from '../../types'
+import type { MatchResult, MatchClassification } from '../../types'
 
 interface MatchingResultsPanelProps {
-  results: MatchingResult[]
+  results: MatchResult[]
 }
 
 const COLORS: Record<MatchClassification, string> = {
@@ -55,7 +55,7 @@ export default function MatchingResultsPanel({ results }: MatchingResultsPanelPr
   const successRate = results.length > 0 ? (totalMatched / results.length * 100).toFixed(1) : '0'
 
   // Define table columns for detailed results
-  const columns: Column<MatchingResult>[] = [
+  const columns: Column<MatchResult>[] = [
     {
       id: 'tradeId',
       label: 'Trade ID',
