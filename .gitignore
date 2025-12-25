@@ -1,8 +1,12 @@
 # Environment files
 .env
 .env.local
+.env.dev
 .env.production
 .env.staging
+
+# Internal documentation (dev branch only - not for public release)
+internal-docs/
 
 # Python
 __pycache__/
