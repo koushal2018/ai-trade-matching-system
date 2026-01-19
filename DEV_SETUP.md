@@ -198,6 +198,81 @@ Use the `data/` directory for local testing:
 echo "test data" > data/COUNTERPARTY/test-trade.pdf
 ```
 
+## Local Testing Without Production Resources
+
+For testing without connecting to production AWS resources:
+
+### 1. Create Local DynamoDB Tables
+
+```bash
+# Create all required DynamoDB tables
+python scripts/create_dynamodb_tables.py
+```
+
+This creates:
+- BankTradeData
+- CounterpartyTradeData
+- TradeMatches
+- ExceptionsTable
+- AgentRegistry
+- HITLReviews
+- AuditTrail
+- trade-matching-system-processing-status
+
+### 2. Generate Test Data
+
+```bash
+# Generate sample PDF trade confirmations and seed DynamoDB
+python scripts/generate_test_data.py --pairs 5
+
+# Generate PDFs only (no AWS seeding)
+python scripts/generate_test_data.py --pairs 5 --no-aws
+```
+
+This creates:
+- Sample bank trade confirmation PDFs in `data/BANK/`
+- Sample counterparty confirmation PDFs in `data/COUNTERPARTY/`
+- Trade data in DynamoDB tables
+- Agent registry entries
+
+### 3. Create S3 Bucket (Optional)
+
+```bash
+# Create S3 bucket for document storage
+aws s3 mb s3://trade-matching-bucket --region us-east-1
+
+# Upload sample PDFs
+aws s3 sync data/BANK s3://trade-matching-bucket/BANK/
+aws s3 sync data/COUNTERPARTY s3://trade-matching-bucket/COUNTERPARTY/
+```
+
+### 4. Configure Frontend for Local API
+
+Create `web-portal/.env.local`:
+
+```bash
+VITE_DISABLE_MSW=true
+VITE_API_URL=http://localhost:8000
+```
+
+### 5. Start Local Servers
+
+```bash
+# Terminal 1: Backend
+cd web-portal-api
+source ../.venv/bin/activate
+uvicorn app.main:app --reload --port 8000
+
+# Terminal 2: Frontend
+cd web-portal
+npm run dev
+```
+
+Access the application at:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
 ## Getting Help
 
 - Check the [main README](README.md) for project overview

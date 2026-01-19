@@ -1,25 +1,28 @@
 import { useEffect } from 'react'
-import { ContentLayout, Header, Container, SpaceBetween, Box, Alert } from '@cloudscape-design/components'
+import { Box, Typography, Container as MuiContainer } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { agentService } from '../services/agentService'
 import { hitlService } from '../services/hitlService'
 import { wsService } from '../services/websocket'
-import type { AgentHealth, ProcessingMetrics, WebSocketMessage } from '../types'
+import HeroMetrics from '../components/dashboard/HeroMetrics'
+import AgentHealthPanel from '../components/dashboard/AgentHealthPanel'
+import MatchingResultsPanel from '../components/dashboard/MatchingResultsPanel'
+import type { AgentHealth, ProcessingMetrics, WebSocketMessage, MatchResult } from '../types'
 
 export default function Dashboard() {
-  const { data: agents, refetch: refetchAgents } = useQuery<AgentHealth[]>({
+  const { data: agents, refetch: refetchAgents, isLoading: agentsLoading } = useQuery<AgentHealth[]>({
     queryKey: ['agentStatus'],
     queryFn: agentService.getAgentStatus,
     refetchInterval: 30000,
   })
 
-  const { data: metrics, refetch: refetchMetrics } = useQuery<ProcessingMetrics>({
+  const { data: metrics, refetch: refetchMetrics, isLoading: metricsLoading } = useQuery<ProcessingMetrics>({
     queryKey: ['processingMetrics'],
     queryFn: agentService.getProcessingMetrics,
     refetchInterval: 10000,
   })
 
-  const { data: matchingResults } = useQuery({
+  const { data: matchingResults, isLoading: resultsLoading } = useQuery<MatchResult[]>({
     queryKey: ['matchingResults'],
     queryFn: () => hitlService.getMatchingResults(),
     refetchInterval: 15000,
@@ -45,36 +48,52 @@ export default function Dashboard() {
   // Calculate hero metrics
   const totalTrades = metrics?.totalProcessed || 0
   const matchRate = totalTrades > 0 ? (metrics?.matchedCount || 0) / totalTrades : 0
-  const avgLatency = agents && agents.length > 0 
-    ? agents.reduce((sum, agent) => sum + (agent.metrics.latencyMs || 0), 0) / agents.length 
+  const avgLatency = agents && agents.length > 0
+    ? agents.reduce((sum, agent) => sum + (agent.metrics.latencyMs || 0), 0) / agents.length
     : 0
-  const activeAgents = agents?.filter(agent => agent.status === 'HEALTHY').length || 0
+  const activeAgents = agents?.filter(agent =>
+    agent.status === 'HEALTHY' || agent.status === 'DEGRADED'
+  ).length || 0
+
+  const isLoading = agentsLoading || metricsLoading || resultsLoading
 
   return (
-    <ContentLayout
-      header={
-        <Header
-          variant="h1"
-          description="Real-time overview of trade confirmation matching"
+    <MuiContainer maxWidth="xl" sx={{ py: 4 }}>
+      {/* Page Header */}
+      <Box mb={4}>
+        <Typography
+          variant="h3"
+          fontWeight={700}
+          color="text.primary"
+          sx={{
+            fontFamily: '"Amazon Ember", "Helvetica Neue", Helvetica, Arial, sans-serif',
+            mb: 1
+          }}
         >
           Dashboard
-        </Header>
-      }
-    >
-      <SpaceBetween size="l">
-        <Alert type="info" header="Dashboard Under Construction">
-          The dashboard is being migrated to CloudScape Design System. Full functionality coming soon.
-        </Alert>
-        
-        <Container header={<Header variant="h2">Quick Stats</Header>}>
-          <SpaceBetween size="m">
-            <Box>Total Trades: {totalTrades}</Box>
-            <Box>Match Rate: {(matchRate * 100).toFixed(1)}%</Box>
-            <Box>Avg Latency: {Math.round(avgLatency)}ms</Box>
-            <Box>Active Agents: {activeAgents}</Box>
-          </SpaceBetween>
-        </Container>
-      </SpaceBetween>
-    </ContentLayout>
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Real-time overview of trade confirmation matching
+        </Typography>
+      </Box>
+
+      {/* Hero Metrics */}
+      <HeroMetrics
+        totalTrades={totalTrades}
+        matchRate={matchRate}
+        avgLatency={avgLatency}
+        activeAgents={activeAgents}
+      />
+
+      {/* Agent Health Panel */}
+      <Box mb={4}>
+        <AgentHealthPanel agents={agents || []} />
+      </Box>
+
+      {/* Matching Results Panel */}
+      <Box mb={4}>
+        <MatchingResultsPanel results={matchingResults || []} />
+      </Box>
+    </MuiContainer>
   )
 }

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Enhanced Dashboard UI**: Full Material UI integration with animated hero metrics, agent health panels, and matching results visualization
+- **Test Data Generation**: New scripts for generating sample trade confirmation PDFs and seeding DynamoDB tables
+  - `scripts/generate_test_data.py` - Generates PDF trade confirmations and seeds test data
+  - `scripts/create_dynamodb_tables.py` - Creates required DynamoDB tables for local testing
+- **MUI Theme Integration**: Dark theme provider for Material UI components alongside CloudScape
+- **Local Development Setup**: Streamlined local development with environment configuration
+  - `.env.local` support for disabling MSW and configuring API URLs
+  - Direct DynamoDB table creation without Terraform dependency
+
+### Changed
+- **Dashboard Page**: Migrated from basic CloudScape to full MUI components with:
+  - HeroMetrics component with animated counters
+  - AgentHealthPanel showing real-time agent status
+  - MatchingResultsPanel with pie charts and data tables
+- **Frontend Dependencies**: Added MUI, Emotion, and Recharts for enhanced visualizations
+
+### Fixed
+- MSW intercepting API calls in development mode
+- API base URL configuration for local development
+
 ## [1.1.0] - 2024-12-25
 
 ### Added
