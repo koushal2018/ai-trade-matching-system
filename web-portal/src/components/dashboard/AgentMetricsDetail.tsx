@@ -58,10 +58,13 @@ function MetricCard({ title, value, icon, color = 'primary', subtitle }: MetricC
 export default function AgentMetricsDetail({ agent }: AgentMetricsDetailProps) {
   const { metrics } = agent
 
-  // Calculate derived metrics
+  // Calculate derived metrics (using defaults for optional properties)
   const avgTokensPerCycle = metrics.cycleCount > 0 ? Math.round(metrics.totalTokens / metrics.cycleCount) : 0
-  const toolCallsPerCycle = metrics.cycleCount > 0 ? (metrics.toolCallCount / metrics.cycleCount).toFixed(1) : '0'
-  const tokenEfficiency = metrics.totalTokens > 0 ? (metrics.outputTokens / metrics.totalTokens * 100).toFixed(1) : '0'
+  const toolCallCount = metrics.toolCallCount ?? 0
+  const outputTokens = metrics.outputTokens ?? 0
+  const inputTokens = metrics.inputTokens ?? 0
+  const toolCallsPerCycle = metrics.cycleCount > 0 ? (toolCallCount / metrics.cycleCount).toFixed(1) : '0'
+  const tokenEfficiency = metrics.totalTokens > 0 ? (outputTokens / metrics.totalTokens * 100).toFixed(1) : '0'
 
   return (
     <Card>
@@ -83,13 +86,13 @@ export default function AgentMetricsDetail({ agent }: AgentMetricsDetailProps) {
 
         <Grid container spacing={2}>
           {/* Performance Metrics */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Typography variant="subtitle1" gutterBottom>
               Performance Metrics
             </Typography>
           </Grid>
           
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <MetricCard
               title="Latency"
               value={`${metrics.latencyMs}ms`}
@@ -99,7 +102,7 @@ export default function AgentMetricsDetail({ agent }: AgentMetricsDetailProps) {
             />
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <MetricCard
               title="Throughput"
               value={`${metrics.throughput}/hr`}
@@ -109,7 +112,7 @@ export default function AgentMetricsDetail({ agent }: AgentMetricsDetailProps) {
             />
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <MetricCard
               title="Success Rate"
               value={`${(metrics.successRate * 100).toFixed(1)}%`}
@@ -119,7 +122,7 @@ export default function AgentMetricsDetail({ agent }: AgentMetricsDetailProps) {
             />
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <MetricCard
               title="Error Rate"
               value={`${(metrics.errorRate * 100).toFixed(2)}%`}
@@ -129,7 +132,7 @@ export default function AgentMetricsDetail({ agent }: AgentMetricsDetailProps) {
             />
           </Grid>
 
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Divider sx={{ my: 2 }} />
             <Typography variant="subtitle1" gutterBottom>
               Strands Agent Metrics
@@ -137,17 +140,17 @@ export default function AgentMetricsDetail({ agent }: AgentMetricsDetailProps) {
           </Grid>
 
           {/* Token Usage */}
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <MetricCard
               title="Total Tokens"
               value={metrics.totalTokens.toLocaleString()}
               icon={<TokenIcon />}
               color="secondary"
-              subtitle={`${metrics.inputTokens.toLocaleString()} in / ${metrics.outputTokens.toLocaleString()} out`}
+              subtitle={`${inputTokens.toLocaleString()} in / ${outputTokens.toLocaleString()} out`}
             />
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <MetricCard
               title="Avg Cycles"
               value={metrics.cycleCount}
@@ -157,17 +160,17 @@ export default function AgentMetricsDetail({ agent }: AgentMetricsDetailProps) {
             />
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <MetricCard
               title="Tool Calls"
-              value={metrics.toolCallCount}
+              value={toolCallCount}
               icon={<ToolIcon />}
               color="secondary"
               subtitle={`${toolCallsPerCycle} calls/cycle`}
             />
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <MetricCard
               title="Token Efficiency"
               value={`${tokenEfficiency}%`}
@@ -178,14 +181,14 @@ export default function AgentMetricsDetail({ agent }: AgentMetricsDetailProps) {
           </Grid>
 
           {/* Current Status */}
-          <Grid item xs={12}>
+          <Grid size={{ xs: 12 }}>
             <Divider sx={{ my: 2 }} />
             <Typography variant="subtitle1" gutterBottom>
               Current Status
             </Typography>
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <Card variant="outlined">
               <CardContent>
                 <Typography variant="subtitle2" color="text.secondary" gutterBottom>
@@ -201,7 +204,7 @@ export default function AgentMetricsDetail({ agent }: AgentMetricsDetailProps) {
             </Card>
           </Grid>
 
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <Card variant="outlined">
               <CardContent>
                 <Typography variant="subtitle2" color="text.secondary" gutterBottom>

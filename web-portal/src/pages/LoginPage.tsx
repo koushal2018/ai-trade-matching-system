@@ -32,8 +32,23 @@ export const LoginPage = () => {
       await signIn(username, password)
       navigate(from, { replace: true })
     } catch (err) {
-      setError('Invalid username or password. Please try again.')
       console.error('Login error:', err)
+      // Show more specific error message
+      if (err instanceof Error) {
+        if (err.message.includes('User does not exist')) {
+          setError('User not found. Please check your email address.')
+        } else if (err.message.includes('Incorrect username or password')) {
+          setError('Invalid email or password. Please try again.')
+        } else if (err.message.includes('Password change required')) {
+          setError(err.message)
+        } else if (err.message.includes('not configured')) {
+          setError('Authentication service not configured. Please contact support.')
+        } else {
+          setError(err.message || 'Login failed. Please try again.')
+        }
+      } else {
+        setError('Login failed. Please try again.')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -42,10 +57,6 @@ export const LoginPage = () => {
   return (
     <Box
       padding={{ vertical: 'xxxl', horizontal: 'l' }}
-      display="flex"
-      justifyContent="center"
-      alignItems="center"
-      minHeight="100vh"
     >
       <Container
         header={

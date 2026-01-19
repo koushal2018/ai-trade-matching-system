@@ -54,7 +54,7 @@ export default function ProcessingMetricsPanel({ metrics }: ProcessingMetricsPan
           <>
             {/* Key Metrics Grid */}
             <Grid container spacing={3} mb={3}>
-              <Grid item xs={12} sm={4}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Box 
                   textAlign="center" 
                   sx={{
@@ -72,7 +72,7 @@ export default function ProcessingMetricsPanel({ metrics }: ProcessingMetricsPan
                   </Typography>
                 </Box>
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Box 
                   textAlign="center"
                   sx={{
@@ -90,7 +90,7 @@ export default function ProcessingMetricsPanel({ metrics }: ProcessingMetricsPan
                   </Typography>
                 </Box>
               </Grid>
-              <Grid item xs={12} sm={4}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <Box 
                   textAlign="center"
                   sx={{

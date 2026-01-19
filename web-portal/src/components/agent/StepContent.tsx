@@ -111,7 +111,7 @@ export const StepContent: FC<StepContentProps> = ({ step, agentName }) => {
           <SpaceBetween size="xs">
             {step.subSteps.map((subStep, idx) => (
               <SpaceBetween key={idx} direction="horizontal" size="xs">
-                <StatusIndicator type={subStep.status} ariaLabel={`Sub-step ${subStep.title} status: ${subStep.status}`}>
+                <StatusIndicator type={subStep.status}>
                   {subStep.title}
                 </StatusIndicator>
                 {subStep.description && (

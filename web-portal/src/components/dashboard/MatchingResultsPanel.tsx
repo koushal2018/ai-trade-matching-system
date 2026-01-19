@@ -127,7 +127,7 @@ export default function MatchingResultsPanel({ results }: MatchingResultsPanelPr
   return (
     <Grid container spacing={3}>
       {/* Summary Card */}
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Card sx={{ 
           height: '100%',
           background: 'linear-gradient(135deg, rgba(28, 33, 39, 0.95) 0%, rgba(35, 42, 49, 0.95) 100%)',
@@ -191,15 +191,33 @@ export default function MatchingResultsPanel({ results }: MatchingResultsPanelPr
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip 
+                      <Tooltip
                         contentStyle={{
-                          backgroundColor: 'rgba(28, 33, 39, 0.95)',
-                          border: '1px solid rgba(65, 77, 92, 0.3)',
+                          backgroundColor: 'rgba(28, 33, 39, 0.98)',
+                          border: '1px solid rgba(65, 77, 92, 0.5)',
                           borderRadius: '8px',
-                          color: '#FFFFFF',
                           backdropFilter: 'blur(10px)',
+                          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
+                          padding: '12px 16px',
                         }}
-                        formatter={(value, name) => [value, CLASSIFICATION_CONFIG[name as MatchClassification]?.label || name]}
+                        itemStyle={{
+                          color: '#FFFFFF',
+                          fontWeight: 500,
+                          fontSize: '14px',
+                        }}
+                        labelStyle={{
+                          color: '#9BA7B4',
+                          fontWeight: 600,
+                          fontSize: '12px',
+                          marginBottom: '4px',
+                        }}
+                        formatter={(value, name) => {
+                          const label = CLASSIFICATION_CONFIG[name as MatchClassification]?.label || name
+                          return [
+                            <span style={{ color: '#FFFFFF', fontWeight: 600 }}>{value}</span>,
+                            <span style={{ color: '#E0E0E0' }}>{label}</span>
+                          ]
+                        }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
@@ -306,7 +324,7 @@ export default function MatchingResultsPanel({ results }: MatchingResultsPanelPr
       </Grid>
 
       {/* Detailed Results Table */}
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Card sx={{ 
           height: '100%',
           background: 'linear-gradient(135deg, rgba(28, 33, 39, 0.95) 0%, rgba(35, 42, 49, 0.95) 100%)',

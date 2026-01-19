@@ -9,7 +9,6 @@ import {
   Popover,
   Box,
   SpaceBetween,
-  Button,
   Pagination,
   PropertyFilter,
   type TableProps,
@@ -18,6 +17,9 @@ import {
 import { useCollection } from '@cloudscape-design/collection-hooks'
 import { useQuery } from '@tanstack/react-query'
 import { auditService } from '../services/auditService'
+import GlassButton from '../components/common/GlassButton'
+import CopyToClipboard from '../components/common/CopyToClipboard'
+import { useToast } from '../hooks/useToast'
 import type { AuditRecord, AuditActionType, AgentStatusType } from '../types'
 
 const FILTERING_PROPERTIES: PropertyFilterProps.FilteringProperty[] = [
@@ -50,7 +52,6 @@ const FILTERING_PROPERTIES: PropertyFilterProps.FilteringProperty[] = [
 const getActionBadgeColor = (action: AuditActionType): 'blue' | 'green' | 'red' | 'grey' => {
   switch (action) {
     case 'Upload':
-      return 'blue'
     case 'Invoke':
       return 'blue'
     case 'Match Complete':
@@ -83,6 +84,8 @@ const getStatusType = (outcome: string): AgentStatusType => {
 export default function AuditTrailPage() {
   const [currentPageIndex, setCurrentPageIndex] = useState(1)
   const [pageSize] = useState(25)
+  const [exportSuccess, setExportSuccess] = useState(false)
+  const { success } = useToast()
 
   const { data, isLoading } = useQuery({
     queryKey: ['auditRecords', currentPageIndex, pageSize],
@@ -105,9 +108,17 @@ export default function AuditTrailPage() {
       id: 'sessionId',
       header: 'Session ID',
       cell: (item) => (
-        <Link href={`/upload?sessionId=${item.sessionId}`} external={false}>
-          {item.sessionId.substring(0, 8)}...
-        </Link>
+        <SpaceBetween direction="horizontal" size="xs">
+          <Link href={`/upload?sessionId=${item.sessionId}`} external={false}>
+            {item.sessionId.substring(0, 8)}...
+          </Link>
+          <CopyToClipboard
+            text={item.sessionId}
+            label="Session ID"
+            iconOnly
+            size="small"
+          />
+        </SpaceBetween>
       ),
     },
     {
@@ -145,27 +156,30 @@ export default function AuditTrailPage() {
           content={
             <SpaceBetween size="s">
               <Box variant="h4">Audit Entry Details</Box>
-              
+
               {/* Basic Information */}
               <SpaceBetween size="xs">
                 <Box variant="awsui-key-label">Audit ID</Box>
-                <Box variant="code">{item.auditId}</Box>
+                <SpaceBetween direction="horizontal" size="xs">
+                  <Box variant="code">{item.auditId}</Box>
+                  <CopyToClipboard text={item.auditId} iconOnly size="small" />
+                </SpaceBetween>
               </SpaceBetween>
-              
+
               {item.tradeId && (
                 <SpaceBetween size="xs">
                   <Box variant="awsui-key-label">Trade ID</Box>
                   <Box>{item.tradeId}</Box>
                 </SpaceBetween>
               )}
-              
+
               <SpaceBetween size="xs">
                 <Box variant="awsui-key-label">Immutable Hash</Box>
                 <Box variant="code" fontSize="body-s">
                   {item.immutableHash}
                 </Box>
               </SpaceBetween>
-              
+
               {/* Agent Processing Steps */}
               {item.agentSteps && item.agentSteps.length > 0 && (
                 <>
@@ -188,7 +202,7 @@ export default function AuditTrailPage() {
                   </SpaceBetween>
                 </>
               )}
-              
+
               {/* Match Results Summary */}
               {item.matchResult && (
                 <>
@@ -217,7 +231,7 @@ export default function AuditTrailPage() {
                   </SpaceBetween>
                 </>
               )}
-              
+
               {/* Exception Details */}
               {item.exceptions && item.exceptions.length > 0 && (
                 <>
@@ -236,7 +250,7 @@ export default function AuditTrailPage() {
                   </SpaceBetween>
                 </>
               )}
-              
+
               {/* Additional Details */}
               {item.details && Object.keys(item.details).length > 0 && (
                 <>
@@ -251,7 +265,9 @@ export default function AuditTrailPage() {
             </SpaceBetween>
           }
         >
-          <Button variant="inline-icon" iconName="status-info" ariaLabel="View audit entry details" />
+          <GlassButton variant="text" size="small">
+            View
+          </GlassButton>
         </Popover>
       ),
     },
@@ -301,7 +317,7 @@ export default function AuditTrailPage() {
           .join(',')
       ),
     ]
-    
+
     const csvContent = csvRows.join('\n')
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -310,6 +326,11 @@ export default function AuditTrailPage() {
     link.download = `audit_trail_${new Date().toISOString()}.csv`
     link.click()
     URL.revokeObjectURL(url)
+
+    // Show success feedback
+    setExportSuccess(true)
+    success(`Exported ${items.length} audit records to CSV`)
+    setTimeout(() => setExportSuccess(false), 2000)
   }
 
   return (
@@ -319,9 +340,14 @@ export default function AuditTrailPage() {
           variant="h1"
           description="View and filter audit trail of all trade matching operations and agent activity"
           actions={
-            <Button iconName="download" onClick={handleExportCSV} ariaLabel="Export audit trail to CSV">
+            <GlassButton
+              variant="contained"
+              onClick={handleExportCSV}
+              loading={false}
+              success={exportSuccess}
+            >
               Export CSV
-            </Button>
+            </GlassButton>
           }
         >
           Audit Trail

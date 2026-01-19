@@ -1,19 +1,23 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { Amplify } from 'aws-amplify'
 import {
-  signIn,
+  signIn as amplifySignIn,
   signOut,
   getCurrentUser,
   fetchAuthSession,
   AuthUser,
 } from 'aws-amplify/auth'
 
+// Debug: Log environment variables
+console.log('[Auth] Cognito User Pool ID:', import.meta.env.VITE_COGNITO_USER_POOL_ID)
+console.log('[Auth] Cognito Client ID:', import.meta.env.VITE_COGNITO_CLIENT_ID)
+
 // Configure Amplify
 Amplify.configure({
   Auth: {
     Cognito: {
-      userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID,
-      userPoolClientId: import.meta.env.VITE_COGNITO_CLIENT_ID,
+      userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID || '',
+      userPoolClientId: import.meta.env.VITE_COGNITO_CLIENT_ID || '',
       loginWith: {
         email: true,
       },
@@ -66,10 +70,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const handleSignIn = async (username: string, password: string) => {
     try {
-      await signIn({ username, password })
-      await checkAuthStatus()
+      console.log('[Auth] Attempting sign in for:', username)
+      const result = await amplifySignIn({ username, password })
+      console.log('[Auth] Sign in result:', result)
+
+      // Check if sign in is complete or requires additional steps
+      if (result.isSignedIn) {
+        console.log('[Auth] Sign in successful')
+        await checkAuthStatus()
+      } else if (result.nextStep) {
+        console.log('[Auth] Sign in requires next step:', result.nextStep.signInStep)
+
+        // Handle NEW_PASSWORD_REQUIRED challenge
+        if (result.nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+          throw new Error('Password change required. Please contact administrator.')
+        }
+
+        // For other challenges, throw a descriptive error
+        throw new Error(`Additional verification required: ${result.nextStep.signInStep}`)
+      }
     } catch (error) {
-      console.error('Sign in error:', error)
+      console.error('[Auth] Sign in error:', error)
       throw error
     }
   }

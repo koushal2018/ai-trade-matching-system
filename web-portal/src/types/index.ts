@@ -6,6 +6,59 @@ export interface WorkflowSession {
   status: 'active' | 'completed' | 'failed'
 }
 
+// Agent health/status for dashboard (legacy system)
+export type AgentStatusLegacy = 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' | 'OFFLINE'
+
+export interface AgentMetrics {
+  latencyMs: number
+  throughput: number
+  successRate: number
+  errorRate: number
+  totalTokens: number
+  cycleCount: number
+  inputTokens?: number
+  outputTokens?: number
+  toolCallCount?: number
+}
+
+export interface AgentHealth {
+  agentId: string
+  agentName: string
+  status: AgentStatusLegacy
+  activeTasks: number
+  metrics: AgentMetrics
+  lastUpdated?: string
+  lastHeartbeat?: string
+}
+
+export interface ProcessingMetrics {
+  totalProcessed: number
+  matchedCount: number
+  unmatchedCount: number
+  pendingCount: number
+  errorCount: number
+  breakCount: number
+  pendingReview: number
+  throughputPerHour: number
+  avgProcessingTimeMs: number
+}
+
+// HITL Review types
+export interface HITLReview {
+  reviewId: string
+  tradeId: string
+  sessionId?: string
+  matchScore: number
+  bankData?: Record<string, unknown>
+  counterpartyData?: Record<string, unknown>
+  bankTrade?: Record<string, unknown>
+  counterpartyTrade?: Record<string, unknown>
+  discrepancies?: string[]
+  differences?: Record<string, { bankValue: unknown; counterpartyValue: unknown }>
+  reasonCodes?: string[]
+  createdAt?: string
+}
+
 // Agent status types
 export type AgentStatusType = 'pending' | 'loading' | 'in-progress' | 'success' | 'error' | 'warning' | 'info' | 'stopped'
 
@@ -47,6 +100,8 @@ export interface UploadResponse {
 
 // Match result types
 export type MatchStatus = 'MATCHED' | 'MISMATCHED' | 'PARTIAL_MATCH'
+export type MatchClassification = 'MATCHED' | 'PROBABLE_MATCH' | 'REVIEW_REQUIRED' | 'BREAK' | 'DATA_ERROR'
+export type DecisionStatus = 'AUTO_MATCH' | 'ESCALATE' | 'EXCEPTION' | 'PENDING' | 'APPROVED' | 'REJECTED'
 
 export interface FieldComparison {
   fieldName: string
@@ -58,9 +113,14 @@ export interface FieldComparison {
 
 export interface MatchResult {
   sessionId: string
+  tradeId: string
   matchStatus: MatchStatus
+  classification: MatchClassification
   confidenceScore: number
+  matchScore: number
+  decisionStatus: DecisionStatus
   completedAt: string
+  createdAt: string
   fieldComparisons: FieldComparison[]
   metadata: {
     processingTime: number
@@ -96,11 +156,20 @@ export interface FeedbackResponse {
 }
 
 // WebSocket message types
-export type WebSocketMessageType = 
+export type WebSocketMessageType =
   | 'AGENT_STATUS_UPDATE'
   | 'RESULT_AVAILABLE'
   | 'EXCEPTION'
   | 'STEP_UPDATE'
+
+// WebSocket event types (for subscription)
+export type WebSocketEventType =
+  | WebSocketMessageType
+  | 'HITL_REQUIRED'
+  | 'PROCESSING_COMPLETE'
+  | 'ERROR'
+  | 'AGENT_STATUS'
+  | 'METRICS_UPDATE'
 
 export interface WebSocketMessage {
   type: WebSocketMessageType

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { retryWithBackoff, RetryError, isRetryableError } from '../utils/retry'
+import { retryWithBackoff, RetryError } from '../utils/retry'
 
 interface UseRetryableOperationOptions {
   maxRetries?: number

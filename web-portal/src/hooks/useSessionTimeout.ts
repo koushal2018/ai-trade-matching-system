@@ -11,8 +11,8 @@ export const useSessionTimeout = () => {
   const { addNotification, dismissNotification } = useNotifications()
   const navigate = useNavigate()
   const [showWarning, setShowWarning] = useState(false)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const warningNotificationIdRef = useRef<string | null>(null)
 
   const clearTimers = () => {

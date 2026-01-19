@@ -7,6 +7,8 @@ import { wsService } from '../services/websocket'
 import HeroMetrics from '../components/dashboard/HeroMetrics'
 import AgentHealthPanel from '../components/dashboard/AgentHealthPanel'
 import MatchingResultsPanel from '../components/dashboard/MatchingResultsPanel'
+import GlassCard from '../components/common/GlassCard'
+import { SkeletonGroup } from '../components/common/SkeletonLoader'
 import type { AgentHealth, ProcessingMetrics, WebSocketMessage, MatchResult } from '../types'
 
 export default function Dashboard() {
@@ -60,14 +62,23 @@ export default function Dashboard() {
   return (
     <MuiContainer maxWidth="xl" sx={{ py: 4 }}>
       {/* Page Header */}
-      <Box mb={4}>
+      <Box
+        sx={{
+          mb: 4,
+          animation: 'fadeIn 0.5s ease-out',
+          '@keyframes fadeIn': {
+            '0%': { opacity: 0, transform: 'translateY(-10px)' },
+            '100%': { opacity: 1, transform: 'translateY(0)' },
+          },
+        }}
+      >
         <Typography
           variant="h3"
           fontWeight={700}
-          color="text.primary"
           sx={{
             fontFamily: '"Amazon Ember", "Helvetica Neue", Helvetica, Arial, sans-serif',
-            mb: 1
+            mb: 1,
+            color: '#232F3E',
           }}
         >
           Dashboard
@@ -78,22 +89,53 @@ export default function Dashboard() {
       </Box>
 
       {/* Hero Metrics */}
-      <HeroMetrics
-        totalTrades={totalTrades}
-        matchRate={matchRate}
-        avgLatency={avgLatency}
-        activeAgents={activeAgents}
-      />
+      {isLoading && !metrics ? (
+        <Box sx={{ mb: 4 }}>
+          <SkeletonGroup variant="metric-cards" count={4} />
+        </Box>
+      ) : (
+        <HeroMetrics
+          totalTrades={totalTrades}
+          matchRate={matchRate}
+          avgLatency={avgLatency}
+          activeAgents={activeAgents}
+          isLoading={isLoading}
+        />
+      )}
 
       {/* Agent Health Panel */}
-      <Box mb={4}>
-        <AgentHealthPanel agents={agents || []} />
-      </Box>
+      <GlassCard
+        variant="default"
+        hoverEffect="none"
+        animateIn
+        animationDelay={0.2}
+        sx={{ mb: 4, p: 0 }}
+      >
+        {agentsLoading && !agents ? (
+          <Box sx={{ p: 3 }}>
+            <SkeletonGroup variant="metric-cards" count={5} />
+          </Box>
+        ) : (
+          <AgentHealthPanel agents={agents || []} />
+        )}
+      </GlassCard>
 
       {/* Matching Results Panel */}
-      <Box mb={4}>
-        <MatchingResultsPanel results={matchingResults || []} />
-      </Box>
+      <GlassCard
+        variant="default"
+        hoverEffect="none"
+        animateIn
+        animationDelay={0.3}
+        sx={{ mb: 4, p: 0 }}
+      >
+        {resultsLoading && !matchingResults ? (
+          <Box sx={{ p: 3 }}>
+            <SkeletonGroup variant="table" count={5} />
+          </Box>
+        ) : (
+          <MatchingResultsPanel results={matchingResults || []} />
+        )}
+      </GlassCard>
     </MuiContainer>
   )
 }

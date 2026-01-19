@@ -11,21 +11,18 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { isAuthenticated, isLoading } = useAuth()
   const location = useLocation()
 
-  // DEVELOPMENT MODE: Bypass authentication
+  // DEMO MODE: Bypass authentication for demonstration
   // TODO: Remove this before production deployment
   const isDevelopment = import.meta.env.DEV
-  if (isDevelopment) {
+  const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true'
+  const isMSWEnabled = import.meta.env.VITE_ENABLE_MSW === 'true'
+  if (isDevelopment || isDemoMode || isMSWEnabled) {
     return <>{children}</>
   }
 
   if (isLoading) {
     return (
-      <Box
-        display="flex"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="100vh"
-      >
+      <Box textAlign="center" padding={{ vertical: 'xxxl' }}>
         <Spinner size="large" />
       </Box>
     )

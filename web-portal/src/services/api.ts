@@ -1,6 +1,14 @@
 import axios, { AxiosError, AxiosInstance } from 'axios'
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8001') + '/api'
+// When MSW is enabled, use relative URLs so MSW can intercept
+// Otherwise use the configured API URL
+const isMSWEnabled = import.meta.env.VITE_ENABLE_MSW === 'true'
+const API_BASE_URL = isMSWEnabled
+  ? '/api'
+  : (import.meta.env.VITE_API_URL || 'http://localhost:8001') + '/api'
+
+console.log('[API] MSW enabled:', isMSWEnabled)
+console.log('[API] Base URL:', API_BASE_URL)
 
 class ApiClient {
   private client: AxiosInstance

@@ -46,7 +46,11 @@ export default function TradeComparisonCard({
     { key: 'maturity_date', label: 'Maturity Date' },
   ]
 
-  const hasDifference = (field: string) => field in review.differences
+  const hasDifference = (field: string) => review.differences ? field in review.differences : false
+
+  const bankTrade = review.bankTrade || review.bankData || {}
+  const counterpartyTrade = review.counterpartyTrade || review.counterpartyData || {}
+  const reasonCodes = review.reasonCodes || []
 
   return (
     <Card>
@@ -59,7 +63,7 @@ export default function TradeComparisonCard({
               color={review.matchScore >= 0.7 ? 'warning' : 'error'}
               sx={{ mr: 1 }}
             />
-            {review.reasonCodes.map((code) => (
+            {reasonCodes.map((code: string) => (
               <Chip key={code} label={code} size="small" sx={{ mr: 0.5 }} />
             ))}
           </Box>
@@ -78,8 +82,8 @@ export default function TradeComparisonCard({
             </TableHead>
             <TableBody>
               {tradeFields.map(({ key, label }) => {
-                const bankValue = review.bankTrade[key as keyof typeof review.bankTrade]
-                const cpValue = review.counterpartyTrade[key as keyof typeof review.counterpartyTrade]
+                const bankValue = bankTrade[key as keyof typeof bankTrade]
+                const cpValue = counterpartyTrade[key as keyof typeof counterpartyTrade]
                 const isDiff = hasDifference(key)
                 return (
                   <TableRow key={key} sx={{ bgcolor: isDiff ? 'error.light' : 'inherit' }}>
@@ -103,7 +107,7 @@ export default function TradeComparisonCard({
         <Divider sx={{ my: 3 }} />
 
         <Grid container spacing={2} alignItems="flex-end">
-          <Grid item xs={12} md={8}>
+          <Grid size={{ xs: 12, md: 8 }}>
             <TextField
               fullWidth
               label="Decision Reason (optional)"
@@ -113,7 +117,7 @@ export default function TradeComparisonCard({
               rows={2}
             />
           </Grid>
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Box display="flex" gap={1} justifyContent="flex-end">
               <Button
                 variant="contained"

@@ -11,15 +11,12 @@ export default function TradeMatchingUpload() {
         },
       }}
     >
-      <Typography 
-        variant="h4" 
-        gutterBottom 
-        sx={{ 
+      <Typography
+        variant="h4"
+        gutterBottom
+        sx={{
           fontWeight: 700,
-          background: 'linear-gradient(135deg, #FF9900 0%, #146EB4 100%)',
-          backgroundClip: 'text',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
+          color: '#232F3E',
           mb: 4
         }}
       >

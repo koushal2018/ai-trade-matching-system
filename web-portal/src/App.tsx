@@ -18,6 +18,9 @@ import Dashboard from './pages/Dashboard'
 import HITLPanel from './pages/HITLPanel'
 import AuditTrailPage from './pages/AuditTrailPage'
 import TradeMatchingPage from './pages/TradeMatchingPage'
+import RealTimeMonitor from './pages/RealTimeMonitor'
+import MatchingQueuePage from './pages/MatchingQueuePage'
+import ExceptionsPage from './pages/ExceptionsPage'
 import { LoginPage } from './pages/LoginPage'
 import { useNotifications } from './hooks/useNotifications'
 import { useDarkMode } from './hooks/useDarkMode'
@@ -106,6 +109,44 @@ const getHelpContent = (pathname: string) => {
           </>
         ),
       }
+    case '/monitor':
+      return {
+        header: 'Real-time Monitor',
+        content: (
+          <>
+            <Box variant="p">
+              Monitor live activity from all AI agents in real-time. View processing events,
+              completion status, and system health metrics.
+            </Box>
+            <Box variant="h4" padding={{ top: 'm' }}>
+              Activity Stream
+            </Box>
+            <Box variant="p">
+              The activity stream shows live events from agents:
+              <ul>
+                <li><strong>Processing</strong> - Agent is actively working</li>
+                <li><strong>Completed</strong> - Task finished successfully</li>
+                <li><strong>Waiting</strong> - Agent waiting for input</li>
+                <li><strong>Error</strong> - Issue detected</li>
+              </ul>
+            </Box>
+            <Box variant="h4" padding={{ top: 'm' }}>
+              Controls
+            </Box>
+            <Box variant="p">
+              <ul>
+                <li>Play/Pause - Start or stop the live stream</li>
+                <li>Clear - Remove all captured events</li>
+              </ul>
+            </Box>
+            <Box variant="p" padding={{ top: 'm' }}>
+              <Link external href="/docs/monitoring">
+                Learn more about real-time monitoring
+              </Link>
+            </Box>
+          </>
+        ),
+      }
     case '/dashboard':
       return {
         header: 'Dashboard Overview',
@@ -181,7 +222,7 @@ function App() {
   const location = useLocation()
   const { notifications, dismissNotification } = useNotifications()
   const { isDarkMode, toggleDarkMode } = useDarkMode()
-  const { user, signOut: handleSignOut, isAuthenticated } = useAuth()
+  const { user, signOut: handleSignOut } = useAuth()
   
   // Session timeout management
   useSessionTimeout()
@@ -343,6 +384,36 @@ function App() {
                   <ProtectedRoute>
                     <ErrorBoundary>
                       <AuditTrailPage />
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/monitor"
+                element={
+                  <ProtectedRoute>
+                    <ErrorBoundary>
+                      <RealTimeMonitor />
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/queue"
+                element={
+                  <ProtectedRoute>
+                    <ErrorBoundary>
+                      <MatchingQueuePage />
+                    </ErrorBoundary>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/exceptions"
+                element={
+                  <ProtectedRoute>
+                    <ErrorBoundary>
+                      <ExceptionsPage />
                     </ErrorBoundary>
                   </ProtectedRoute>
                 }
