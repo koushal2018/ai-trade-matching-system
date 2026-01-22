@@ -1,310 +1,132 @@
 import { useState } from 'react'
 import {
-  ContentLayout,
-  Header,
-  Table,
-  Link,
-  Badge,
-  StatusIndicator,
-  Popover,
   Box,
-  SpaceBetween,
-  Pagination,
-  PropertyFilter,
-  type TableProps,
-  type PropertyFilterProps,
-} from '@cloudscape-design/components'
-import { useCollection } from '@cloudscape-design/collection-hooks'
+  Typography,
+  Container,
+  Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TablePagination,
+  TextField,
+  InputAdornment,
+  IconButton,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  Skeleton,
+  alpha,
+} from '@mui/material'
+import {
+  History as HistoryIcon,
+  Download as ExportIcon,
+  Search as SearchIcon,
+  Visibility as ViewIcon,
+  Close as CloseIcon,
+  CheckCircle as SuccessIcon,
+  Error as ErrorIcon,
+  HourglassEmpty as PendingIcon,
+  Info as InfoIcon,
+} from '@mui/icons-material'
 import { useQuery } from '@tanstack/react-query'
 import { auditService } from '../services/auditService'
 import GlassButton from '../components/common/GlassButton'
+import GlassCard from '../components/common/GlassCard'
 import CopyToClipboard from '../components/common/CopyToClipboard'
 import { useToast } from '../hooks/useToast'
-import type { AuditRecord, AuditActionType, AgentStatusType } from '../types'
+import { fsiColors } from '../theme'
+import type { AuditRecord, AuditActionType } from '../types'
 
-const FILTERING_PROPERTIES: PropertyFilterProps.FilteringProperty[] = [
-  {
-    key: 'actionType',
-    propertyLabel: 'Action',
-    groupValuesLabel: 'Action values',
-    operators: ['=', '!='],
-  },
-  {
-    key: 'outcome',
-    propertyLabel: 'Status',
-    groupValuesLabel: 'Status values',
-    operators: ['=', '!='],
-  },
-  {
-    key: 'user',
-    propertyLabel: 'User',
-    groupValuesLabel: 'User values',
-    operators: ['=', '!=', ':', '!:'],
-  },
-  {
-    key: 'sessionId',
-    propertyLabel: 'Session ID',
-    groupValuesLabel: 'Session ID values',
-    operators: ['=', '!=', ':', '!:'],
-  },
-]
-
-const getActionBadgeColor = (action: AuditActionType): 'blue' | 'green' | 'red' | 'grey' => {
+const getActionChipColor = (action: AuditActionType) => {
   switch (action) {
     case 'Upload':
     case 'Invoke':
-      return 'blue'
+      return { bg: fsiColors.status.info, text: '#fff' }
     case 'Match Complete':
     case 'TRADE_MATCHED':
-      return 'green'
+      return { bg: fsiColors.status.success, text: '#fff' }
     case 'Exception':
     case 'EXCEPTION_RAISED':
-      return 'red'
+      return { bg: fsiColors.status.error, text: '#fff' }
     case 'Feedback':
     case 'HITL_DECISION':
-      return 'grey'
+      return { bg: fsiColors.accent.purple, text: '#fff' }
     default:
-      return 'grey'
+      return { bg: fsiColors.text.muted, text: '#fff' }
   }
 }
 
-const getStatusType = (outcome: string): AgentStatusType => {
+const getStatusIcon = (outcome: string) => {
   switch (outcome) {
     case 'SUCCESS':
-      return 'success'
+      return <SuccessIcon sx={{ fontSize: 18, color: fsiColors.status.success }} />
     case 'FAILURE':
-      return 'error'
+      return <ErrorIcon sx={{ fontSize: 18, color: fsiColors.status.error }} />
     case 'PENDING':
-      return 'pending'
+      return <PendingIcon sx={{ fontSize: 18, color: fsiColors.status.warning }} />
     default:
-      return 'info'
+      return <InfoIcon sx={{ fontSize: 18, color: fsiColors.status.info }} />
+  }
+}
+
+const getStatusColor = (outcome: string) => {
+  switch (outcome) {
+    case 'SUCCESS':
+      return fsiColors.status.success
+    case 'FAILURE':
+      return fsiColors.status.error
+    case 'PENDING':
+      return fsiColors.status.warning
+    default:
+      return fsiColors.status.info
   }
 }
 
 export default function AuditTrailPage() {
-  const [currentPageIndex, setCurrentPageIndex] = useState(1)
-  const [pageSize] = useState(25)
-  const [exportSuccess, setExportSuccess] = useState(false)
+  const [page, setPage] = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(10)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedRecord, setSelectedRecord] = useState<AuditRecord | null>(null)
   const { success } = useToast()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['auditRecords', currentPageIndex, pageSize],
+    queryKey: ['auditRecords', page, rowsPerPage],
     queryFn: () =>
       auditService.getAuditRecords({
-        page: currentPageIndex - 1,
-        pageSize,
+        page,
+        pageSize: rowsPerPage,
       }),
   })
 
-  const columnDefinitions: TableProps.ColumnDefinition<AuditRecord>[] = [
-    {
-      id: 'timestamp',
-      header: 'Timestamp',
-      cell: (item) => new Date(item.timestamp).toLocaleString(),
-      sortingField: 'timestamp',
-      isRowHeader: true,
-    },
-    {
-      id: 'sessionId',
-      header: 'Session ID',
-      cell: (item) => (
-        <SpaceBetween direction="horizontal" size="xs">
-          <Link href={`/upload?sessionId=${item.sessionId}`} external={false}>
-            {item.sessionId.substring(0, 8)}...
-          </Link>
-          <CopyToClipboard
-            text={item.sessionId}
-            label="Session ID"
-            iconOnly
-            size="small"
-          />
-        </SpaceBetween>
-      ),
-    },
-    {
-      id: 'action',
-      header: 'Action',
-      cell: (item) => (
-        <Badge color={getActionBadgeColor(item.actionType)}>
-          {item.actionType}
-        </Badge>
-      ),
-    },
-    {
-      id: 'user',
-      header: 'User',
-      cell: (item) => item.user || item.agentName || '—',
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      cell: (item) => (
-        <StatusIndicator type={getStatusType(item.outcome)}>
-          {item.outcome}
-        </StatusIndicator>
-      ),
-    },
-    {
-      id: 'details',
-      header: 'Details',
-      cell: (item) => (
-        <Popover
-          dismissButton={false}
-          position="right"
-          size="large"
-          triggerType="custom"
-          content={
-            <SpaceBetween size="s">
-              <Box variant="h4">Audit Entry Details</Box>
+  const filteredRecords = (data?.records || []).filter((record) => {
+    if (!searchQuery) return true
+    const query = searchQuery.toLowerCase()
+    return (
+      record.sessionId.toLowerCase().includes(query) ||
+      record.actionType.toLowerCase().includes(query) ||
+      (record.user || '').toLowerCase().includes(query) ||
+      record.outcome.toLowerCase().includes(query)
+    )
+  })
 
-              {/* Basic Information */}
-              <SpaceBetween size="xs">
-                <Box variant="awsui-key-label">Audit ID</Box>
-                <SpaceBetween direction="horizontal" size="xs">
-                  <Box variant="code">{item.auditId}</Box>
-                  <CopyToClipboard text={item.auditId} iconOnly size="small" />
-                </SpaceBetween>
-              </SpaceBetween>
+  const handleChangePage = (_: unknown, newPage: number) => {
+    setPage(newPage)
+  }
 
-              {item.tradeId && (
-                <SpaceBetween size="xs">
-                  <Box variant="awsui-key-label">Trade ID</Box>
-                  <Box>{item.tradeId}</Box>
-                </SpaceBetween>
-              )}
-
-              <SpaceBetween size="xs">
-                <Box variant="awsui-key-label">Immutable Hash</Box>
-                <Box variant="code" fontSize="body-s">
-                  {item.immutableHash}
-                </Box>
-              </SpaceBetween>
-
-              {/* Agent Processing Steps */}
-              {item.agentSteps && item.agentSteps.length > 0 && (
-                <>
-                  <Box variant="h5" margin={{ top: 's' }}>
-                    Agent Processing Steps
-                  </Box>
-                  <SpaceBetween size="xs">
-                    {item.agentSteps.map((step, idx) => (
-                      <SpaceBetween key={idx} direction="horizontal" size="xs">
-                        <StatusIndicator type={step.status}>
-                          Step {idx + 1}
-                        </StatusIndicator>
-                        {step.activity && (
-                          <Box variant="small" color="text-body-secondary">
-                            {step.activity}
-                          </Box>
-                        )}
-                      </SpaceBetween>
-                    ))}
-                  </SpaceBetween>
-                </>
-              )}
-
-              {/* Match Results Summary */}
-              {item.matchResult && (
-                <>
-                  <Box variant="h5" margin={{ top: 's' }}>
-                    Match Results Summary
-                  </Box>
-                  <SpaceBetween size="xs">
-                    <SpaceBetween direction="horizontal" size="xs">
-                      <Box variant="awsui-key-label">Match Status:</Box>
-                      <Badge
-                        color={
-                          item.matchResult.matchStatus === 'MATCHED'
-                            ? 'green'
-                            : item.matchResult.matchStatus === 'PARTIAL_MATCH'
-                            ? 'blue'
-                            : 'red'
-                        }
-                      >
-                        {item.matchResult.matchStatus}
-                      </Badge>
-                    </SpaceBetween>
-                    <SpaceBetween direction="horizontal" size="xs">
-                      <Box variant="awsui-key-label">Confidence:</Box>
-                      <Box>{item.matchResult.confidenceScore}%</Box>
-                    </SpaceBetween>
-                  </SpaceBetween>
-                </>
-              )}
-
-              {/* Exception Details */}
-              {item.exceptions && item.exceptions.length > 0 && (
-                <>
-                  <Box variant="h5" margin={{ top: 's' }}>
-                    Exception Details
-                  </Box>
-                  <SpaceBetween size="xs">
-                    {item.exceptions.map((exception) => (
-                      <SpaceBetween key={exception.id} size="xxs">
-                        <StatusIndicator type={exception.severity}>
-                          {exception.agentName}
-                        </StatusIndicator>
-                        <Box variant="small">{exception.message}</Box>
-                      </SpaceBetween>
-                    ))}
-                  </SpaceBetween>
-                </>
-              )}
-
-              {/* Additional Details */}
-              {item.details && Object.keys(item.details).length > 0 && (
-                <>
-                  <Box variant="h5" margin={{ top: 's' }}>
-                    Additional Details
-                  </Box>
-                  <Box variant="code" fontSize="body-s">
-                    {JSON.stringify(item.details, null, 2)}
-                  </Box>
-                </>
-              )}
-            </SpaceBetween>
-          }
-        >
-          <GlassButton variant="text" size="small">
-            View
-          </GlassButton>
-        </Popover>
-      ),
-    },
-  ]
-
-  const { items, collectionProps, propertyFilterProps } = useCollection(
-    data?.records || [],
-    {
-      propertyFiltering: {
-        filteringProperties: FILTERING_PROPERTIES,
-        empty: (
-          <Box textAlign="center" color="inherit">
-            <b>No audit entries</b>
-            <Box variant="p" color="inherit">
-              No audit entries match the current filter.
-            </Box>
-          </Box>
-        ),
-        noMatch: (
-          <Box textAlign="center" color="inherit">
-            <b>No matches</b>
-            <Box variant="p" color="inherit">
-              We can't find a match for your search.
-            </Box>
-          </Box>
-        ),
-      },
-      sorting: {},
-    }
-  )
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10))
+    setPage(0)
+  }
 
   const handleExportCSV = () => {
-    // Convert current filtered items to CSV
     const headers = ['Timestamp', 'Session ID', 'Action', 'User', 'Status', 'Audit ID']
     const csvRows = [
       headers.join(','),
-      ...items.map((item) =>
+      ...filteredRecords.map((item) =>
         [
           new Date(item.timestamp).toISOString(),
           item.sessionId,
@@ -327,105 +149,441 @@ export default function AuditTrailPage() {
     link.click()
     URL.revokeObjectURL(url)
 
-    // Show success feedback
-    setExportSuccess(true)
-    success(`Exported ${items.length} audit records to CSV`)
-    setTimeout(() => setExportSuccess(false), 2000)
+    success(`Exported ${filteredRecords.length} audit records to CSV`)
   }
 
   return (
-    <ContentLayout
-      header={
-        <Header
-          variant="h1"
-          description="View and filter audit trail of all trade matching operations and agent activity"
-          actions={
-            <GlassButton
-              variant="contained"
-              onClick={handleExportCSV}
-              loading={false}
-              success={exportSuccess}
+    <Container maxWidth="xl" sx={{ py: 2 }}>
+      {/* Page Header */}
+      <Box
+        sx={{
+          mb: 4,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: 2,
+        }}
+      >
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+            <Typography
+              variant="overline"
+              sx={{
+                color: fsiColors.orange.main,
+                letterSpacing: '0.15em',
+                fontWeight: 600,
+              }}
             >
-              Export CSV
-            </GlassButton>
-          }
-        >
-          Audit Trail
-        </Header>
-      }
-    >
-      <Table
-        {...collectionProps}
-        columnDefinitions={columnDefinitions}
-        items={items}
-        loading={isLoading}
-        loadingText="Loading audit entries..."
-        empty={
-          <Box textAlign="center" color="inherit">
-            <b>No audit entries</b>
-            <Box variant="p" color="inherit">
-              No audit entries to display.
-            </Box>
+              COMPLIANCE & HISTORY
+            </Typography>
+            <Chip
+              icon={<HistoryIcon sx={{ fontSize: 14 }} />}
+              label={`${data?.total || 0} Records`}
+              size="small"
+              sx={{
+                height: 22,
+                fontSize: '0.7rem',
+                fontWeight: 600,
+                bgcolor: `${fsiColors.accent.cyan}20`,
+                color: fsiColors.accent.cyan,
+                border: `1px solid ${fsiColors.accent.cyan}40`,
+                '& .MuiChip-icon': {
+                  color: fsiColors.accent.cyan,
+                },
+              }}
+            />
           </Box>
-        }
-        filter={
-          <PropertyFilter
-            {...propertyFilterProps}
-            i18nStrings={{
-              filteringAriaLabel: 'Filter audit entries',
-              dismissAriaLabel: 'Dismiss',
-              filteringPlaceholder: 'Filter audit entries by action, status, user, or session ID',
-              groupValuesText: 'Values',
-              groupPropertiesText: 'Properties',
-              operatorsText: 'Operators',
-              operationAndText: 'and',
-              operationOrText: 'or',
-              operatorLessText: 'Less than',
-              operatorLessOrEqualText: 'Less than or equal',
-              operatorGreaterText: 'Greater than',
-              operatorGreaterOrEqualText: 'Greater than or equal',
-              operatorContainsText: 'Contains',
-              operatorDoesNotContainText: 'Does not contain',
-              operatorEqualsText: 'Equals',
-              operatorDoesNotEqualText: 'Does not equal',
-              editTokenHeader: 'Edit filter',
-              propertyText: 'Property',
-              operatorText: 'Operator',
-              valueText: 'Value',
-              cancelActionText: 'Cancel',
-              applyActionText: 'Apply',
-              allPropertiesLabel: 'All properties',
-              tokenLimitShowMore: 'Show more',
-              tokenLimitShowFewer: 'Show fewer',
-              clearFiltersText: 'Clear filters',
-              removeTokenButtonAriaLabel: () => 'Remove token',
-              enteredTextLabel: (text) => `Use: "${text}"`,
+          <Typography
+            variant="h4"
+            fontWeight={700}
+            sx={{
+              mb: 1,
+              color: fsiColors.text.primary,
+              letterSpacing: '-0.02em',
             }}
-            countText={`${items.length} ${items.length === 1 ? 'match' : 'matches'}`}
-            expandToViewport
-          />
-        }
-        pagination={
-          <Pagination
-            currentPageIndex={currentPageIndex}
-            onChange={({ detail }) => setCurrentPageIndex(detail.currentPageIndex)}
-            pagesCount={Math.ceil((data?.total || 0) / pageSize)}
-            ariaLabels={{
-              nextPageLabel: 'Next page',
-              previousPageLabel: 'Previous page',
-              pageLabel: (pageNumber) => `Page ${pageNumber} of all pages`,
-            }}
-          />
-        }
-        header={
-          <Header
-            counter={data?.total ? `(${data.total})` : '(0)'}
-            description="Complete history of trade matching operations"
           >
+            Audit Trail
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{ color: fsiColors.text.secondary, maxWidth: 500 }}
+          >
+            View and filter audit trail of all trade matching operations and agent activity
+          </Typography>
+        </Box>
+
+        <GlassButton
+          variant="contained"
+          onClick={handleExportCSV}
+          startIcon={<ExportIcon />}
+        >
+          Export CSV
+        </GlassButton>
+      </Box>
+
+      {/* Main Content */}
+      <GlassCard variant="default" sx={{ p: 0, overflow: 'hidden' }}>
+        {/* Search & Filter Bar */}
+        <Box
+          sx={{
+            p: 2,
+            borderBottom: `1px solid ${fsiColors.navy[400]}20`,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 2,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Typography variant="h6" fontWeight={600} sx={{ color: fsiColors.text.primary }}>
             Audit Entries
-          </Header>
-        }
-      />
-    </ContentLayout>
+          </Typography>
+          <TextField
+            placeholder="Search by session, action, user..."
+            size="small"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            sx={{
+              minWidth: 300,
+              '& .MuiOutlinedInput-root': {
+                bgcolor: `${fsiColors.navy[800]}80`,
+                '& fieldset': {
+                  borderColor: `${fsiColors.navy[400]}40`,
+                },
+                '&:hover fieldset': {
+                  borderColor: `${fsiColors.orange.main}50`,
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: fsiColors.orange.main,
+                },
+              },
+              '& .MuiOutlinedInput-input': {
+                color: fsiColors.text.primary,
+              },
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: fsiColors.text.muted }} />
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Box>
+
+        {/* Table */}
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ color: fsiColors.text.secondary, fontWeight: 600, borderColor: `${fsiColors.navy[400]}20` }}>
+                  Timestamp
+                </TableCell>
+                <TableCell sx={{ color: fsiColors.text.secondary, fontWeight: 600, borderColor: `${fsiColors.navy[400]}20` }}>
+                  Session ID
+                </TableCell>
+                <TableCell sx={{ color: fsiColors.text.secondary, fontWeight: 600, borderColor: `${fsiColors.navy[400]}20` }}>
+                  Action
+                </TableCell>
+                <TableCell sx={{ color: fsiColors.text.secondary, fontWeight: 600, borderColor: `${fsiColors.navy[400]}20` }}>
+                  User / Agent
+                </TableCell>
+                <TableCell sx={{ color: fsiColors.text.secondary, fontWeight: 600, borderColor: `${fsiColors.navy[400]}20` }}>
+                  Status
+                </TableCell>
+                <TableCell sx={{ color: fsiColors.text.secondary, fontWeight: 600, borderColor: `${fsiColors.navy[400]}20` }} align="right">
+                  Actions
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {isLoading ? (
+                [...Array(5)].map((_, i) => (
+                  <TableRow key={i}>
+                    {[...Array(6)].map((_, j) => (
+                      <TableCell key={j} sx={{ borderColor: `${fsiColors.navy[400]}20` }}>
+                        <Skeleton variant="text" sx={{ bgcolor: `${fsiColors.navy[600]}50` }} />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : filteredRecords.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 6, borderColor: `${fsiColors.navy[400]}20` }}>
+                    <Typography variant="body1" sx={{ color: fsiColors.text.muted }}>
+                      No audit entries found
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredRecords.map((record) => {
+                  const actionColor = getActionChipColor(record.actionType)
+                  return (
+                    <TableRow
+                      key={record.auditId}
+                      sx={{
+                        '&:hover': {
+                          bgcolor: alpha(fsiColors.navy[500], 0.3),
+                        },
+                      }}
+                    >
+                      <TableCell sx={{ color: fsiColors.text.primary, borderColor: `${fsiColors.navy[400]}20` }}>
+                        {new Date(record.timestamp).toLocaleString()}
+                      </TableCell>
+                      <TableCell sx={{ borderColor: `${fsiColors.navy[400]}20` }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: fsiColors.orange.main,
+                              fontFamily: 'monospace',
+                              cursor: 'pointer',
+                              '&:hover': { textDecoration: 'underline' },
+                            }}
+                          >
+                            {record.sessionId.substring(0, 8)}...
+                          </Typography>
+                          <CopyToClipboard
+                            text={record.sessionId}
+                            label="Session ID"
+                            iconOnly
+                            size="small"
+                          />
+                        </Box>
+                      </TableCell>
+                      <TableCell sx={{ borderColor: `${fsiColors.navy[400]}20` }}>
+                        <Chip
+                          label={record.actionType}
+                          size="small"
+                          sx={{
+                            height: 24,
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            bgcolor: `${actionColor.bg}20`,
+                            color: actionColor.bg,
+                            border: `1px solid ${actionColor.bg}40`,
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ color: fsiColors.text.primary, borderColor: `${fsiColors.navy[400]}20` }}>
+                        {record.user || record.agentName || '—'}
+                      </TableCell>
+                      <TableCell sx={{ borderColor: `${fsiColors.navy[400]}20` }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {getStatusIcon(record.outcome)}
+                          <Typography
+                            variant="body2"
+                            sx={{ color: getStatusColor(record.outcome), fontWeight: 500 }}
+                          >
+                            {record.outcome}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right" sx={{ borderColor: `${fsiColors.navy[400]}20` }}>
+                        <Tooltip title="View Details">
+                          <IconButton
+                            size="small"
+                            onClick={() => setSelectedRecord(record)}
+                            sx={{
+                              color: fsiColors.text.secondary,
+                              '&:hover': {
+                                bgcolor: alpha(fsiColors.orange.main, 0.1),
+                                color: fsiColors.orange.main,
+                              },
+                            }}
+                          >
+                            <ViewIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        {/* Pagination */}
+        <TablePagination
+          component="div"
+          count={data?.total || 0}
+          page={page}
+          onPageChange={handleChangePage}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          rowsPerPageOptions={[5, 10, 25, 50]}
+          sx={{
+            borderTop: `1px solid ${fsiColors.navy[400]}20`,
+            color: fsiColors.text.secondary,
+            '& .MuiTablePagination-selectIcon': {
+              color: fsiColors.text.secondary,
+            },
+          }}
+        />
+      </GlassCard>
+
+      {/* Detail Dialog */}
+      <Dialog
+        open={!!selectedRecord}
+        onClose={() => setSelectedRecord(null)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: fsiColors.navy[700],
+            backgroundImage: `linear-gradient(135deg, ${fsiColors.navy[700]} 0%, ${fsiColors.navy[800]} 100%)`,
+            border: `1px solid ${fsiColors.navy[400]}40`,
+            borderRadius: 3,
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: `1px solid ${fsiColors.navy[400]}20`,
+          }}
+        >
+          <Typography variant="h6" fontWeight={600} sx={{ color: fsiColors.text.primary }}>
+            Audit Entry Details
+          </Typography>
+          <IconButton onClick={() => setSelectedRecord(null)} sx={{ color: fsiColors.text.secondary }}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          {selectedRecord && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {/* Basic Info */}
+              <Box>
+                <Typography variant="subtitle2" sx={{ color: fsiColors.text.muted, mb: 1 }}>
+                  BASIC INFORMATION
+                </Typography>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: fsiColors.text.muted }}>Audit ID</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ color: fsiColors.text.primary, fontFamily: 'monospace' }}>
+                        {selectedRecord.auditId}
+                      </Typography>
+                      <CopyToClipboard text={selectedRecord.auditId} iconOnly size="small" />
+                    </Box>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: fsiColors.text.muted }}>Session ID</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body2" sx={{ color: fsiColors.orange.main, fontFamily: 'monospace' }}>
+                        {selectedRecord.sessionId}
+                      </Typography>
+                      <CopyToClipboard text={selectedRecord.sessionId} iconOnly size="small" />
+                    </Box>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: fsiColors.text.muted }}>Timestamp</Typography>
+                    <Typography variant="body2" sx={{ color: fsiColors.text.primary }}>
+                      {new Date(selectedRecord.timestamp).toLocaleString()}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: fsiColors.text.muted }}>User / Agent</Typography>
+                    <Typography variant="body2" sx={{ color: fsiColors.text.primary }}>
+                      {selectedRecord.user || selectedRecord.agentName || '—'}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+
+              {/* Immutable Hash */}
+              <Box>
+                <Typography variant="subtitle2" sx={{ color: fsiColors.text.muted, mb: 1 }}>
+                  IMMUTABLE HASH
+                </Typography>
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    bgcolor: `${fsiColors.navy[800]}80`,
+                    border: `1px solid ${fsiColors.navy[400]}30`,
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: fsiColors.text.secondary,
+                      fontFamily: 'monospace',
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {selectedRecord.immutableHash}
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Match Result */}
+              {selectedRecord.matchResult && (
+                <Box>
+                  <Typography variant="subtitle2" sx={{ color: fsiColors.text.muted, mb: 1 }}>
+                    MATCH RESULTS
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Chip
+                      label={selectedRecord.matchResult.matchStatus}
+                      sx={{
+                        bgcolor:
+                          selectedRecord.matchResult.matchStatus === 'MATCHED'
+                            ? `${fsiColors.status.success}20`
+                            : `${fsiColors.status.error}20`,
+                        color:
+                          selectedRecord.matchResult.matchStatus === 'MATCHED'
+                            ? fsiColors.status.success
+                            : fsiColors.status.error,
+                        fontWeight: 600,
+                      }}
+                    />
+                    <Typography variant="body2" sx={{ color: fsiColors.text.primary }}>
+                      Confidence: {selectedRecord.matchResult.confidenceScore}%
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+
+              {/* Additional Details */}
+              {selectedRecord.details && Object.keys(selectedRecord.details).length > 0 && (
+                <Box>
+                  <Typography variant="subtitle2" sx={{ color: fsiColors.text.muted, mb: 1 }}>
+                    ADDITIONAL DETAILS
+                  </Typography>
+                  <Box
+                    sx={{
+                      p: 2,
+                      borderRadius: 2,
+                      bgcolor: `${fsiColors.navy[800]}80`,
+                      border: `1px solid ${fsiColors.navy[400]}30`,
+                    }}
+                  >
+                    <Typography
+                      component="pre"
+                      variant="body2"
+                      sx={{
+                        color: fsiColors.text.secondary,
+                        fontFamily: 'monospace',
+                        fontSize: '0.75rem',
+                        whiteSpace: 'pre-wrap',
+                        m: 0,
+                      }}
+                    >
+                      {JSON.stringify(selectedRecord.details, null, 2)}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
+    </Container>
   )
 }
