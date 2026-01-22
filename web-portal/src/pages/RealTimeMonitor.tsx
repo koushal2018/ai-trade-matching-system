@@ -18,6 +18,7 @@ import { useQuery } from '@tanstack/react-query'
 import { agentService } from '../services/agentService'
 import GlassCard from '../components/common/GlassCard'
 import StatusPulse from '../components/common/StatusPulse'
+import { fsiColors } from '../theme'
 import type { AgentHealth } from '../types'
 
 interface ActivityEvent {
@@ -110,11 +111,11 @@ export default function RealTimeMonitor() {
 
   const getEventColor = (type: ActivityEvent['eventType']) => {
     switch (type) {
-      case 'processing': return '#3B82F6'
-      case 'completed': return '#10B981'
-      case 'error': return '#EF4444'
-      case 'waiting': return '#F59E0B'
-      default: return '#6B7280'
+      case 'processing': return fsiColors.status.info
+      case 'completed': return fsiColors.status.success
+      case 'error': return fsiColors.status.error
+      case 'waiting': return fsiColors.status.warning
+      default: return fsiColors.text.muted
     }
   }
 
@@ -154,26 +155,38 @@ export default function RealTimeMonitor() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'flex-start',
-          animation: 'fadeIn 0.5s ease-out',
+          animation: 'fadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
           '@keyframes fadeIn': {
-            '0%': { opacity: 0, transform: 'translateY(-10px)' },
+            '0%': { opacity: 0, transform: 'translateY(-16px)' },
             '100%': { opacity: 1, transform: 'translateY(0)' },
           },
         }}
       >
         <Box>
           <Typography
+            variant="overline"
+            sx={{
+              color: fsiColors.orange.main,
+              letterSpacing: '0.15em',
+              fontWeight: 600,
+              display: 'block',
+              mb: 0.5,
+            }}
+          >
+            LIVE MONITORING
+          </Typography>
+          <Typography
             variant="h3"
             fontWeight={700}
             sx={{
-              fontFamily: '"Amazon Ember", "Helvetica Neue", Helvetica, Arial, sans-serif',
               mb: 1,
-              color: '#232F3E',
+              color: fsiColors.text.primary,
+              letterSpacing: '-0.02em',
             }}
           >
             Real-time Monitor
           </Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" sx={{ color: fsiColors.text.secondary }}>
             Live activity stream from AI agents
           </Typography>
         </Box>

@@ -1,144 +1,156 @@
 /**
- * Glassmorphism Design System
+ * AWS FSI Glassmorphism Design System
  *
  * Shared glass effect styles, variants, and utilities for
- * creating frosted glass UI components.
+ * creating frosted glass UI components with AWS FSI branding.
  */
 
 import { SxProps, Theme } from '@mui/material'
+import { fsiColors, fsiGradients } from '../theme'
 
-// Glass effect configuration tokens
+// Re-export glass tokens from theme
 export const glassTokens = {
   // Blur levels
   blur: {
     none: 'blur(0)',
-    sm: 'blur(4px)',
-    md: 'blur(10px)',
-    lg: 'blur(20px)',
+    sm: 'blur(8px)',
+    md: 'blur(16px)',
+    lg: 'blur(24px)',
     xl: 'blur(40px)',
   },
 
   // Opacity levels for glass backgrounds
   opacity: {
-    light: 0.05,
-    medium: 0.1,
-    dark: 0.15,
-    solid: 0.25,
+    light: 0.03,
+    medium: 0.06,
+    dark: 0.1,
+    solid: 0.15,
   },
 
   // Border opacity
   borderOpacity: {
-    subtle: 0.1,
-    medium: 0.2,
-    strong: 0.3,
+    subtle: 0.15,
+    medium: 0.25,
+    strong: 0.4,
   },
 
   // Shadow depths
   shadow: {
-    sm: '0 2px 8px rgba(0, 0, 0, 0.15)',
-    md: '0 4px 16px rgba(0, 0, 0, 0.2)',
-    lg: '0 8px 32px rgba(0, 0, 0, 0.25)',
-    xl: '0 16px 48px rgba(0, 0, 0, 0.3)',
+    sm: '0 2px 12px rgba(0, 0, 0, 0.15)',
+    md: '0 4px 24px rgba(0, 0, 0, 0.2)',
+    lg: '0 8px 40px rgba(0, 0, 0, 0.3)',
+    xl: '0 16px 56px rgba(0, 0, 0, 0.4)',
   },
 }
 
-// Status glow colors
+// FSI Status glow colors
 export const glowColors = {
-  primary: '#FF9900',
-  success: '#1D8102',
-  error: '#D13212',
-  warning: '#FF9900',
-  info: '#0972D3',
-  purple: '#9C27B0',
-  neutral: '#9BA7B4',
+  primary: fsiColors.orange.main,
+  success: fsiColors.status.success,
+  error: fsiColors.status.error,
+  warning: fsiColors.status.warning,
+  info: fsiColors.status.info,
+  purple: fsiColors.accent.purple,
+  cyan: fsiColors.accent.cyan,
+  neutral: fsiColors.text.muted,
 }
 
-// Glass background colors (with opacity)
+// Glass background colors (with opacity) - FSI Navy theme
 export const glassBackgrounds = {
-  default: 'rgba(28, 33, 39, 0.8)',
-  dark: 'rgba(15, 20, 25, 0.9)',
-  light: 'rgba(35, 42, 49, 0.7)',
-  elevated: 'rgba(40, 48, 56, 0.85)',
-  inset: 'rgba(20, 25, 30, 0.9)',
+  default: `${fsiColors.navy[700]}E6`,
+  dark: `${fsiColors.navy[900]}F2`,
+  light: `${fsiColors.navy[600]}B3`,
+  elevated: `${fsiColors.navy[600]}D9`,
+  inset: `${fsiColors.navy[800]}E6`,
 }
 
-// Gradient backgrounds
+// Gradient backgrounds - FSI themed
 export const gradients = {
-  default: 'linear-gradient(135deg, rgba(28, 33, 39, 0.95) 0%, rgba(35, 42, 49, 0.95) 100%)',
-  primary: 'linear-gradient(135deg, rgba(255, 153, 0, 0.1) 0%, rgba(28, 33, 39, 0.95) 100%)',
-  success: 'linear-gradient(135deg, rgba(29, 129, 2, 0.1) 0%, rgba(28, 33, 39, 0.95) 100%)',
-  error: 'linear-gradient(135deg, rgba(209, 50, 18, 0.1) 0%, rgba(28, 33, 39, 0.95) 100%)',
-  warning: 'linear-gradient(135deg, rgba(255, 153, 0, 0.1) 0%, rgba(28, 33, 39, 0.95) 100%)',
-  info: 'linear-gradient(135deg, rgba(9, 114, 211, 0.1) 0%, rgba(28, 33, 39, 0.95) 100%)',
-  subtle: 'linear-gradient(135deg, rgba(35, 42, 49, 0.6) 0%, rgba(28, 33, 39, 0.8) 100%)',
+  default: fsiGradients.backgroundCard,
+  primary: `linear-gradient(135deg, ${fsiColors.orange.main}15 0%, ${fsiColors.navy[700]} 40%, ${fsiColors.navy[800]} 100%)`,
+  success: `linear-gradient(135deg, ${fsiColors.status.success}15 0%, ${fsiColors.navy[700]} 40%, ${fsiColors.navy[800]} 100%)`,
+  error: `linear-gradient(135deg, ${fsiColors.status.error}15 0%, ${fsiColors.navy[700]} 40%, ${fsiColors.navy[800]} 100%)`,
+  warning: `linear-gradient(135deg, ${fsiColors.status.warning}15 0%, ${fsiColors.navy[700]} 40%, ${fsiColors.navy[800]} 100%)`,
+  info: `linear-gradient(135deg, ${fsiColors.status.info}15 0%, ${fsiColors.navy[700]} 40%, ${fsiColors.navy[800]} 100%)`,
+  subtle: `linear-gradient(135deg, ${fsiColors.navy[600]}80 0%, ${fsiColors.navy[700]}CC 100%)`,
+  mesh: fsiGradients.meshGradient,
+  hero: fsiGradients.heroGradient,
 }
 
-// Glass border styles
+// Glass border styles - FSI themed
 export const glassBorders = {
-  default: '1px solid rgba(65, 77, 92, 0.3)',
-  subtle: '1px solid rgba(65, 77, 92, 0.15)',
-  strong: '1px solid rgba(65, 77, 92, 0.5)',
-  glow: (color: string) => `1px solid ${color}40`,
+  default: `1px solid ${fsiColors.navy[400]}40`,
+  subtle: `1px solid ${fsiColors.navy[400]}25`,
+  strong: `1px solid ${fsiColors.navy[400]}60`,
+  glow: (color: string) => `1px solid ${color}50`,
 }
 
 // Base glass effect styles
 export const glassBase: SxProps<Theme> = {
   backgroundColor: glassBackgrounds.default,
-  backdropFilter: glassTokens.blur.lg,
-  WebkitBackdropFilter: glassTokens.blur.lg, // Safari support
+  backdropFilter: glassTokens.blur.md,
+  WebkitBackdropFilter: glassTokens.blur.md,
   border: glassBorders.default,
   boxShadow: glassTokens.shadow.md,
 }
 
-// Glass card variants
+// Glass card variants - FSI themed
 export const glassVariants = {
   default: {
     background: gradients.default,
-    backdropFilter: glassTokens.blur.lg,
-    WebkitBackdropFilter: glassTokens.blur.lg,
+    backdropFilter: glassTokens.blur.md,
+    WebkitBackdropFilter: glassTokens.blur.md,
     border: glassBorders.default,
     boxShadow: glassTokens.shadow.md,
   } as SxProps<Theme>,
 
   elevated: {
-    background: gradients.default,
-    backdropFilter: glassTokens.blur.xl,
-    WebkitBackdropFilter: glassTokens.blur.xl,
+    background: fsiGradients.backgroundElevated,
+    backdropFilter: glassTokens.blur.lg,
+    WebkitBackdropFilter: glassTokens.blur.lg,
     border: glassBorders.strong,
     boxShadow: glassTokens.shadow.lg,
   } as SxProps<Theme>,
 
   inset: {
-    background: 'rgba(20, 25, 30, 0.5)',
-    backdropFilter: glassTokens.blur.md,
-    WebkitBackdropFilter: glassTokens.blur.md,
+    background: glassBackgrounds.inset,
+    backdropFilter: glassTokens.blur.sm,
+    WebkitBackdropFilter: glassTokens.blur.sm,
     border: glassBorders.subtle,
-    boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.2)',
+    boxShadow: 'inset 0 2px 12px rgba(0, 0, 0, 0.25)',
   } as SxProps<Theme>,
 
   subtle: {
     background: gradients.subtle,
-    backdropFilter: glassTokens.blur.md,
-    WebkitBackdropFilter: glassTokens.blur.md,
+    backdropFilter: glassTokens.blur.sm,
+    WebkitBackdropFilter: glassTokens.blur.sm,
     border: glassBorders.subtle,
     boxShadow: glassTokens.shadow.sm,
+  } as SxProps<Theme>,
+
+  highlighted: {
+    background: gradients.primary,
+    backdropFilter: glassTokens.blur.lg,
+    WebkitBackdropFilter: glassTokens.blur.lg,
+    border: `1px solid ${fsiColors.orange.main}50`,
+    boxShadow: `${glassTokens.shadow.lg}, 0 0 40px ${fsiColors.orange.glow}`,
   } as SxProps<Theme>,
 }
 
 // Create a glow variant with a specific color
 export const createGlowVariant = (color: string): SxProps<Theme> => ({
   background: gradients.default,
-  backdropFilter: glassTokens.blur.lg,
-  WebkitBackdropFilter: glassTokens.blur.lg,
-  border: `1px solid ${color}30`,
-  boxShadow: `${glassTokens.shadow.md}, 0 0 20px ${color}15`,
+  backdropFilter: glassTokens.blur.md,
+  WebkitBackdropFilter: glassTokens.blur.md,
+  border: `1px solid ${color}40`,
+  boxShadow: `${glassTokens.shadow.md}, 0 0 30px ${color}20`,
   '&:hover': {
-    border: `1px solid ${color}50`,
-    boxShadow: `${glassTokens.shadow.lg}, 0 0 30px ${color}25`,
+    border: `1px solid ${color}60`,
+    boxShadow: `${glassTokens.shadow.lg}, 0 0 40px ${color}30`,
   },
 })
 
-// Gradient overlays for cards
+// Gradient overlays for cards - FSI themed
 export const gradientOverlays = {
   primary: {
     position: 'relative',
@@ -150,7 +162,7 @@ export const gradientOverlays = {
       right: 0,
       height: '3px',
       background: `linear-gradient(90deg, ${glowColors.primary} 0%, transparent 100%)`,
-      borderRadius: '8px 8px 0 0',
+      borderRadius: '16px 16px 0 0',
     },
   } as SxProps<Theme>,
 
@@ -164,7 +176,7 @@ export const gradientOverlays = {
       right: 0,
       height: '3px',
       background: `linear-gradient(90deg, ${glowColors.success} 0%, transparent 100%)`,
-      borderRadius: '8px 8px 0 0',
+      borderRadius: '16px 16px 0 0',
     },
   } as SxProps<Theme>,
 
@@ -178,35 +190,49 @@ export const gradientOverlays = {
       right: 0,
       height: '3px',
       background: `linear-gradient(90deg, ${glowColors.error} 0%, transparent 100%)`,
-      borderRadius: '8px 8px 0 0',
+      borderRadius: '16px 16px 0 0',
+    },
+  } as SxProps<Theme>,
+
+  cyan: {
+    position: 'relative',
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: '3px',
+      background: `linear-gradient(90deg, ${glowColors.cyan} 0%, transparent 100%)`,
+      borderRadius: '16px 16px 0 0',
     },
   } as SxProps<Theme>,
 }
 
-// Status-specific card backgrounds
+// Status-specific card backgrounds - FSI themed
 export const statusBackgrounds = {
   success: {
-    background: 'linear-gradient(135deg, rgba(29, 129, 2, 0.08) 0%, rgba(28, 33, 39, 0.95) 50%)',
-    borderLeft: `3px solid ${glowColors.success}`,
+    background: `linear-gradient(135deg, ${fsiColors.status.success}12 0%, ${fsiColors.navy[700]} 50%)`,
+    borderLeft: `4px solid ${glowColors.success}`,
   },
   error: {
-    background: 'linear-gradient(135deg, rgba(209, 50, 18, 0.08) 0%, rgba(28, 33, 39, 0.95) 50%)',
-    borderLeft: `3px solid ${glowColors.error}`,
+    background: `linear-gradient(135deg, ${fsiColors.status.error}12 0%, ${fsiColors.navy[700]} 50%)`,
+    borderLeft: `4px solid ${glowColors.error}`,
   },
   warning: {
-    background: 'linear-gradient(135deg, rgba(255, 153, 0, 0.08) 0%, rgba(28, 33, 39, 0.95) 50%)',
-    borderLeft: `3px solid ${glowColors.warning}`,
+    background: `linear-gradient(135deg, ${fsiColors.status.warning}12 0%, ${fsiColors.navy[700]} 50%)`,
+    borderLeft: `4px solid ${glowColors.warning}`,
   },
   info: {
-    background: 'linear-gradient(135deg, rgba(9, 114, 211, 0.08) 0%, rgba(28, 33, 39, 0.95) 50%)',
-    borderLeft: `3px solid ${glowColors.info}`,
+    background: `linear-gradient(135deg, ${fsiColors.status.info}12 0%, ${fsiColors.navy[700]} 50%)`,
+    borderLeft: `4px solid ${glowColors.info}`,
   },
 }
 
-// Hover effect utilities
+// Hover effect utilities - FSI themed
 export const glassHoverEffects = {
   lift: {
-    transition: 'all 0.15s ease-out',
+    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
     '&:hover': {
       transform: 'translateY(-4px)',
       boxShadow: glassTokens.shadow.lg,
@@ -214,37 +240,37 @@ export const glassHoverEffects = {
   },
 
   glow: (color: string = glowColors.primary) => ({
-    transition: 'all 0.15s ease-out',
+    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
     '&:hover': {
-      boxShadow: `${glassTokens.shadow.md}, 0 0 25px ${color}30`,
-      borderColor: `${color}50`,
-    },
-  }),
-
-  border: (color: string = glowColors.primary) => ({
-    transition: 'border-color 0.15s ease-out',
-    '&:hover': {
+      boxShadow: `${glassTokens.shadow.md}, 0 0 40px ${color}25`,
       borderColor: `${color}60`,
     },
   }),
 
-  all: (color: string = glowColors.primary) => ({
-    transition: 'all 0.15s ease-out',
+  border: (color: string = glowColors.primary) => ({
+    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
     '&:hover': {
-      transform: 'translateY(-4px)',
-      boxShadow: `0 8px 25px ${color}20`,
-      borderColor: `${color}40`,
+      borderColor: `${color}70`,
+    },
+  }),
+
+  all: (color: string = glowColors.primary) => ({
+    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+    '&:hover': {
+      transform: 'translateY(-3px)',
+      boxShadow: `0 12px 40px rgba(0, 0, 0, 0.3), 0 0 30px ${color}20`,
+      borderColor: `${color}50`,
     },
     '&:active': {
-      transform: 'translateY(-2px) scale(0.99)',
+      transform: 'translateY(-1px) scale(0.995)',
     },
   }),
 }
 
-// Complete glass card style builder
+// Complete glass card style builder - FSI themed
 export const createGlassCardStyle = (options: {
-  variant?: 'default' | 'elevated' | 'inset' | 'subtle'
-  gradient?: 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info'
+  variant?: 'default' | 'elevated' | 'inset' | 'subtle' | 'highlighted'
+  gradient?: 'default' | 'primary' | 'success' | 'error' | 'warning' | 'info' | 'mesh'
   glowColor?: string
   hoverEffect?: 'lift' | 'glow' | 'border' | 'all' | 'none'
   borderRadius?: number
@@ -254,7 +280,7 @@ export const createGlassCardStyle = (options: {
     gradient = 'default',
     glowColor,
     hoverEffect = 'all',
-    borderRadius = 12,
+    borderRadius = 16,
   } = options
 
   const baseStyle = {
@@ -265,8 +291,8 @@ export const createGlassCardStyle = (options: {
 
   // Add glow if specified
   const glowStyle = glowColor ? {
-    border: `1px solid ${glowColor}30`,
-    boxShadow: `${glassTokens.shadow.md}, 0 0 20px ${glowColor}15`,
+    border: `1px solid ${glowColor}40`,
+    boxShadow: `${glassTokens.shadow.md}, 0 0 30px ${glowColor}20`,
   } : {}
 
   // Add hover effect
@@ -290,21 +316,21 @@ export const createGlassCardStyle = (options: {
   }
 }
 
-// Input field glass styles
+// Input field glass styles - FSI themed
 export const glassInputStyles: SxProps<Theme> = {
   '& .MuiOutlinedInput-root': {
-    backgroundColor: 'rgba(20, 25, 30, 0.5)',
+    backgroundColor: `${fsiColors.navy[800]}80`,
     backdropFilter: glassTokens.blur.sm,
-    borderRadius: '8px',
+    borderRadius: '10px',
     '& fieldset': {
-      borderColor: 'rgba(65, 77, 92, 0.3)',
+      borderColor: `${fsiColors.navy[400]}40`,
     },
     '&:hover fieldset': {
-      borderColor: 'rgba(255, 153, 0, 0.3)',
+      borderColor: `${fsiColors.orange.main}50`,
     },
     '&.Mui-focused fieldset': {
-      borderColor: glowColors.primary,
-      boxShadow: `0 0 10px ${glowColors.primary}30`,
+      borderColor: fsiColors.orange.main,
+      boxShadow: `0 0 16px ${fsiColors.orange.glow}`,
     },
   },
 }

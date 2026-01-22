@@ -18,6 +18,7 @@ import GlassCard from '../components/common/GlassCard'
 import { SkeletonGroup } from '../components/common/SkeletonLoader'
 import CopyToClipboard from '../components/common/CopyToClipboard'
 import { apiClient } from '../services/api'
+import { fsiColors } from '../theme'
 
 interface QueueItem {
   queueId: string
@@ -34,21 +35,21 @@ interface QueueItem {
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'PROCESSING': return '#3B82F6'
-    case 'PENDING': return '#F59E0B'
-    case 'WAITING': return '#8B5CF6'
-    case 'COMPLETED': return '#10B981'
-    case 'FAILED': return '#EF4444'
-    default: return '#6B7280'
+    case 'PROCESSING': return fsiColors.status.info
+    case 'PENDING': return fsiColors.status.warning
+    case 'WAITING': return fsiColors.accent.purple
+    case 'COMPLETED': return fsiColors.status.success
+    case 'FAILED': return fsiColors.status.error
+    default: return fsiColors.text.muted
   }
 }
 
 const getPriorityColor = (priority: string) => {
   switch (priority) {
-    case 'HIGH': return '#EF4444'
-    case 'MEDIUM': return '#F59E0B'
-    case 'LOW': return '#10B981'
-    default: return '#6B7280'
+    case 'HIGH': return fsiColors.status.error
+    case 'MEDIUM': return fsiColors.status.warning
+    case 'LOW': return fsiColors.status.success
+    default: return fsiColors.text.muted
   }
 }
 
@@ -84,26 +85,38 @@ export default function MatchingQueuePage() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'flex-start',
-          animation: 'fadeIn 0.5s ease-out',
+          animation: 'fadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
           '@keyframes fadeIn': {
-            '0%': { opacity: 0, transform: 'translateY(-10px)' },
+            '0%': { opacity: 0, transform: 'translateY(-16px)' },
             '100%': { opacity: 1, transform: 'translateY(0)' },
           },
         }}
       >
         <Box>
           <Typography
+            variant="overline"
+            sx={{
+              color: fsiColors.orange.main,
+              letterSpacing: '0.15em',
+              fontWeight: 600,
+              display: 'block',
+              mb: 0.5,
+            }}
+          >
+            PROCESSING QUEUE
+          </Typography>
+          <Typography
             variant="h3"
             fontWeight={700}
             sx={{
-              fontFamily: '"Amazon Ember", "Helvetica Neue", Helvetica, Arial, sans-serif',
               mb: 1,
-              color: '#232F3E',
+              color: fsiColors.text.primary,
+              letterSpacing: '-0.02em',
             }}
           >
             Matching Queue
           </Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" sx={{ color: fsiColors.text.secondary }}>
             Trade confirmations waiting to be processed
           </Typography>
         </Box>

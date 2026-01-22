@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
-import { Box, Typography, Container as MuiContainer } from '@mui/material'
+import { Box, Typography, Container as MuiContainer, Chip } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
+import { TrendingUp as TrendingIcon } from '@mui/icons-material'
 import { agentService } from '../services/agentService'
 import { hitlService } from '../services/hitlService'
 import { wsService } from '../services/websocket'
@@ -9,6 +10,7 @@ import AgentHealthPanel from '../components/dashboard/AgentHealthPanel'
 import MatchingResultsPanel from '../components/dashboard/MatchingResultsPanel'
 import GlassCard from '../components/common/GlassCard'
 import { SkeletonGroup } from '../components/common/SkeletonLoader'
+import { fsiColors } from '../theme'
 import type { AgentHealth, ProcessingMetrics, WebSocketMessage, MatchResult } from '../types'
 
 export default function Dashboard() {
@@ -61,30 +63,64 @@ export default function Dashboard() {
 
   return (
     <MuiContainer maxWidth="xl" sx={{ py: 4 }}>
-      {/* Page Header */}
+      {/* Page Header with FSI Styling */}
       <Box
         sx={{
-          mb: 4,
-          animation: 'fadeIn 0.5s ease-out',
+          mb: 5,
+          animation: 'fadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
           '@keyframes fadeIn': {
-            '0%': { opacity: 0, transform: 'translateY(-10px)' },
+            '0%': { opacity: 0, transform: 'translateY(-16px)' },
             '100%': { opacity: 1, transform: 'translateY(0)' },
           },
         }}
       >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+          <Typography
+            variant="overline"
+            sx={{
+              color: fsiColors.orange.main,
+              letterSpacing: '0.15em',
+              fontWeight: 600,
+            }}
+          >
+            AWS FSI TRADE MATCHING
+          </Typography>
+          <Chip
+            icon={<TrendingIcon sx={{ fontSize: 14 }} />}
+            label="Live"
+            size="small"
+            sx={{
+              height: 22,
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              bgcolor: `${fsiColors.status.success}20`,
+              color: fsiColors.status.success,
+              border: `1px solid ${fsiColors.status.success}40`,
+              '& .MuiChip-icon': {
+                color: fsiColors.status.success,
+              },
+            }}
+          />
+        </Box>
         <Typography
           variant="h3"
           fontWeight={700}
           sx={{
-            fontFamily: '"Amazon Ember", "Helvetica Neue", Helvetica, Arial, sans-serif',
-            mb: 1,
-            color: '#232F3E',
+            mb: 1.5,
+            color: fsiColors.text.primary,
+            letterSpacing: '-0.02em',
           }}
         >
           Dashboard
         </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Real-time overview of trade confirmation matching
+        <Typography
+          variant="body1"
+          sx={{
+            color: fsiColors.text.secondary,
+            maxWidth: 600,
+          }}
+        >
+          Real-time overview of trade confirmation matching powered by AI agents
         </Typography>
       </Box>
 
@@ -109,7 +145,7 @@ export default function Dashboard() {
         hoverEffect="none"
         animateIn
         animationDelay={0.2}
-        sx={{ mb: 4, p: 0 }}
+        sx={{ mb: 4, p: 0, overflow: 'hidden' }}
       >
         {agentsLoading && !agents ? (
           <Box sx={{ p: 3 }}>
@@ -126,7 +162,7 @@ export default function Dashboard() {
         hoverEffect="none"
         animateIn
         animationDelay={0.3}
-        sx={{ mb: 4, p: 0 }}
+        sx={{ mb: 4, p: 0, overflow: 'hidden' }}
       >
         {resultsLoading && !matchingResults ? (
           <Box sx={{ p: 3 }}>

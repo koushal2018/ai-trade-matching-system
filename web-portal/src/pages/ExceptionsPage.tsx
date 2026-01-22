@@ -21,6 +21,7 @@ import { SkeletonGroup } from '../components/common/SkeletonLoader'
 import CopyToClipboard from '../components/common/CopyToClipboard'
 import { useToast } from '../hooks/useToast'
 import { apiClient } from '../services/api'
+import { fsiColors } from '../theme'
 
 interface Exception {
   id: string
@@ -47,30 +48,30 @@ interface ExceptionsResponse {
 
 const getSeverityIcon = (severity: string) => {
   switch (severity.toUpperCase()) {
-    case 'HIGH': return <ErrorIcon sx={{ color: '#EF4444', fontSize: 20 }} />
-    case 'MEDIUM': return <WarningIcon sx={{ color: '#F59E0B', fontSize: 20 }} />
-    case 'LOW': return <InfoIcon sx={{ color: '#3B82F6', fontSize: 20 }} />
-    case 'WARNING': return <WarningIcon sx={{ color: '#F59E0B', fontSize: 20 }} />
-    default: return <InfoIcon sx={{ color: '#6B7280', fontSize: 20 }} />
+    case 'HIGH': return <ErrorIcon sx={{ color: fsiColors.status.error, fontSize: 20 }} />
+    case 'MEDIUM': return <WarningIcon sx={{ color: fsiColors.status.warning, fontSize: 20 }} />
+    case 'LOW': return <InfoIcon sx={{ color: fsiColors.status.info, fontSize: 20 }} />
+    case 'WARNING': return <WarningIcon sx={{ color: fsiColors.status.warning, fontSize: 20 }} />
+    default: return <InfoIcon sx={{ color: fsiColors.text.muted, fontSize: 20 }} />
   }
 }
 
 const getSeverityColor = (severity: string) => {
   switch (severity.toUpperCase()) {
-    case 'HIGH': return '#EF4444'
-    case 'MEDIUM': return '#F59E0B'
-    case 'LOW': return '#3B82F6'
-    case 'WARNING': return '#F59E0B'
-    default: return '#6B7280'
+    case 'HIGH': return fsiColors.status.error
+    case 'MEDIUM': return fsiColors.status.warning
+    case 'LOW': return fsiColors.status.info
+    case 'WARNING': return fsiColors.status.warning
+    default: return fsiColors.text.muted
   }
 }
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'OPEN': return '#EF4444'
-    case 'RESOLVED': return '#10B981'
-    case 'ESCALATED': return '#8B5CF6'
-    default: return '#6B7280'
+    case 'OPEN': return fsiColors.status.error
+    case 'RESOLVED': return fsiColors.status.success
+    case 'ESCALATED': return fsiColors.accent.purple
+    default: return fsiColors.text.muted
   }
 }
 
@@ -112,26 +113,38 @@ export default function ExceptionsPage() {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'flex-start',
-          animation: 'fadeIn 0.5s ease-out',
+          animation: 'fadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
           '@keyframes fadeIn': {
-            '0%': { opacity: 0, transform: 'translateY(-10px)' },
+            '0%': { opacity: 0, transform: 'translateY(-16px)' },
             '100%': { opacity: 1, transform: 'translateY(0)' },
           },
         }}
       >
         <Box>
           <Typography
+            variant="overline"
+            sx={{
+              color: fsiColors.orange.main,
+              letterSpacing: '0.15em',
+              fontWeight: 600,
+              display: 'block',
+              mb: 0.5,
+            }}
+          >
+            EXCEPTION MANAGEMENT
+          </Typography>
+          <Typography
             variant="h3"
             fontWeight={700}
             sx={{
-              fontFamily: '"Amazon Ember", "Helvetica Neue", Helvetica, Arial, sans-serif',
               mb: 1,
-              color: '#232F3E',
+              color: fsiColors.text.primary,
+              letterSpacing: '-0.02em',
             }}
           >
             Exceptions
           </Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" sx={{ color: fsiColors.text.secondary }}>
             Trade matching exceptions and errors requiring attention
           </Typography>
         </Box>
