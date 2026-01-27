@@ -6,9 +6,14 @@ import {
   CheckCircle as SuccessIcon,
   SmartToy as AgentIcon,
   AutoAwesome as SparkleIcon,
+  Check as CheckIcon,
+  Close as CloseIcon,
+  HourglassEmpty as PendingIcon,
+  Error as ErrorIcon,
 } from '@mui/icons-material'
 import GlassCard from '../common/GlassCard'
 import { glowColors } from '../../theme'
+import type { MatchingStatusResponse } from '../../types'
 
 interface HeroMetric {
   label: string
@@ -25,6 +30,8 @@ interface HeroMetricsProps {
   matchRate: number
   avgLatency: number
   activeAgents: number
+  workload: number | string
+  matchingStatus?: MatchingStatusResponse
   isLoading?: boolean
 }
 
@@ -67,13 +74,60 @@ function useAnimatedCounter(end: number, duration: number = 2000) {
   return { count, showSparkle }
 }
 
-export default function HeroMetrics({ totalTrades, matchRate, avgLatency, activeAgents }: HeroMetricsProps) {
+export default function HeroMetrics({ totalTrades, matchRate, avgLatency, activeAgents, workload, matchingStatus }: HeroMetricsProps) {
   const trades = useAnimatedCounter(totalTrades, 2000)
   const rate = useAnimatedCounter(matchRate * 100, 2500)
   const latency = useAnimatedCounter(avgLatency, 1800)
   const agents = useAnimatedCounter(activeAgents, 1500)
+  
+  // Handle workload animation - only animate if it's a number
+  const workloadValue = typeof workload === 'number' ? workload : 0
+  const workloadCounter = useAnimatedCounter(workloadValue, 2000)
+
+  // Animate matching status counts
+  // Requirements: 6.7, 6.8, 6.9
+  const matched = useAnimatedCounter(matchingStatus?.matched || 0, 2000)
+  const unmatched = useAnimatedCounter(matchingStatus?.unmatched || 0, 2000)
+  const pending = useAnimatedCounter(matchingStatus?.pending || 0, 2000)
+  const exceptions = useAnimatedCounter(matchingStatus?.exceptions || 0, 2000)
 
   const metrics: HeroMetric[] = [
+    {
+      label: 'Workload',
+      value: typeof workload === 'string' ? 0 : workloadCounter.count,
+      suffix: typeof workload === 'string' ? '' : '%',
+      icon: <SpeedIcon />,
+      color: glowColors.warning,
+      bgColor: 'rgba(255, 152, 0, 0.1)',
+    },
+    {
+      label: 'Matched',
+      value: matched.count,
+      icon: <CheckIcon />,
+      color: glowColors.success,
+      bgColor: 'rgba(29, 129, 2, 0.1)',
+    },
+    {
+      label: 'Unmatched',
+      value: unmatched.count,
+      icon: <CloseIcon />,
+      color: glowColors.error,
+      bgColor: 'rgba(209, 50, 18, 0.1)',
+    },
+    {
+      label: 'Pending',
+      value: pending.count,
+      icon: <PendingIcon />,
+      color: glowColors.info,
+      bgColor: 'rgba(9, 114, 211, 0.1)',
+    },
+    {
+      label: 'Exceptions',
+      value: exceptions.count,
+      icon: <ErrorIcon />,
+      color: glowColors.warning,
+      bgColor: 'rgba(255, 152, 0, 0.1)',
+    },
     {
       label: 'Trades Today',
       value: trades.count,
@@ -109,13 +163,23 @@ export default function HeroMetrics({ totalTrades, matchRate, avgLatency, active
     }
   ]
 
-  const sparkleStates = [trades.showSparkle, rate.showSparkle, latency.showSparkle, agents.showSparkle]
+  const sparkleStates = [
+    typeof workload === 'number' && workloadCounter.showSparkle,
+    matched.showSparkle,
+    unmatched.showSparkle,
+    pending.showSparkle,
+    exceptions.showSparkle,
+    trades.showSparkle,
+    rate.showSparkle,
+    latency.showSparkle,
+    agents.showSparkle
+  ]
 
   return (
     <Box sx={{ mb: 4 }}>
       <Grid container spacing={3}>
         {metrics.map((metric, index) => (
-          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={metric.label}>
+          <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2.4 }} key={metric.label}>
             <GlassCard
               variant="default"
               glowColor={metric.color}
@@ -184,10 +248,12 @@ export default function HeroMetrics({ totalTrades, matchRate, avgLatency, active
                     transition: 'all 0.15s ease-out',
                   }}
                 >
-                  {metric.label === 'Match Rate'
+                  {metric.label === 'Workload' && typeof workload === 'string'
+                    ? workload
+                    : metric.label === 'Match Rate'
                     ? (metric.value * 100).toFixed(1)
                     : metric.value.toLocaleString()
-                  }{metric.suffix}
+                  }{metric.label === 'Workload' && typeof workload === 'string' ? '' : metric.suffix}
                 </Typography>
 
                 <Typography
@@ -214,8 +280,13 @@ export default function HeroMetrics({ totalTrades, matchRate, avgLatency, active
                       height: '100%',
                       background: `linear-gradient(90deg, ${metric.color} 0%, ${metric.color}80 100%)`,
                       borderRadius: 1.5,
-                      width: metric.label === 'Match Rate' ? `${metric.value * 100}%` :
+                      width: metric.label === 'Workload' && typeof workload === 'string' ? '0%' :
+                             metric.label === 'Workload' ? `${metric.value}%` :
+                             metric.label === 'Match Rate' ? `${metric.value * 100}%` :
                              metric.label === 'Active Agents' ? `${(metric.value / 5) * 100}%` :
+                             metric.label === 'Matched' || metric.label === 'Unmatched' || 
+                             metric.label === 'Pending' || metric.label === 'Exceptions' ? 
+                             `${Math.min(100, (metric.value / Math.max(1, totalTrades)) * 100)}%` :
                              '85%',
                       animation: 'progressFill 2s ease-out',
                       '@keyframes progressFill': {

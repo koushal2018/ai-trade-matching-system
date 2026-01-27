@@ -6,9 +6,11 @@ import type {
   FeedbackRequest,
   FeedbackResponse,
   APIError,
+  MatchingStatusResponse,
 } from '../types'
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8001') + '/api'
+// Use relative URL to leverage Vite's proxy configuration
+const API_BASE_URL = '/api'
 
 /**
  * Response type for invoke matching endpoint
@@ -42,6 +44,16 @@ export interface MatchResultResponse {
  */
 export interface ExceptionsResponse {
   exceptions: Exception[]
+}
+
+/**
+ * Recent session item
+ */
+export interface RecentSessionItem {
+  sessionId: string
+  status: string
+  createdAt?: string
+  lastUpdated?: string
 }
 
 /**
@@ -276,6 +288,48 @@ class WorkflowService {
         }
       )
       return response.data
+    } catch (error) {
+      handleApiError(error)
+    }
+  }
+
+  /**
+   * Get recent processing sessions
+   * @param limit Maximum number of sessions to return (default 10, max 50)
+   * @returns List of recent sessions
+   */
+  async getRecentSessions(limit: number = 10): Promise<RecentSessionItem[]> {
+    try {
+      return await requestWithRetry(async () => {
+        const response = await axios.get<RecentSessionItem[]>(
+          `${API_BASE_URL}/workflow/recent`,
+          {
+            params: { limit },
+            timeout: 30000, // 30 second timeout
+          }
+        )
+        return response.data
+      })
+    } catch (error) {
+      handleApiError(error)
+    }
+  }
+
+  /**
+   * Get matching status counts
+   * @returns Matching status counts (matched, unmatched, pending, exceptions)
+   */
+  async getMatchingStatus(): Promise<MatchingStatusResponse> {
+    try {
+      return await requestWithRetry(async () => {
+        const response = await axios.get<MatchingStatusResponse>(
+          `${API_BASE_URL}/workflow/matching-status`,
+          {
+            timeout: 30000, // 30 second timeout
+          }
+        )
+        return response.data
+      })
     } catch (error) {
       handleApiError(error)
     }

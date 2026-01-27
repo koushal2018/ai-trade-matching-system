@@ -365,3 +365,307 @@ class TestWorkflowStatusEndpoint:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestMatchingStatusEndpoint:
+    """Test suite for GET /workflow/matching-status endpoint."""
+    
+    def test_matching_status_with_various_session_states(self, client, mock_dynamodb_table):
+        """
+        Test matching status calculation with various session states.
+        
+        Requirements: 6.3, 6.4, 6.5, 6.6
+        """
+        # Arrange
+        now = datetime.now(timezone.utc).isoformat()
+        
+        mock_items = [
+            # Matched trade
+            {
+                "processing_id": "session-1",
+                "overallStatus": "completed",
+                "tradeMatching": {"status": "success"},
+                "exceptionManagement": {"status": "success"},
+                "pdfAdapter": {"status": "success"},
+                "tradeExtraction": {"status": "success"}
+            },
+            # Another matched trade
+            {
+                "processing_id": "session-2",
+                "overallStatus": "completed",
+                "tradeMatching": {"status": "success"},
+                "exceptionManagement": {"status": "success"},
+                "pdfAdapter": {"status": "success"},
+                "tradeExtraction": {"status": "success"}
+            },
+            # Unmatched trade (completed but not success)
+            {
+                "processing_id": "session-3",
+                "overallStatus": "completed",
+                "tradeMatching": {"status": "failed"},
+                "exceptionManagement": {"status": "success"},
+                "pdfAdapter": {"status": "success"},
+                "tradeExtraction": {"status": "success"}
+            },
+            # Pending trade (processing)
+            {
+                "processing_id": "session-4",
+                "overallStatus": "processing",
+                "tradeMatching": {"status": "in-progress"},
+                "exceptionManagement": {"status": "pending"},
+                "pdfAdapter": {"status": "success"},
+                "tradeExtraction": {"status": "success"}
+            },
+            # Pending trade (initializing)
+            {
+                "processing_id": "session-5",
+                "overallStatus": "initializing",
+                "tradeMatching": {"status": "pending"},
+                "exceptionManagement": {"status": "pending"},
+                "pdfAdapter": {"status": "pending"},
+                "tradeExtraction": {"status": "pending"}
+            },
+            # Exception in exceptionManagement
+            {
+                "processing_id": "session-6",
+                "overallStatus": "completed",
+                "tradeMatching": {"status": "success"},
+                "exceptionManagement": {"status": "error"},
+                "pdfAdapter": {"status": "success"},
+                "tradeExtraction": {"status": "success"}
+            },
+            # Exception in agent status
+            {
+                "processing_id": "session-7",
+                "overallStatus": "processing",
+                "tradeMatching": {"status": "in-progress"},
+                "exceptionManagement": {"status": "pending"},
+                "pdfAdapter": {"status": "error"},
+                "tradeExtraction": {"status": "success"}
+            }
+        ]
+        
+        mock_dynamodb_table.scan.return_value = {"Items": mock_items}
+        
+        # Act
+        response = client.get("/api/workflow/matching-status")
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Verify counts
+        assert data["matched"] == 2  # session-1, session-2
+        assert data["unmatched"] == 1  # session-3
+        assert data["pending"] == 2  # session-4, session-5
+        assert data["exceptions"] == 2  # session-6, session-7
+        
+        # Verify DynamoDB was scanned
+        mock_dynamodb_table.scan.assert_called_once()
+    
+    def test_matching_status_with_empty_table(self, client, mock_dynamodb_table):
+        """
+        Test matching status returns zeros when no sessions exist.
+        
+        Requirements: 6.8
+        """
+        # Arrange
+        mock_dynamodb_table.scan.return_value = {"Items": []}
+        
+        # Act
+        response = client.get("/api/workflow/matching-status")
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["matched"] == 0
+        assert data["unmatched"] == 0
+        assert data["pending"] == 0
+        assert data["exceptions"] == 0
+    
+    def test_matching_status_handles_missing_fields(self, client, mock_dynamodb_table):
+        """
+        Test matching status handles missing fields gracefully.
+        
+        Requirements: 6.8
+        """
+        # Arrange
+        mock_items = [
+            # Missing tradeMatching field
+            {
+                "processing_id": "session-1",
+                "overallStatus": "completed",
+                "exceptionManagement": {"status": "success"}
+            },
+            # Missing overallStatus field
+            {
+                "processing_id": "session-2",
+                "tradeMatching": {"status": "success"},
+                "exceptionManagement": {"status": "success"}
+            },
+            # Missing exceptionManagement field
+            {
+                "processing_id": "session-3",
+                "overallStatus": "completed",
+                "tradeMatching": {"status": "success"}
+            }
+        ]
+        
+        mock_dynamodb_table.scan.return_value = {"Items": mock_items}
+        
+        # Act
+        response = client.get("/api/workflow/matching-status")
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should handle missing fields gracefully
+        # session-1: unmatched (completed but no tradeMatching.status)
+        # session-2: not counted (no overallStatus)
+        # session-3: matched (completed + success, no exception)
+        assert data["matched"] == 1
+        assert data["unmatched"] == 1
+    
+    def test_matching_status_dynamodb_error_returns_500(self, client, mock_dynamodb_table):
+        """
+        Test matching status returns 500 on DynamoDB error.
+        
+        Requirements: 6.10
+        """
+        # Arrange
+        error_response = {
+            'Error': {
+                'Code': 'InternalServerError',
+                'Message': 'DynamoDB service error'
+            }
+        }
+        mock_dynamodb_table.scan.side_effect = ClientError(error_response, 'Scan')
+        
+        # Act
+        response = client.get("/api/workflow/matching-status")
+        
+        # Assert
+        assert response.status_code == 500
+        data = response.json()
+        assert "Failed to get matching status" in data["detail"]
+    
+    def test_matching_status_counts_all_exception_types(self, client, mock_dynamodb_table):
+        """
+        Test that exceptions are counted from both exceptionManagement and agent errors.
+        
+        Requirements: 6.6
+        """
+        # Arrange
+        mock_items = [
+            # Exception in exceptionManagement
+            {
+                "processing_id": "session-1",
+                "overallStatus": "completed",
+                "tradeMatching": {"status": "success"},
+                "exceptionManagement": {"status": "error"},
+                "pdfAdapter": {"status": "success"},
+                "tradeExtraction": {"status": "success"}
+            },
+            # Exception in pdfAdapter
+            {
+                "processing_id": "session-2",
+                "overallStatus": "processing",
+                "tradeMatching": {"status": "pending"},
+                "exceptionManagement": {"status": "pending"},
+                "pdfAdapter": {"status": "error"},
+                "tradeExtraction": {"status": "success"}
+            },
+            # Exception in tradeExtraction
+            {
+                "processing_id": "session-3",
+                "overallStatus": "processing",
+                "tradeMatching": {"status": "pending"},
+                "exceptionManagement": {"status": "pending"},
+                "pdfAdapter": {"status": "success"},
+                "tradeExtraction": {"status": "error"}
+            },
+            # Exception in tradeMatching
+            {
+                "processing_id": "session-4",
+                "overallStatus": "processing",
+                "tradeMatching": {"status": "error"},
+                "exceptionManagement": {"status": "pending"},
+                "pdfAdapter": {"status": "success"},
+                "tradeExtraction": {"status": "success"}
+            },
+            # No exceptions
+            {
+                "processing_id": "session-5",
+                "overallStatus": "completed",
+                "tradeMatching": {"status": "success"},
+                "exceptionManagement": {"status": "success"},
+                "pdfAdapter": {"status": "success"},
+                "tradeExtraction": {"status": "success"}
+            }
+        ]
+        
+        mock_dynamodb_table.scan.return_value = {"Items": mock_items}
+        
+        # Act
+        response = client.get("/api/workflow/matching-status")
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should count all 4 sessions with exceptions
+        assert data["exceptions"] == 4
+    
+    def test_matching_status_unmatched_includes_non_success_statuses(self, client, mock_dynamodb_table):
+        """
+        Test that unmatched includes all non-success statuses for completed trades.
+        
+        Requirements: 6.4
+        """
+        # Arrange
+        mock_items = [
+            # Unmatched with failed status
+            {
+                "processing_id": "session-1",
+                "overallStatus": "completed",
+                "tradeMatching": {"status": "failed"},
+                "exceptionManagement": {"status": "success"}
+            },
+            # Unmatched with error status
+            {
+                "processing_id": "session-2",
+                "overallStatus": "completed",
+                "tradeMatching": {"status": "error"},
+                "exceptionManagement": {"status": "success"}
+            },
+            # Unmatched with pending status (shouldn't happen but test it)
+            {
+                "processing_id": "session-3",
+                "overallStatus": "completed",
+                "tradeMatching": {"status": "pending"},
+                "exceptionManagement": {"status": "success"}
+            },
+            # Matched
+            {
+                "processing_id": "session-4",
+                "overallStatus": "completed",
+                "tradeMatching": {"status": "success"},
+                "exceptionManagement": {"status": "success"}
+            }
+        ]
+        
+        mock_dynamodb_table.scan.return_value = {"Items": mock_items}
+        
+        # Act
+        response = client.get("/api/workflow/matching-status")
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        
+        # All non-success completed trades should be unmatched
+        assert data["unmatched"] == 3
+        assert data["matched"] == 1
+

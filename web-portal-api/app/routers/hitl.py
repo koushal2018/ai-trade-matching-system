@@ -9,13 +9,13 @@ from ..models.hitl import HITLStatus
 from ..services.dynamodb import db_service
 from ..services.websocket import manager
 from ..config import settings
-from ..auth import require_auth, User
+from ..auth import require_auth, get_current_user_or_dev, User
 
 router = APIRouter(prefix="/hitl", tags=["hitl"])
 
 
 @router.get("/pending", response_model=list[HITLReview])
-async def get_pending_reviews(user: User = Depends(require_auth)):
+async def get_pending_reviews(user: User = Depends(get_current_user_or_dev)):
     """Get all pending HITL reviews."""
     try:
         items = db_service.scan_table(settings.dynamodb_hitl_table)
@@ -41,7 +41,7 @@ async def get_pending_reviews(user: User = Depends(require_auth)):
 
 
 @router.get("/{review_id}", response_model=HITLReview)
-async def get_review(review_id: str, user: User = Depends(require_auth)):
+async def get_review(review_id: str, user: User = Depends(get_current_user_or_dev)):
     """Get a specific HITL review by ID."""
     item = db_service.get_item(settings.dynamodb_hitl_table, {"review_id": review_id})
     if not item:
@@ -61,7 +61,11 @@ async def get_review(review_id: str, user: User = Depends(require_auth)):
 
 
 @router.post("/{review_id}/decision", response_model=MatchingResult)
-async def submit_decision(review_id: str, decision: HITLDecision, user: User = Depends(require_auth)):
+async def submit_decision(
+    review_id: str,
+    decision: HITLDecision,
+    user: User = Depends(get_current_user_or_dev)
+):
     """Submit a HITL decision for a review."""
     # Get the review
     item = db_service.get_item(settings.dynamodb_hitl_table, {"review_id": review_id})

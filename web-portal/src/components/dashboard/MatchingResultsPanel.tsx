@@ -1,369 +1,195 @@
-import { Card, CardContent, Typography, Box, Avatar, Stack, Divider, Chip, Grid } from '@mui/material'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
+import { Typography, Box, Avatar, Stack, Chip } from '@mui/material'
 import {
-  PieChart as PieChartIcon,
-  CheckCircle as MatchedIcon,
-  Warning as ReviewIcon,
-  Error as BreakIcon,
-  DataUsage as DataIcon,
   TableChart as TableIcon,
+  CheckCircle as CompletedIcon,
+  HourglassEmpty as PendingIcon,
+  Error as ErrorIcon,
+  Sync as ProcessingIcon,
 } from '@mui/icons-material'
 import DataTable, { Column } from '../common/DataTable'
-import type { MatchResult, MatchClassification } from '../../types'
+import type { RecentSessionItem } from '../../types'
+import { useNavigate } from 'react-router-dom'
 
 interface MatchingResultsPanelProps {
-  results: MatchResult[]
+  results: RecentSessionItem[]
 }
 
-const COLORS: Record<MatchClassification, string> = {
-  MATCHED: '#1D8102',
-  PROBABLE_MATCH: '#8BC34A',
-  REVIEW_REQUIRED: '#FF9900',
-  BREAK: '#D13212',
-  DATA_ERROR: '#9C27B0',
-}
-
-const CLASSIFICATION_CONFIG: Record<MatchClassification, { icon: JSX.Element; label: string }> = {
-  MATCHED: { icon: <MatchedIcon />, label: 'Matched' },
-  PROBABLE_MATCH: { icon: <MatchedIcon />, label: 'Probable Match' },
-  REVIEW_REQUIRED: { icon: <ReviewIcon />, label: 'Review Required' },
-  BREAK: { icon: <BreakIcon />, label: 'Break' },
-  DATA_ERROR: { icon: <DataIcon />, label: 'Data Error' },
+const STATUS_CONFIG: Record<string, { icon: JSX.Element; label: string; color: string }> = {
+  completed: { icon: <CompletedIcon />, label: 'Completed', color: '#1D8102' },
+  processing: { icon: <ProcessingIcon />, label: 'Processing', color: '#FF9900' },
+  initializing: { icon: <PendingIcon />, label: 'Initializing', color: '#0073BB' },
+  failed: { icon: <ErrorIcon />, label: 'Failed', color: '#D13212' },
+  pending: { icon: <PendingIcon />, label: 'Pending', color: '#9BA7B4' },
 }
 
 export default function MatchingResultsPanel({ results }: MatchingResultsPanelProps) {
-  const classificationCounts = results.reduce(
-    (acc, result) => {
-      acc[result.classification] = (acc[result.classification] || 0) + 1
-      return acc
-    },
-    {} as Record<MatchClassification, number>
-  )
+  const navigate = useNavigate()
 
-  const chartData = Object.entries(classificationCounts).map(([name, value]) => ({
-    name,
-    value,
-    color: COLORS[name as MatchClassification],
-    label: CLASSIFICATION_CONFIG[name as MatchClassification]?.label || name,
-  }))
-
-  const matchRate = results.length > 0
-    ? ((classificationCounts.MATCHED || 0) / results.length * 100).toFixed(1)
-    : '0'
-
-  const totalMatched = (classificationCounts.MATCHED || 0) + (classificationCounts.PROBABLE_MATCH || 0)
-  const successRate = results.length > 0 ? (totalMatched / results.length * 100).toFixed(1) : '0'
-
-  // Define table columns for detailed results
-  const columns: Column<MatchResult>[] = [
+  // Define table columns for recent sessions
+  const columns: Column<RecentSessionItem>[] = [
     {
-      id: 'tradeId',
-      label: 'Trade ID',
-      minWidth: 120,
+      id: 'sessionId',
+      label: 'Session ID',
+      minWidth: 200,
       sortable: true,
       filterable: true,
     },
     {
-      id: 'classification',
-      label: 'Classification',
+      id: 'status',
+      label: 'Status',
       minWidth: 140,
       sortable: true,
       filterable: true,
       filterType: 'select',
       filterOptions: [
-        { value: 'MATCHED', label: 'Matched' },
-        { value: 'PROBABLE_MATCH', label: 'Probable Match' },
-        { value: 'REVIEW_REQUIRED', label: 'Review Required' },
-        { value: 'BREAK', label: 'Break' },
-        { value: 'DATA_ERROR', label: 'Data Error' },
+        { value: 'completed', label: 'Completed' },
+        { value: 'processing', label: 'Processing' },
+        { value: 'initializing', label: 'Initializing' },
+        { value: 'failed', label: 'Failed' },
+        { value: 'pending', label: 'Pending' },
       ],
-      format: (value: MatchClassification) => (
-        <Chip
-          size="small"
-          label={CLASSIFICATION_CONFIG[value]?.label || value}
-          icon={CLASSIFICATION_CONFIG[value]?.icon}
-          sx={{
-            backgroundColor: COLORS[value],
-            color: '#FFFFFF',
-            fontWeight: 600,
-            fontSize: '0.75rem',
-          }}
-        />
-      ),
+      format: (value: string) => {
+        const config = STATUS_CONFIG[value] || STATUS_CONFIG.pending
+        return (
+          <Chip
+            size="small"
+            label={config.label}
+            icon={config.icon}
+            sx={{
+              backgroundColor: config.color,
+              color: '#FFFFFF',
+              fontWeight: 600,
+              fontSize: '0.75rem',
+            }}
+          />
+        )
+      },
     },
     {
-      id: 'matchScore',
-      label: 'Match Score',
-      minWidth: 100,
-      align: 'center',
+      id: 'lastUpdated',
+      label: 'Last Updated',
+      minWidth: 180,
       sortable: true,
-      format: (value: number) => `${(value * 100).toFixed(1)}%`,
-    },
-    {
-      id: 'decisionStatus',
-      label: 'Decision Status',
-      minWidth: 120,
-      sortable: true,
-      filterable: true,
-      filterType: 'select',
-      filterOptions: [
-        { value: 'AUTO_MATCH', label: 'Auto Match' },
-        { value: 'ESCALATE', label: 'Escalate' },
-        { value: 'EXCEPTION', label: 'Exception' },
-        { value: 'PENDING', label: 'Pending' },
-        { value: 'APPROVED', label: 'Approved' },
-        { value: 'REJECTED', label: 'Rejected' },
-      ],
+      format: (value?: string) => value ? new Date(value).toLocaleString() : 'N/A',
     },
     {
       id: 'createdAt',
       label: 'Created',
-      minWidth: 140,
+      minWidth: 180,
       sortable: true,
-      format: (value: string) => new Date(value).toLocaleString(),
+      format: (value?: string) => value ? new Date(value).toLocaleString() : 'N/A',
     },
   ]
 
-  return (
-    <Grid container spacing={3}>
-      {/* Summary Card */}
-      <Grid size={{ xs: 12, md: 6 }}>
-        <Card sx={{ 
-          height: '100%',
-          background: 'linear-gradient(135deg, rgba(28, 33, 39, 0.95) 0%, rgba(35, 42, 49, 0.95) 100%)',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(65, 77, 92, 0.3)',
-        }}>
-          <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Box display="flex" alignItems="center" mb={3}>
-              <Avatar sx={{ 
-                bgcolor: 'primary.main', 
-                mr: 2,
-                width: 40,
-                height: 40
-              }}>
-                <PieChartIcon />
-              </Avatar>
-              <Typography variant="h5" fontWeight={600} color="text.primary">
-                Matching Summary
-              </Typography>
-            </Box>
+  // Calculate status counts
+  const statusCounts = results.reduce(
+    (acc, result) => {
+      const status = result.status || 'pending'
+      acc[status] = (acc[status] || 0) + 1
+      return acc
+    },
+    {} as Record<string, number>
+  )
 
-            {results.length > 0 ? (
-              <>
-                {/* Success Rate Display */}
+  return (
+    <Box sx={{ p: 3 }}>
+      <Box display="flex" alignItems="center" mb={3}>
+        <Avatar sx={{ 
+          bgcolor: 'secondary.main', 
+          mr: 2,
+          width: 40,
+          height: 40
+        }}>
+          <TableIcon />
+        </Avatar>
+        <Typography variant="h5" fontWeight={600} color="text.primary">
+          Recent Processing Sessions
+        </Typography>
+      </Box>
+
+      {results.length > 0 ? (
+        <>
+          {/* Status Summary */}
+          <Stack direction="row" spacing={2} mb={3} flexWrap="wrap">
+            {Object.entries(statusCounts).map(([status, count]) => {
+              const config = STATUS_CONFIG[status] || STATUS_CONFIG.pending
+              return (
                 <Box 
-                  textAlign="center" 
-                  mb={3}
+                  key={status}
                   sx={{
-                    p: 3,
-                    background: 'linear-gradient(135deg, rgba(29, 129, 2, 0.1) 0%, rgba(29, 129, 2, 0.05) 100%)',
-                    borderRadius: 2,
-                    border: '1px solid rgba(29, 129, 2, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    p: 1.5,
+                    borderRadius: 1,
+                    background: `linear-gradient(135deg, ${config.color}15 0%, ${config.color}08 100%)`,
+                    border: `1px solid ${config.color}30`,
                   }}
                 >
-                  <Typography variant="h2" fontWeight={700} sx={{ color: '#1D8102' }}>
-                    {matchRate}%
-                  </Typography>
-                  <Typography variant="body1" color="text.secondary" fontWeight={500}>
-                    Direct Match Rate
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Success Rate (including probable): {successRate}%
-                  </Typography>
-                </Box>
-
-                {/* Chart */}
-                <Box flexGrow={1} display="flex" flexDirection="column">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={chartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={90}
-                        dataKey="value"
-                        stroke="rgba(255, 255, 255, 0.1)"
-                        strokeWidth={2}
-                      >
-                        {chartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'rgba(28, 33, 39, 0.98)',
-                          border: '1px solid rgba(65, 77, 92, 0.5)',
-                          borderRadius: '8px',
-                          backdropFilter: 'blur(10px)',
-                          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
-                          padding: '12px 16px',
-                        }}
-                        itemStyle={{
-                          color: '#FFFFFF',
-                          fontWeight: 500,
-                          fontSize: '14px',
-                        }}
-                        labelStyle={{
-                          color: '#9BA7B4',
-                          fontWeight: 600,
-                          fontSize: '12px',
-                          marginBottom: '4px',
-                        }}
-                        formatter={(value, name) => {
-                          const label = CLASSIFICATION_CONFIG[name as MatchClassification]?.label || name
-                          return [
-                            <span style={{ color: '#FFFFFF', fontWeight: 600 }}>{value}</span>,
-                            <span style={{ color: '#E0E0E0' }}>{label}</span>
-                          ]
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-
-                  <Divider sx={{ my: 2, borderColor: 'rgba(65, 77, 92, 0.3)' }} />
-
-                  {/* Classification Breakdown */}
-                  <Stack spacing={1}>
-                    {Object.entries(classificationCounts).map(([classification, count]) => {
-                      const config = CLASSIFICATION_CONFIG[classification as MatchClassification]
-                      const color = COLORS[classification as MatchClassification]
-                      const percentage = ((count / results.length) * 100).toFixed(1)
-                      
-                      return (
-                        <Box 
-                          key={classification}
-                          display="flex" 
-                          alignItems="center" 
-                          justifyContent="space-between"
-                          sx={{
-                            p: 1.5,
-                            borderRadius: 1,
-                            background: `linear-gradient(135deg, ${color}15 0%, ${color}08 100%)`,
-                            border: `1px solid ${color}30`,
-                          }}
-                        >
-                          <Box display="flex" alignItems="center">
-                            <Box 
-                              sx={{ 
-                                width: 12, 
-                                height: 12, 
-                                backgroundColor: color, 
-                                borderRadius: '50%', 
-                                mr: 2 
-                              }} 
-                            />
-                            <Typography variant="body2" color="text.primary" fontWeight={500}>
-                              {config?.label || classification}
-                            </Typography>
-                          </Box>
-                          <Box display="flex" alignItems="center" gap={1}>
-                            <Chip
-                              size="small"
-                              label={count}
-                              sx={{
-                                backgroundColor: color,
-                                color: '#FFFFFF',
-                                fontWeight: 600,
-                                minWidth: 40,
-                              }}
-                            />
-                            <Typography variant="caption" color="text.secondary">
-                              {percentage}%
-                            </Typography>
-                          </Box>
-                        </Box>
-                      )
-                    })}
-                  </Stack>
-
-                  {/* Summary Stats */}
                   <Box 
-                    mt={2} 
-                    p={2} 
+                    sx={{ 
+                      width: 12, 
+                      height: 12, 
+                      backgroundColor: config.color, 
+                      borderRadius: '50%',
+                    }} 
+                  />
+                  <Typography variant="body2" color="text.primary" fontWeight={500}>
+                    {config.label}
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label={count}
                     sx={{
-                      background: 'linear-gradient(135deg, rgba(155, 167, 180, 0.1) 0%, rgba(155, 167, 180, 0.05) 100%)',
-                      borderRadius: 2,
-                      border: '1px solid rgba(155, 167, 180, 0.2)',
+                      backgroundColor: config.color,
+                      color: '#FFFFFF',
+                      fontWeight: 600,
+                      minWidth: 32,
+                      height: 24,
                     }}
-                  >
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Total Results: {results.length.toLocaleString()}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      Requires Review: {(classificationCounts.REVIEW_REQUIRED || 0) + (classificationCounts.BREAK || 0)}
-                    </Typography>
-                  </Box>
+                  />
                 </Box>
-              </>
-            ) : (
-              <Box 
-                display="flex" 
-                flexDirection="column" 
-                alignItems="center" 
-                justifyContent="center" 
-                flexGrow={1}
-                sx={{
-                  background: 'linear-gradient(135deg, rgba(28, 33, 39, 0.5) 0%, rgba(35, 42, 49, 0.5) 100%)',
-                  borderRadius: 2,
-                  border: '1px dashed rgba(65, 77, 92, 0.3)',
-                }}
-              >
-                <PieChartIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
-                <Typography variant="h6" color="text.secondary" align="center">
-                  No matching results yet
-                </Typography>
-                <Typography variant="body2" color="text.secondary" align="center" mt={1}>
-                  Results will appear here after trade processing
-                </Typography>
-              </Box>
-            )}
-          </CardContent>
-        </Card>
-      </Grid>
+              )
+            })}
+          </Stack>
 
-      {/* Detailed Results Table */}
-      <Grid size={{ xs: 12, md: 6 }}>
-        <Card sx={{ 
-          height: '100%',
-          background: 'linear-gradient(135deg, rgba(28, 33, 39, 0.95) 0%, rgba(35, 42, 49, 0.95) 100%)',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(65, 77, 92, 0.3)',
-        }}>
-          <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Box display="flex" alignItems="center" mb={3}>
-              <Avatar sx={{ 
-                bgcolor: 'secondary.main', 
-                mr: 2,
-                width: 40,
-                height: 40
-              }}>
-                <TableIcon />
-              </Avatar>
-              <Typography variant="h5" fontWeight={600} color="text.primary">
-                Recent Results
-              </Typography>
-            </Box>
-
-            <Box flexGrow={1}>
-              <DataTable
-                columns={columns}
-                data={results.slice(0, 10)} // Show only recent 10 results
-                loading={false}
-                searchable={true}
-                filterable={true}
-                pagination={false}
-                emptyMessage="No matching results available"
-                onRowClick={(row) => {
-                  console.log('View details for:', row.tradeId)
-                  // TODO: Implement row click handler
-                }}
-              />
-            </Box>
-          </CardContent>
-        </Card>
-      </Grid>
-    </Grid>
+          {/* Results Table */}
+          <DataTable
+            columns={columns}
+            data={results}
+            loading={false}
+            searchable={true}
+            filterable={true}
+            pagination={true}
+            emptyMessage="No recent sessions available"
+            onRowClick={(row) => {
+              // Navigate to workflow result page
+              navigate(`/workflow/${row.sessionId}/result`)
+            }}
+          />
+        </>
+      ) : (
+        <Box 
+          display="flex" 
+          flexDirection="column" 
+          alignItems="center" 
+          justifyContent="center" 
+          sx={{
+            py: 8,
+            background: 'linear-gradient(135deg, rgba(28, 33, 39, 0.5) 0%, rgba(35, 42, 49, 0.5) 100%)',
+            borderRadius: 2,
+            border: '1px dashed rgba(65, 77, 92, 0.3)',
+          }}
+        >
+          <TableIcon sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+          <Typography variant="h6" color="text.secondary" align="center">
+            No recent sessions yet
+          </Typography>
+          <Typography variant="body2" color="text.secondary" align="center" mt={1}>
+            Sessions will appear here after processing starts
+          </Typography>
+        </Box>
+      )}
+    </Box>
   )
 }

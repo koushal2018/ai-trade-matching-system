@@ -59,10 +59,9 @@ async def websocket_endpoint(websocket: WebSocket, sessionId: str = None):
             try:
                 msg = json.loads(data)
                 if msg.get("type") == "SUBSCRIBE" and msg.get("sessionId"):
-                    # Client wants to subscribe to a different session
+                    # Client wants to subscribe to a session
                     new_session_id = msg["sessionId"]
-                    await manager.connect(websocket, session_id=new_session_id)
-                    await manager.send_personal_message({"type": "SUBSCRIBED", "sessionId": new_session_id}, websocket)
+                    await manager.handle_subscribe(websocket, new_session_id)
                 else:
                     await manager.send_personal_message({"type": "ACK", "data": data}, websocket)
             except json.JSONDecodeError:

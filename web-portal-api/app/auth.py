@@ -18,6 +18,7 @@ import jwt
 from jwt import PyJWKClient
 from pydantic import BaseModel
 import logging
+from .config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +36,15 @@ COGNITO_JWKS_URL = (
 # Use HTTPBearer for Authorization header (not OAuth2PasswordBearer)
 security = HTTPBearer(auto_error=False)
 
-# Initialize JWKS client for Cognito public keys
-jwks_client = PyJWKClient(COGNITO_JWKS_URL)
+# Lazy-load JWKS client to avoid blocking on module import
+_jwks_client = None
+
+def get_jwks_client():
+    """Get or create JWKS client for Cognito token verification."""
+    global _jwks_client
+    if _jwks_client is None:
+        _jwks_client = PyJWKClient(COGNITO_JWKS_URL)
+    return _jwks_client
 
 
 class TokenData(BaseModel):
@@ -70,7 +78,7 @@ def verify_cognito_token(token: str) -> TokenData:
     """
     try:
         # Get signing key from Cognito JWKS
-        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        signing_key = get_jwks_client().get_signing_key_from_jwt(token)
         
         # Decode and verify token
         payload = jwt.decode(
@@ -171,13 +179,13 @@ async def require_auth(
 ) -> User:
     """
     Require authentication (raises 401 if not authenticated).
-    
+
     Args:
         credentials: HTTP Bearer token from Authorization header
-        
+
     Returns:
         User object
-        
+
     Raises:
         HTTPException: If not authenticated
     """
@@ -187,13 +195,99 @@ async def require_auth(
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"}
         )
-    
+
     token_data = verify_cognito_token(credentials.credentials)
     role = get_user_role(token_data.groups)
-    
+
     return User(
         username=token_data.username,
         email=token_data.email,
         sub=token_data.sub,
         role=role
     )
+
+
+# Development Authentication Bypass
+# =================================
+
+def get_dev_user() -> User:
+    """
+    Return a mock user for development/testing.
+
+    Returns:
+        Mock User object with developer credentials
+    """
+    return User(
+        username="dev-user",
+        email="dev@example.com",
+        sub="dev-00000000-0000-0000-0000-000000000000",
+        role="Admin"
+    )
+
+
+async def get_current_user_or_dev(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> User:
+    """
+    Get current authenticated user with development bypass.
+
+    In development (DISABLE_AUTH=true):
+    - Returns mock dev user without authentication
+
+    In production (DISABLE_AUTH=false):
+    - Returns authenticated user if token provided
+    - Raises 401 if no token provided
+
+    Args:
+        credentials: HTTP Bearer token from Authorization header
+
+    Returns:
+        User object (real or mock depending on environment)
+    """
+    if settings.disable_auth:
+        logger.debug("Auth disabled - using dev user")
+        return get_dev_user()
+
+    # Production: require authentication
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    token_data = verify_cognito_token(credentials.credentials)
+    role = get_user_role(token_data.groups)
+
+    return User(
+        username=token_data.username,
+        email=token_data.email,
+        sub=token_data.sub,
+        role=role
+    )
+
+
+async def optional_auth_or_dev(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> Optional[User]:
+    """
+    Optional authentication with development bypass.
+
+    In development (DISABLE_AUTH=true):
+    - Returns mock dev user
+
+    In production (DISABLE_AUTH=false):
+    - Returns authenticated user if token provided
+    - Returns None if no token provided (allows unauthenticated access)
+
+    Args:
+        credentials: HTTP Bearer token from Authorization header
+
+    Returns:
+        User object, mock user, or None
+    """
+    if settings.disable_auth:
+        return get_dev_user()
+
+    # Production: optional authentication
+    return await get_current_user(credentials)

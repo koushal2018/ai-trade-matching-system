@@ -32,17 +32,36 @@ class ConnectionManager:
         
         # Track session-specific connections
         if session_id:
-            if session_id not in self.session_connections:
-                self.session_connections[session_id] = []
-            if websocket not in self.session_connections[session_id]:
-                self.session_connections[session_id].append(websocket)
-            
-            # Start polling for this session if not already running
-            if session_id not in self._polling_tasks or self._polling_tasks[session_id].done():
-                self._polling_tasks[session_id] = asyncio.create_task(
-                    self._poll_status(session_id)
-                )
-                logger.info(f"Started status polling for session: {session_id}")
+            await self.handle_subscribe(websocket, session_id)
+    
+    async def handle_subscribe(self, websocket: WebSocket, session_id: str):
+        """Handle SUBSCRIBE message from client.
+        
+        This method:
+        1. Adds the connection to the session-specific list
+        2. Starts polling task for the session if not already running
+        3. Sends SUBSCRIBED confirmation message to client
+        
+        Requirements: 1.5, 1.6
+        """
+        # Add connection to session-specific list
+        if session_id not in self.session_connections:
+            self.session_connections[session_id] = []
+        if websocket not in self.session_connections[session_id]:
+            self.session_connections[session_id].append(websocket)
+        
+        # Start polling task for subscribed session if not already running
+        if session_id not in self._polling_tasks or self._polling_tasks[session_id].done():
+            self._polling_tasks[session_id] = asyncio.create_task(
+                self._poll_status(session_id)
+            )
+            logger.info(f"Started status polling for session: {session_id}")
+        
+        # Send SUBSCRIBED confirmation message to client
+        await self.send_personal_message({
+            "type": "SUBSCRIBED",
+            "sessionId": session_id
+        }, websocket)
     
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:

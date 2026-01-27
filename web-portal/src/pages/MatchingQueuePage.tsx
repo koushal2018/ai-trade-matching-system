@@ -7,50 +7,53 @@ import {
   IconButton,
   Tooltip,
   LinearProgress,
+  Alert,
 } from '@mui/material'
 import {
   Refresh as RefreshIcon,
   PlayArrow as ProcessIcon,
   Visibility as ViewIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material'
 import { useQuery } from '@tanstack/react-query'
 import GlassCard from '../components/common/GlassCard'
 import { SkeletonGroup } from '../components/common/SkeletonLoader'
 import CopyToClipboard from '../components/common/CopyToClipboard'
-import { apiClient } from '../services/api'
+import { workflowService, type RecentSessionItem, type WorkflowStatusResponse } from '../services/workflowService'
+import { mapOverallStatus } from '../utils/statusMapping'
 import { fsiColors } from '../theme'
 
-interface QueueItem {
-  queueId: string
-  sessionId: string
-  tradeId: string
-  counterpartyId: string
-  status: 'PENDING' | 'PROCESSING' | 'WAITING' | 'COMPLETED' | 'FAILED'
-  priority: 'HIGH' | 'MEDIUM' | 'LOW'
-  queuedAt: string
-  estimatedProcessingTime: number
-  sourceType: string
-  documentCount: number
+interface QueueItemWithDetails extends RecentSessionItem {
+  details?: WorkflowStatusResponse
+  hasExceptions?: boolean
 }
 
 const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'PROCESSING': return fsiColors.status.info
-    case 'PENDING': return fsiColors.status.warning
-    case 'WAITING': return fsiColors.accent.purple
-    case 'COMPLETED': return fsiColors.status.success
-    case 'FAILED': return fsiColors.status.error
+  const mappedStatus = mapOverallStatus(status)
+  switch (mappedStatus) {
+    case 'In Progress': return fsiColors.status.info
+    case 'Pending': return fsiColors.status.warning
+    case 'Initializing': return fsiColors.accent.purple
+    case 'Completed': return fsiColors.status.success
+    case 'Failed': return fsiColors.status.error
     default: return fsiColors.text.muted
   }
 }
 
-const getPriorityColor = (priority: string) => {
-  switch (priority) {
-    case 'HIGH': return fsiColors.status.error
-    case 'MEDIUM': return fsiColors.status.warning
-    case 'LOW': return fsiColors.status.success
-    default: return fsiColors.text.muted
+/**
+ * Check if a session has exceptions that require review
+ */
+const hasExceptions = (details?: WorkflowStatusResponse): boolean => {
+  if (!details) return false
+  
+  // Check if exceptionManagement agent has error status
+  if (details.agents.exceptionManagement?.status === 'error') {
+    return true
   }
+  
+  // Check if any agent has error status
+  const agentKeys = ['pdfAdapter', 'tradeExtraction', 'tradeMatching', 'exceptionManagement'] as const
+  return agentKeys.some(key => details.agents[key]?.status === 'error')
 }
 
 const formatTime = (isoString: string) => {
@@ -66,15 +69,55 @@ const formatTime = (isoString: string) => {
 export default function MatchingQueuePage() {
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
 
-  const { data: queueItems, isLoading, refetch } = useQuery<QueueItem[]>({
+  // Fetch recent sessions from Processing_Status table
+  const { data: queueItems, isLoading, error, refetch } = useQuery<QueueItemWithDetails[]>({
     queryKey: ['matchingQueue'],
-    queryFn: () => apiClient.get<QueueItem[]>('/matching/queue'),
-    refetchInterval: 10000,
+    queryFn: async () => {
+      // Get recent sessions
+      const sessions = await workflowService.getRecentSessions(50)
+      
+      // Fetch details for each session to check for exceptions
+      const itemsWithDetails = await Promise.all(
+        sessions.map(async (session) => {
+          try {
+            const details = await workflowService.getWorkflowStatus(session.sessionId)
+            return {
+              ...session,
+              details,
+              hasExceptions: hasExceptions(details)
+            }
+          } catch (err) {
+            // If we can't get details, just return the session without details
+            return {
+              ...session,
+              details: undefined,
+              hasExceptions: false
+            }
+          }
+        })
+      )
+      
+      return itemsWithDetails
+    },
+    refetchInterval: 10000, // Poll every 10 seconds
   })
 
-  const processingCount = queueItems?.filter(i => i.status === 'PROCESSING').length || 0
-  const pendingCount = queueItems?.filter(i => i.status === 'PENDING').length || 0
-  const waitingCount = queueItems?.filter(i => i.status === 'WAITING').length || 0
+  // Calculate status counts using mapped statuses
+  const processingCount = queueItems?.filter(i => 
+    i.status === 'processing'
+  ).length || 0
+  
+  const pendingCount = queueItems?.filter(i => 
+    i.status === 'pending' || i.status === 'initializing'
+  ).length || 0
+  
+  const completedCount = queueItems?.filter(i => 
+    i.status === 'completed'
+  ).length || 0
+  
+  const exceptionsCount = queueItems?.filter(i => 
+    i.hasExceptions
+  ).length || 0
 
   return (
     <MuiContainer maxWidth="xl" sx={{ py: 4 }}>
@@ -153,11 +196,19 @@ export default function MatchingQueuePage() {
             </Typography>
           </Box>
           <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="h4" fontWeight={700} sx={{ color: '#8B5CF6' }}>
-              {waitingCount}
+            <Typography variant="h4" fontWeight={700} sx={{ color: '#10B981' }}>
+              {completedCount}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Waiting
+              Completed
+            </Typography>
+          </Box>
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography variant="h4" fontWeight={700} sx={{ color: '#EF4444' }}>
+              {exceptionsCount}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Exceptions
             </Typography>
           </Box>
           <Box sx={{ textAlign: 'center' }}>
@@ -170,6 +221,13 @@ export default function MatchingQueuePage() {
           </Box>
         </Box>
       </GlassCard>
+
+      {/* Error State */}
+      {error && (
+        <Alert severity="error" sx={{ mb: 4 }}>
+          Unable to load queue. {error instanceof Error ? error.message : 'Please try again.'}
+        </Alert>
+      )}
 
       {/* Queue Items */}
       <GlassCard variant="default" animateIn animationDelay={0.1} sx={{ p: 0 }}>
@@ -191,105 +249,128 @@ export default function MatchingQueuePage() {
           </Box>
         ) : (
           <Box>
-            {queueItems.map((item, index) => (
-              <Box
-                key={item.queueId}
-                onClick={() => setSelectedItem(selectedItem === item.queueId ? null : item.queueId)}
-                sx={{
-                  p: 2,
-                  borderBottom: '1px solid rgba(255,255,255,0.05)',
-                  cursor: 'pointer',
-                  animation: `slideIn 0.3s ease-out ${index * 0.05}s both`,
-                  '@keyframes slideIn': {
-                    '0%': { opacity: 0, transform: 'translateX(-20px)' },
-                    '100%': { opacity: 1, transform: 'translateX(0)' },
-                  },
-                  '&:hover': {
-                    bgcolor: 'rgba(255,255,255,0.03)',
-                  },
-                  bgcolor: selectedItem === item.queueId ? 'rgba(255,153,0,0.05)' : 'transparent',
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Typography variant="body1" fontWeight={600}>
-                      {item.tradeId}
-                    </Typography>
-                    <Chip
-                      label={item.status}
-                      size="small"
+            {queueItems.map((item, index) => {
+              const displayStatus = mapOverallStatus(item.status)
+              const statusColor = getStatusColor(item.status)
+              
+              return (
+                <Box
+                  key={item.sessionId}
+                  onClick={() => setSelectedItem(selectedItem === item.sessionId ? null : item.sessionId)}
+                  sx={{
+                    p: 2,
+                    borderBottom: '1px solid rgba(255,255,255,0.05)',
+                    cursor: 'pointer',
+                    animation: `slideIn 0.3s ease-out ${index * 0.05}s both`,
+                    '@keyframes slideIn': {
+                      '0%': { opacity: 0, transform: 'translateX(-20px)' },
+                      '100%': { opacity: 1, transform: 'translateX(0)' },
+                    },
+                    '&:hover': {
+                      bgcolor: 'rgba(255,255,255,0.03)',
+                    },
+                    bgcolor: selectedItem === item.sessionId ? 'rgba(255,153,0,0.05)' : 'transparent',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                      <Typography variant="body1" fontWeight={600}>
+                        Session {item.sessionId.substring(0, 8)}...
+                      </Typography>
+                      <Chip
+                        label={displayStatus}
+                        size="small"
+                        sx={{
+                          height: 24,
+                          fontSize: '0.75rem',
+                          bgcolor: `${statusColor}20`,
+                          color: statusColor,
+                          border: `1px solid ${statusColor}40`,
+                        }}
+                      />
+                      {item.hasExceptions && (
+                        <Chip
+                          icon={<WarningIcon sx={{ fontSize: '0.875rem' }} />}
+                          label="Requires Review"
+                          size="small"
+                          sx={{
+                            height: 24,
+                            fontSize: '0.75rem',
+                            bgcolor: `${fsiColors.status.error}20`,
+                            color: fsiColors.status.error,
+                            border: `1px solid ${fsiColors.status.error}40`,
+                          }}
+                        />
+                      )}
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Tooltip title="View details">
+                        <IconButton 
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            window.location.href = `/workflow/${item.sessionId}/result`
+                          }}
+                        >
+                          <ViewIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {item.status !== 'completed' && (
+                        <Tooltip title="Process now">
+                          <IconButton 
+                            size="small" 
+                            sx={{ color: '#10B981' }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              // TODO: Implement manual processing trigger
+                            }}
+                          >
+                            <ProcessIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  </Box>
+
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="caption" color="text.disabled">Session ID:</Typography>
+                      <CopyToClipboard text={item.sessionId} truncate maxLength={12} />
+                    </Box>
+                    {item.createdAt && (
+                      <Box>
+                        <Typography variant="caption" color="text.disabled">Created: </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatTime(item.createdAt)}
+                        </Typography>
+                      </Box>
+                    )}
+                    {item.lastUpdated && (
+                      <Box>
+                        <Typography variant="caption" color="text.disabled">Updated: </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatTime(item.lastUpdated)}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+
+                  {item.status === 'processing' && (
+                    <LinearProgress
                       sx={{
-                        height: 24,
-                        fontSize: '0.75rem',
-                        bgcolor: `${getStatusColor(item.status)}20`,
-                        color: getStatusColor(item.status),
-                        border: `1px solid ${getStatusColor(item.status)}40`,
+                        mt: 1,
+                        height: 4,
+                        borderRadius: 2,
+                        bgcolor: 'rgba(59, 130, 246, 0.1)',
+                        '& .MuiLinearProgress-bar': {
+                          bgcolor: '#3B82F6',
+                        },
                       }}
                     />
-                    <Chip
-                      label={item.priority}
-                      size="small"
-                      sx={{
-                        height: 24,
-                        fontSize: '0.75rem',
-                        bgcolor: `${getPriorityColor(item.priority)}20`,
-                        color: getPriorityColor(item.priority),
-                        border: `1px solid ${getPriorityColor(item.priority)}40`,
-                      }}
-                    />
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Tooltip title="View details">
-                      <IconButton size="small">
-                        <ViewIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Process now">
-                      <IconButton size="small" sx={{ color: '#10B981' }}>
-                        <ProcessIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
+                  )}
                 </Box>
-
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="caption" color="text.disabled">Session:</Typography>
-                    <CopyToClipboard text={item.sessionId} truncate maxLength={12} />
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" color="text.disabled">Counterparty: </Typography>
-                    <Typography variant="caption" color="text.secondary">{item.counterpartyId}</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" color="text.disabled">Source: </Typography>
-                    <Typography variant="caption" color="text.secondary">{item.sourceType}</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" color="text.disabled">Documents: </Typography>
-                    <Typography variant="caption" color="text.secondary">{item.documentCount}</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" color="text.disabled">Queued: </Typography>
-                    <Typography variant="caption" color="text.secondary">{formatTime(item.queuedAt)}</Typography>
-                  </Box>
-                </Box>
-
-                {item.status === 'PROCESSING' && (
-                  <LinearProgress
-                    sx={{
-                      mt: 1,
-                      height: 4,
-                      borderRadius: 2,
-                      bgcolor: 'rgba(59, 130, 246, 0.1)',
-                      '& .MuiLinearProgress-bar': {
-                        bgcolor: '#3B82F6',
-                      },
-                    }}
-                  />
-                )}
-              </Box>
-            ))}
+              )
+            })}
           </Box>
         )}
       </GlassCard>

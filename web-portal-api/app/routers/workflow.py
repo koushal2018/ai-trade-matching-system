@@ -8,11 +8,11 @@ Queries AWS Bedrock AgentCore for real agent execution status.
 import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 import boto3
 from botocore.exceptions import ClientError
-from ..auth import get_current_user, User
+from ..auth import get_current_user, optional_auth_or_dev, User
 from ..config import settings
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ class InvokeMatchingResponse(BaseModel):
 @router.get("/workflow/{session_id}/status", response_model=WorkflowStatusResponse)
 async def get_workflow_status(
     session_id: str,
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(optional_auth_or_dev)
 ):
     """
     Get agent processing status for a workflow session from DynamoDB.
@@ -122,36 +122,12 @@ async def get_workflow_status(
         # aws dynamodb describe-table --table-name trade-matching-system-processing-status
         response = processing_status_table.get_item(Key={"processing_id": session_id})
         
-        # Handle sessionId not found - return all pending
+        # Handle sessionId not found - return 404 to let frontend handle gracefully
         if "Item" not in response:
-            logger.info(f"Session {session_id} not found in status table, returning pending status")
-            now = datetime.now(timezone.utc)
-            return WorkflowStatusResponse(
-                sessionId=session_id,
-                agents={
-                    "pdfAdapter": AgentStepStatus(
-                        status="pending",
-                        activity="Waiting for upload",
-                        subSteps=[]
-                    ),
-                    "tradeExtraction": AgentStepStatus(
-                        status="pending",
-                        activity="Waiting for PDF processing",
-                        subSteps=[]
-                    ),
-                    "tradeMatching": AgentStepStatus(
-                        status="pending",
-                        activity="Waiting for extraction",
-                        subSteps=[]
-                    ),
-                    "exceptionManagement": AgentStepStatus(
-                        status="pending",
-                        activity="No exceptions",
-                        subSteps=[]
-                    )
-                },
-                overallStatus="pending",
-                lastUpdated=now.isoformat() + "Z"
+            logger.warning(f"Session {session_id} not found in status table")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Workflow session '{session_id}' not found. The session may not have been created yet or the ID is invalid."
             )
         
         # Transform DynamoDB item to frontend API format
@@ -219,6 +195,9 @@ async def get_workflow_status(
             status_code=500,
             detail=f"Failed to get workflow status: {error_message}"
         )
+    except HTTPException:
+        # Re-raise HTTPException without wrapping (e.g., 404 not found)
+        raise
     except Exception as e:
         logger.error(f"[{session_id}] Error getting workflow status: {str(e)}")
         raise HTTPException(
@@ -230,7 +209,7 @@ async def get_workflow_status(
 @router.get("/workflow/{session_id}/result", response_model=MatchResultResponse)
 async def get_match_result(
     session_id: str,
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(optional_auth_or_dev)
 ):
     """
     Get matching results for a workflow session.
@@ -289,54 +268,454 @@ async def get_match_result(
     )
 
 
-@router.get("/workflow/{session_id}/exceptions", response_model=ExceptionsResponse)
-async def get_exceptions(
-    session_id: str,
-    current_user: Optional[User] = Depends(get_current_user)
+@router.get("/exceptions", response_model=ExceptionsResponse)
+async def get_all_exceptions(
+    limit: Optional[int] = Query(100, le=1000),
+    severity: Optional[str] = Query(None),
+    current_user: Optional[User] = Depends(optional_auth_or_dev)
 ):
     """
-    Get exceptions for a workflow session.
-    
+    Get all exceptions across all workflow sessions.
+
     Args:
-        session_id: Workflow session identifier
+        limit: Maximum number of exceptions to return (default 100, max 1000)
+        severity: Filter by severity (error, warning, info)
         current_user: Optional authenticated user
-        
+
     Returns:
         ExceptionsResponse with exception list
     """
-    # TODO: Query DynamoDB exceptions table
-    # For now, return empty list
-    
-    return ExceptionsResponse(
-        sessionId=session_id,
-        exceptions=[]
-    )
+    try:
+        from boto3.dynamodb.conditions import Attr
+
+        # Scan exceptions table with optional severity filter
+        scan_kwargs = {'Limit': limit}
+        if severity:
+            scan_kwargs['FilterExpression'] = Attr('severity').eq(severity.upper())
+
+        response = exceptions_table.scan(**scan_kwargs)
+
+        exceptions = []
+        for item in response.get('Items', []):
+            exceptions.append(ExceptionItem(
+                id=item.get('exception_id', ''),
+                agentName=item.get('agent_name', item.get('agent_id', 'Unknown')),
+                severity=item.get('severity', 'error'),
+                message=item.get('message', item.get('error_message', '')),
+                timestamp=item.get('timestamp', item.get('created_at', '')),
+                recoverable=item.get('recoverable', False)
+            ))
+
+        logger.info(f"Found {len(exceptions)} total exceptions (severity filter: {severity})")
+
+        return ExceptionsResponse(
+            sessionId='all',
+            exceptions=exceptions
+        )
+
+    except ClientError as e:
+        logger.error(f"Failed to query all exceptions: {str(e)}")
+        return ExceptionsResponse(
+            sessionId='all',
+            exceptions=[]
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error getting all exceptions: {str(e)}")
+        return ExceptionsResponse(
+            sessionId='all',
+            exceptions=[]
+        )
+
+
+@router.get("/workflow/{session_id}/exceptions", response_model=ExceptionsResponse)
+async def get_exceptions(
+    session_id: str,
+    current_user: Optional[User] = Depends(optional_auth_or_dev)
+):
+    """
+    Get exceptions for a workflow session.
+
+    Args:
+        session_id: Workflow session identifier
+        current_user: Optional authenticated user
+
+    Returns:
+        ExceptionsResponse with exception list
+    """
+    try:
+        # TODO: Create GSI on session_id for efficient queries
+        # Currently using scan with filter (inefficient for large tables)
+        from boto3.dynamodb.conditions import Attr
+
+        response = exceptions_table.scan(
+            FilterExpression=Attr('session_id').eq(session_id)
+        )
+
+        exceptions = []
+        for item in response.get('Items', []):
+            exceptions.append(ExceptionItem(
+                id=item.get('exception_id', ''),
+                agentName=item.get('agent_name', item.get('agent_id', 'Unknown')),
+                severity=item.get('severity', 'error'),
+                message=item.get('message', item.get('error_message', '')),
+                timestamp=item.get('timestamp', item.get('created_at', '')),
+                recoverable=item.get('recoverable', False)
+            ))
+
+        logger.info(f"Found {len(exceptions)} exceptions for session {session_id}")
+
+        return ExceptionsResponse(
+            sessionId=session_id,
+            exceptions=exceptions
+        )
+
+    except ClientError as e:
+        logger.error(f"Failed to query exceptions: {str(e)}")
+        # Return empty list instead of error for graceful degradation
+        return ExceptionsResponse(
+            sessionId=session_id,
+            exceptions=[]
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error getting exceptions: {str(e)}")
+        return ExceptionsResponse(
+            sessionId=session_id,
+            exceptions=[]
+        )
 
 
 @router.post("/workflow/{session_id}/invoke-matching", response_model=InvokeMatchingResponse)
 async def invoke_matching(
     session_id: str,
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(optional_auth_or_dev)
 ):
     """
-    Manually invoke the Trade Matching Agent.
-    
+    Manually invoke the orchestrator agent to start trade processing workflow.
+
     Args:
         session_id: Workflow session identifier
         current_user: Optional authenticated user
-        
+
     Returns:
         InvokeMatchingResponse with invocation details
     """
-    # TODO: Invoke AgentCore Trade Matching Agent
-    # For now, return mock response
-    
     import uuid
+    import json
+
+    logger.info(f"Invoking orchestrator agent for session: {session_id}")
+
+    try:
+        # Get orchestrator agent runtime ARN from agent registry
+        response = dynamodb.Table(settings.dynamodb_agent_registry_table).get_item(
+            Key={"agent_id": "http_agent_orchestrator"}
+        )
+
+        if "Item" not in response:
+            logger.warning("http_agent_orchestrator not found, falling back to orchestrator_otc")
+            # Try alternative orchestrator
+            response = dynamodb.Table(settings.dynamodb_agent_registry_table).get_item(
+                Key={"agent_id": "orchestrator_otc"}
+            )
+
+        if "Item" not in response:
+            logger.error("No orchestrator agent found in registry")
+            raise HTTPException(
+                status_code=503,
+                detail="Orchestrator agent not available"
+            )
+
+        agent_item = response["Item"]
+        runtime_arn = agent_item.get("runtime_arn")
+
+        if not runtime_arn:
+            logger.error(f"No runtime ARN found for orchestrator agent {agent_item.get('agent_id')}")
+            raise HTTPException(
+                status_code=503,
+                detail="Orchestrator agent is not deployed. Please deploy the agent to AgentCore Runtime before invoking."
+            )
+
+        # Verify agent deployment status
+        deployment_status = agent_item.get("deployment_status", "")
+        if deployment_status != "ACTIVE":
+            logger.error(f"Orchestrator agent deployment status: {deployment_status}")
+            raise HTTPException(
+                status_code=503,
+                detail=f"Orchestrator agent is not active (status: {deployment_status}). Cannot invoke agent."
+            )
+
+        # Invoke the orchestrator agent via Bedrock AgentCore Runtime
+        invocation_id = f"invoke-{uuid.uuid4()}"
+
+        # Prepare input for orchestrator
+        input_data = {
+            "sessionId": session_id,
+            "action": "process_trade",
+            "source": "web_portal",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+        logger.info(f"Invoking agent with runtime ARN: {runtime_arn}")
+
+        # Extract agent ID from runtime ARN
+        try:
+            # ARN format: various formats possible, try to extract agent ID
+            agent_id = runtime_arn.split("/")[-1].split("-")[0] if "/" in runtime_arn else runtime_arn
+        except Exception as e:
+            logger.error(f"Failed to parse agent ID from runtime ARN: {runtime_arn}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Invalid runtime ARN format: {runtime_arn}"
+            )
+
+        # Invoke agent with error handling
+        try:
+            response = bedrock_agent_runtime.invoke_agent(
+                agentId=agent_id,
+                agentAliasId="TSTALIASID",  # Default test alias
+                sessionId=session_id,
+                inputText=json.dumps(input_data)
+            )
+
+            # Verify the response indicates successful invocation
+            if not response or "ResponseMetadata" not in response:
+                logger.error(f"Agent invocation returned unexpected response: {response}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Agent invocation failed: Unexpected response from Bedrock AgentCore Runtime"
+                )
+
+            http_status = response.get("ResponseMetadata", {}).get("HTTPStatusCode", 0)
+            if http_status not in [200, 202]:
+                logger.error(f"Agent invocation failed with HTTP status {http_status}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Agent invocation failed with HTTP status {http_status}"
+                )
+
+            logger.info(f"Successfully invoked orchestrator for session {session_id} (HTTP {http_status})")
+
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "Unknown")
+            error_message = e.response.get("Error", {}).get("Message", str(e))
+            logger.error(f"Bedrock AgentCore invocation failed: {error_code} - {error_message}")
+
+            if error_code == "ResourceNotFoundException":
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Agent not found in Bedrock AgentCore Runtime: {agent_id}"
+                )
+            elif error_code == "AccessDeniedException":
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied when invoking agent. Check IAM permissions."
+                )
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to invoke agent: {error_message}"
+                )
+
+        # Create initial processing status record
+        now = datetime.now(timezone.utc).isoformat() + "Z"
+        processing_status_table.put_item(Item={
+            "processing_id": session_id,
+            "overallStatus": "initializing",
+            "lastUpdated": now,
+            "invocationId": invocation_id,
+            "pdfAdapter": {
+                "status": "loading",
+                "activity": "Orchestrator initializing workflow",
+                "startedAt": now
+            },
+            "tradeExtraction": {
+                "status": "pending",
+                "activity": "Waiting for PDF processing"
+            },
+            "tradeMatching": {
+                "status": "pending",
+                "activity": "Waiting for extraction"
+            },
+            "exceptionManagement": {
+                "status": "pending",
+                "activity": "No exceptions"
+            }
+        })
+
+        return InvokeMatchingResponse(
+            invocationId=invocation_id,
+            sessionId=session_id,
+            status="initiated"
+        )
+
+    except ClientError as e:
+        logger.error(f"Failed to invoke orchestrator: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to invoke orchestrator: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error invoking orchestrator: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to invoke orchestrator: {str(e)}"
+        )
+
+
+class RecentSessionItem(BaseModel):
+    """Recent processing session item."""
+    sessionId: str
+    status: str
+    createdAt: Optional[str] = None
+    lastUpdated: Optional[str] = None
+
+
+class MatchingStatusResponse(BaseModel):
+    """Response model for matching status counts."""
+    matched: int
+    unmatched: int
+    pending: int
+    exceptions: int
+
+
+@router.get("/workflow/matching-status", response_model=MatchingStatusResponse)
+async def get_matching_status(
+    current_user: Optional[User] = Depends(optional_auth_or_dev)
+):
+    """
+    Get matching status counts from Processing_Status table.
     
-    logger.info(f"Invoking Trade Matching Agent for session: {session_id}")
+    Calculates:
+    - matched: overallStatus === 'completed' AND tradeMatching.status === 'success'
+    - unmatched: overallStatus === 'completed' AND tradeMatching.status !== 'success'
+    - pending: overallStatus === 'processing' OR 'initializing'
+    - exceptions: exceptionManagement.status === 'error' OR any agent.status === 'error'
     
-    return InvokeMatchingResponse(
-        invocationId=f"invoke-{uuid.uuid4()}",
-        sessionId=session_id,
-        status="initiated"
-    )
+    Args:
+        current_user: Optional authenticated user
+        
+    Returns:
+        MatchingStatusResponse with counts for each status category
+    """
+    try:
+        # Scan processing status table to get all sessions
+        response = processing_status_table.scan()
+        items = response.get('Items', [])
+        
+        # Initialize counters
+        matched = 0
+        unmatched = 0
+        pending = 0
+        exceptions = 0
+        
+        # Process each session
+        for item in items:
+            overall_status = item.get('overallStatus', '')
+            trade_matching = item.get('tradeMatching', {})
+            trade_matching_status = trade_matching.get('status', '')
+            exception_mgmt = item.get('exceptionManagement', {})
+            exception_status = exception_mgmt.get('status', '')
+            
+            # Check for exceptions first (can overlap with other statuses)
+            has_exception = False
+            if exception_status == 'error':
+                has_exception = True
+            else:
+                # Check if any agent has error status
+                for agent_key in ['pdfAdapter', 'tradeExtraction', 'tradeMatching', 'exceptionManagement']:
+                    agent_data = item.get(agent_key, {})
+                    if agent_data.get('status') == 'error':
+                        has_exception = True
+                        break
+            
+            if has_exception:
+                exceptions += 1
+            
+            # Count matched trades
+            if overall_status == 'completed' and trade_matching_status == 'success':
+                matched += 1
+            # Count unmatched trades
+            elif overall_status == 'completed' and trade_matching_status != 'success':
+                unmatched += 1
+            # Count pending matches
+            elif overall_status in ['processing', 'initializing']:
+                pending += 1
+        
+        logger.info(f"Matching status counts - matched: {matched}, unmatched: {unmatched}, pending: {pending}, exceptions: {exceptions}")
+        
+        return MatchingStatusResponse(
+            matched=matched,
+            unmatched=unmatched,
+            pending=pending,
+            exceptions=exceptions
+        )
+        
+    except ClientError as e:
+        logger.error(f"Failed to get matching status: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get matching status: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error getting matching status: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get matching status"
+        )
+
+
+@router.get("/workflow/recent", response_model=List[RecentSessionItem])
+async def get_recent_sessions(
+    limit: int = Query(default=10, ge=1, le=50),
+    current_user: Optional[User] = Depends(optional_auth_or_dev)
+):
+    """
+    Get recent processing sessions for Real-Time Monitor.
+
+    Returns a list of recent sessions with their current status.
+    Used by the Real-Time Monitor to subscribe to active sessions.
+
+    Args:
+        limit: Maximum number of sessions to return (default: 10, max: 50)
+        current_user: Optional authenticated user
+
+    Returns:
+        List of recent processing sessions with basic info
+    """
+    try:
+        # Scan processing status table
+        response = processing_status_table.scan(
+            Limit=limit
+        )
+
+        items = response.get('Items', [])
+
+        # Sort by created_at or lastUpdated, most recent first
+        items.sort(
+            key=lambda x: x.get('lastUpdated') or x.get('created_at') or '',
+            reverse=True
+        )
+
+        # Transform to response model
+        sessions = []
+        for item in items[:limit]:
+            sessions.append(RecentSessionItem(
+                sessionId=item['processing_id'],
+                status=item.get('overallStatus', 'pending'),
+                createdAt=item.get('created_at'),
+                lastUpdated=item.get('lastUpdated')
+            ))
+
+        return sessions
+
+    except ClientError as e:
+        logger.error(f"Failed to get recent sessions: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get recent sessions: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error getting recent sessions: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get recent sessions"
+        )

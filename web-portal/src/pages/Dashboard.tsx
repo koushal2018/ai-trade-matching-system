@@ -3,7 +3,7 @@ import { Box, Typography, Container as MuiContainer, Chip } from '@mui/material'
 import { useQuery } from '@tanstack/react-query'
 import { TrendingUp as TrendingIcon } from '@mui/icons-material'
 import { agentService } from '../services/agentService'
-import { hitlService } from '../services/hitlService'
+import { workflowService } from '../services/workflowService'
 import { wsService } from '../services/websocket'
 import HeroMetrics from '../components/dashboard/HeroMetrics'
 import AgentHealthPanel from '../components/dashboard/AgentHealthPanel'
@@ -11,7 +11,8 @@ import MatchingResultsPanel from '../components/dashboard/MatchingResultsPanel'
 import GlassCard from '../components/common/GlassCard'
 import { SkeletonGroup } from '../components/common/SkeletonLoader'
 import { fsiColors } from '../theme'
-import type { AgentHealth, ProcessingMetrics, WebSocketMessage, MatchResult } from '../types'
+import type { AgentHealth, ProcessingMetrics, WebSocketMessage, MatchingStatusResponse } from '../types'
+import type { RecentSessionItem } from '../services/workflowService'
 
 export default function Dashboard() {
   const { data: agents, refetch: refetchAgents, isLoading: agentsLoading } = useQuery<AgentHealth[]>({
@@ -26,10 +27,20 @@ export default function Dashboard() {
     refetchInterval: 10000,
   })
 
-  const { data: matchingResults, isLoading: resultsLoading } = useQuery<MatchResult[]>({
-    queryKey: ['matchingResults'],
-    queryFn: () => hitlService.getMatchingResults(),
+  // Query for recent processing sessions
+  // Requirements: 7.1, 7.2, 7.6
+  const { data: recentResults, isLoading: resultsLoading } = useQuery<RecentSessionItem[]>({
+    queryKey: ['recentResults'],
+    queryFn: () => workflowService.getRecentSessions(10),
     refetchInterval: 15000,
+  })
+
+  // Query for matching status counts
+  // Requirements: 6.7, 6.8, 6.9
+  const { data: matchingStatus, isLoading: matchingStatusLoading } = useQuery<MatchingStatusResponse>({
+    queryKey: ['matchingStatus'],
+    queryFn: workflowService.getMatchingStatus,
+    refetchInterval: 30000,
   })
 
   useEffect(() => {
@@ -55,11 +66,41 @@ export default function Dashboard() {
   const avgLatency = agents && agents.length > 0
     ? agents.reduce((sum, agent) => sum + (agent.metrics.latencyMs || 0), 0) / agents.length
     : 0
-  const activeAgents = agents?.filter(agent =>
-    agent.status === 'HEALTHY' || agent.status === 'DEGRADED'
-  ).length || 0
+  // Count only HEALTHY agents (backend already filters for ACTIVE deployment_status)
+  // Requirements: 3.3, 3.4, 3.8, 3.10
+  const activeAgents = agents?.filter(agent => agent.status === 'HEALTHY').length || 0
 
-  const isLoading = agentsLoading || metricsLoading || resultsLoading
+  // Calculate workload percentage
+  // Requirements: 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9
+  const workload = (() => {
+    // Handle edge case: no agents data available
+    if (!agents || !Array.isArray(agents)) {
+      return 'N/A'
+    }
+
+    // Backend already filters for ACTIVE deployment_status
+    const activeAgentsList = agents
+
+    // Handle edge case: no active agents (zero capacity)
+    if (activeAgentsList.length === 0) {
+      return 0
+    }
+
+    // Calculate sum of activeTasks for HEALTHY agents only
+    const totalActiveTasks = activeAgentsList
+      .filter(agent => agent.status === 'HEALTHY')
+      .reduce((sum, agent) => sum + (agent.activeTasks || 0), 0)
+
+    // Calculate total capacity: count of ACTIVE agents * 10 (max concurrent tasks per agent)
+    const totalCapacity = activeAgentsList.length * 10
+
+    // Apply formula: min(100, round((totalTasks / capacity) * 100))
+    const calculatedWorkload = Math.min(100, Math.round((totalActiveTasks / totalCapacity) * 100))
+
+    return calculatedWorkload
+  })()
+
+  const isLoading = agentsLoading || metricsLoading || resultsLoading || matchingStatusLoading
 
   return (
     <MuiContainer maxWidth="xl" sx={{ py: 4 }}>
@@ -127,7 +168,7 @@ export default function Dashboard() {
       {/* Hero Metrics */}
       {isLoading && !metrics ? (
         <Box sx={{ mb: 4 }}>
-          <SkeletonGroup variant="metric-cards" count={4} />
+          <SkeletonGroup variant="metric-cards" count={5} />
         </Box>
       ) : (
         <HeroMetrics
@@ -135,6 +176,8 @@ export default function Dashboard() {
           matchRate={matchRate}
           avgLatency={avgLatency}
           activeAgents={activeAgents}
+          workload={workload}
+          matchingStatus={matchingStatus}
           isLoading={isLoading}
         />
       )}
@@ -164,12 +207,12 @@ export default function Dashboard() {
         animationDelay={0.3}
         sx={{ mb: 4, p: 0, overflow: 'hidden' }}
       >
-        {resultsLoading && !matchingResults ? (
+        {resultsLoading && !recentResults ? (
           <Box sx={{ p: 3 }}>
             <SkeletonGroup variant="table" count={5} />
           </Box>
         ) : (
-          <MatchingResultsPanel results={matchingResults || []} />
+          <MatchingResultsPanel results={recentResults || []} />
         )}
       </GlassCard>
     </MuiContainer>

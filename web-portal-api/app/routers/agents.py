@@ -1,20 +1,33 @@
 from datetime import datetime, timezone, timedelta
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from ..models import AgentHealth, AgentStatus
 from ..services.dynamodb import db_service
 from ..config import settings
-from ..auth import get_current_user, User
+from ..auth import get_current_user, get_current_user_or_dev, optional_auth_or_dev, User
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
 # Map agent_type to friendly names
 AGENT_TYPE_NAMES = {
     "PDF_ADAPTER": "PDF Adapter",
-    "TRADE_EXTRACTOR": "Trade Extraction", 
+    "TRADE_EXTRACTOR": "Trade Extraction",
     "TRADE_MATCHER": "Trade Matching",
     "EXCEPTION_HANDLER": "Exception Handler",
     "ORCHESTRATOR": "Orchestrator",
+}
+
+# Fallback mapping for agent_id when agent_type is not set
+AGENT_ID_TO_NAME = {
+    "pdf_adapter_agent": "PDF Adapter",
+    "trade_extraction_agent": "Trade Extraction",
+    "trade-extraction-agent": "Trade Extraction",
+    "trade_matching_agent": "Trade Matching",
+    "trade-matching-agent": "Trade Matching",
+    "exception_manager": "Exception Handler",
+    "exception_management": "Exception Management",
+    "orchestrator_otc": "Orchestrator",
+    "http_agent_orchestrator": "HTTP Orchestrator",
 }
 
 # Agent-specific health thresholds for trade processing
@@ -79,7 +92,10 @@ def _build_agent_health(item: dict) -> AgentHealth:
     """Build AgentHealth object from DynamoDB item."""
     status, last_heartbeat = _calculate_agent_status(item)
     agent_type = item.get("agent_type", "")
-    agent_name = AGENT_TYPE_NAMES.get(agent_type, item.get("agent_id", "Unknown"))
+    agent_id = item.get("agent_id", "Unknown")
+
+    # Try agent_type mapping first, then agent_id mapping, finally use agent_id as-is
+    agent_name = AGENT_TYPE_NAMES.get(agent_type) or AGENT_ID_TO_NAME.get(agent_id, agent_id)
     
     return AgentHealth(
         agentId=item.get("agent_id", ""),
@@ -102,11 +118,15 @@ def _build_agent_health(item: dict) -> AgentHealth:
 
 
 @router.get("/status", response_model=List[AgentHealth])
-async def get_agent_status():
-    """Get health status of all registered agents."""
+async def get_agent_status(user: Optional[User] = Depends(optional_auth_or_dev)):
+    """Get health status of all ACTIVE agents."""
     try:
         items = db_service.scan_table(settings.dynamodb_agent_registry_table)
-        agents = [_build_agent_health(item) for item in items]
+        
+        # Filter for ACTIVE deployment status only (Requirements 5.1, 5.2)
+        active_items = [item for item in items if item.get("deployment_status") == "ACTIVE"]
+        
+        agents = [_build_agent_health(item) for item in active_items]
         return agents
     except Exception as e:
         print(f"Error fetching agents: {e}")
@@ -114,7 +134,7 @@ async def get_agent_status():
 
 
 @router.get("/{agent_id}", response_model=AgentHealth)
-async def get_agent_details(agent_id: str, user: User = Depends(get_current_user)):
+async def get_agent_details(agent_id: str, user: User = Depends(get_current_user_or_dev)):
     """Get detailed information for a specific agent."""
     try:
         item = db_service.get_item(settings.dynamodb_agent_registry_table, {"agent_id": agent_id})
@@ -131,9 +151,9 @@ async def get_agent_details(agent_id: str, user: User = Depends(get_current_user
 
 @router.get("/{agent_id}/metrics")
 async def get_agent_metrics_history(
-    agent_id: str, 
+    agent_id: str,
     hours: int = 24,
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user_or_dev)
 ):
     """Get historical metrics for an agent over the specified time period."""
     try:

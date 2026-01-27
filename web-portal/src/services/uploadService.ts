@@ -1,7 +1,8 @@
 import axios, { AxiosProgressEvent } from 'axios'
 import { UploadResponse } from '../types'
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8001') + '/api'
+// Use relative URL to leverage Vite's proxy configuration
+const API_BASE_URL = '/api'
 
 export type SourceType = 'BANK' | 'COUNTERPARTY'
 
@@ -50,6 +51,7 @@ class UploadService {
       const { presignedUrl, s3Uri, sessionId, traceId, uploadId } = presignResponse.data
 
       // Step 2: Upload file directly to S3 using presigned URL (if available)
+      let uploadSuccessful = false
       if (presignedUrl) {
         try {
           await axios.put(presignedUrl, file, {
@@ -66,9 +68,36 @@ class UploadService {
               }
             },
           })
+          uploadSuccessful = true
+          console.log('S3 upload successful:', s3Uri)
         } catch (s3Error) {
-          console.warn('S3 upload failed, continuing with simulated upload:', s3Error)
-          // Continue anyway for demo mode
+          console.warn('S3 upload failed:', s3Error)
+          throw new Error('Failed to upload file to S3. Please try again.')
+        }
+      }
+
+      // Step 3: Confirm upload and trigger agent processing (if upload was successful)
+      if (uploadSuccessful) {
+        try {
+          const confirmResponse = await axios.post(
+            `${API_BASE_URL}/upload/confirm`,
+            {
+              sessionId,
+              s3Uri
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              timeout: 10000,
+            }
+          )
+
+          console.log('Upload confirmed, agent invoked:', confirmResponse.data.agentInvoked)
+        } catch (confirmError) {
+          console.warn('Failed to confirm upload or invoke agent:', confirmError)
+          // Don't fail the upload - just log the error
+          // The user can manually invoke the agent if needed
         }
       }
 

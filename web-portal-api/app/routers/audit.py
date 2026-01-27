@@ -9,7 +9,7 @@ from boto3.dynamodb.conditions import Attr
 from ..models import AuditRecord, AuditActionType, AuditResponse
 from ..services.dynamodb import db_service
 from ..config import settings
-from ..auth import require_auth, User
+from ..auth import require_auth, get_current_user_or_dev, User
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
@@ -44,7 +44,7 @@ async def get_audit_records(
     actionType: Optional[str] = Query(None),
     page: int = Query(0, ge=0),
     pageSize: int = Query(25, ge=1, le=100),
-    user: User = Depends(require_auth)
+    user: User = Depends(get_current_user_or_dev)
 ):
     """Get audit records with filtering and pagination."""
     filter_expr = build_filter_expression(startDate, endDate, agentId, actionType)
@@ -81,7 +81,7 @@ async def export_audit_records(
     endDate: Optional[str] = Query(None),
     agentId: Optional[str] = Query(None),
     actionType: Optional[str] = Query(None),
-    user: User = Depends(require_auth)
+    user: User = Depends(get_current_user_or_dev)
 ):
     """Export audit records in CSV, JSON, or XML format."""
     filter_expr = build_filter_expression(startDate, endDate, agentId, actionType)

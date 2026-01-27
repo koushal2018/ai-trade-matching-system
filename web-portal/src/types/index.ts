@@ -226,3 +226,18 @@ export interface AuditRecord {
   exceptions?: Exception[]
 }
 
+// Matching status types
+export interface MatchingStatusResponse {
+  matched: number
+  unmatched: number
+  pending: number
+  exceptions: number
+}
+
+// Recent session types
+export interface RecentSessionItem {
+  sessionId: string
+  status: string
+  createdAt?: string
+  lastUpdated?: string
+}

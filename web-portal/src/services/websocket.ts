@@ -11,8 +11,13 @@ class WebSocketService {
   private url: string
 
   constructor() {
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    this.url = import.meta.env.VITE_WS_URL || `${wsProtocol}//${window.location.host}/ws`
+    // Use relative WebSocket URL to leverage Vite's proxy
+    // In development: ws://localhost:3000/ws (proxied to localhost:8000)
+    // In production: Will use actual domain
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.host
+    this.url = `${protocol}//${host}/ws`
+    console.log('WebSocket URL:', this.url)
   }
 
   connect() {
@@ -28,6 +33,7 @@ class WebSocketService {
     this.ws.onmessage = (event) => {
       try {
         const message: WebSocketMessage = JSON.parse(event.data)
+        console.log('WebSocket message received:', message)
         this.notifyHandlers(message)
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error)
@@ -72,6 +78,26 @@ class WebSocketService {
 
   unsubscribe(eventType: WebSocketEventType, handler: MessageHandler) {
     this.handlers.get(eventType)?.delete(handler)
+  }
+
+  send(message: any) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      console.log('Sending WebSocket message:', message)
+      this.ws.send(JSON.stringify(message))
+    } else {
+      console.warn('WebSocket is not connected, cannot send message:', message)
+      // Try to connect and queue the message
+      if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
+        this.connect()
+        // Wait a bit for connection to establish
+        setTimeout(() => {
+          if (this.ws?.readyState === WebSocket.OPEN) {
+            console.log('Sending queued WebSocket message:', message)
+            this.ws.send(JSON.stringify(message))
+          }
+        }, 1000)
+      }
+    }
   }
 
   disconnect() {

@@ -16,10 +16,12 @@ import {
 } from '@mui/icons-material'
 import { useQuery } from '@tanstack/react-query'
 import { agentService } from '../services/agentService'
+import { workflowService } from '../services/workflowService'
+import { wsService } from '../services/websocket'
 import GlassCard from '../components/common/GlassCard'
 import StatusPulse from '../components/common/StatusPulse'
 import { fsiColors } from '../theme'
-import type { AgentHealth } from '../types'
+import type { AgentHealth, WebSocketMessage } from '../types'
 
 interface ActivityEvent {
   id: string
@@ -28,56 +30,85 @@ interface ActivityEvent {
   eventType: 'processing' | 'completed' | 'error' | 'waiting'
   message: string
   sessionId?: string
-  details?: Record<string, unknown>
+  details?: any
 }
 
-// Simulated event generator for demo purposes
-const generateMockEvent = (agents: AgentHealth[]): ActivityEvent => {
-  const eventTypes: ActivityEvent['eventType'][] = ['processing', 'completed', 'waiting']
-  const eventType = eventTypes[Math.floor(Math.random() * eventTypes.length)]
-  const agent = agents[Math.floor(Math.random() * agents.length)]
+// Agent name mapping
+const AGENT_DISPLAY_NAMES: Record<string, string> = {
+  pdfAdapter: 'PDF Adapter',
+  tradeExtraction: 'Trade Extraction',
+  tradeMatching: 'Trade Matching',
+  exceptionManagement: 'Exception Management',
+}
 
-  const messages: Record<string, string[]> = {
-    processing: [
-      'Extracting text from PDF document...',
-      'Parsing trade confirmation fields...',
-      'Comparing trade attributes...',
-      'Calculating confidence scores...',
-      'Validating extracted data...',
-    ],
-    completed: [
-      'Successfully matched trade TRD-2024-' + Math.floor(Math.random() * 9999),
-      'Trade extraction completed with 98% confidence',
-      'PDF processing finished - 3 pages extracted',
-      'Exception resolved automatically',
-      'HITL review submitted successfully',
-    ],
-    waiting: [
-      'Waiting for counterparty document...',
-      'Queued for matching engine...',
-      'Pending human review...',
-      'Awaiting upstream agent completion...',
-    ],
-    error: [
-      'Failed to parse date field',
-      'Low confidence match detected',
-      'Timeout waiting for response',
-    ],
+// Convert WebSocket message to ActivityEvent
+const transformWebSocketMessage = (wsMessage: WebSocketMessage): ActivityEvent | null => {
+  const { type, sessionId, timestamp, data } = wsMessage
+
+  if (type === 'AGENT_STATUS_UPDATE') {
+    const agentData = data as any
+    const events: ActivityEvent[] = []
+
+    // Create events for each agent status change
+    Object.entries(agentData).forEach(([agentKey, agentInfo]: [string, any]) => {
+      if (!agentInfo || typeof agentInfo !== 'object') return
+
+      const status = agentInfo.status
+      const activity = agentInfo.activity || ''
+
+      let eventType: ActivityEvent['eventType'] = 'waiting'
+      if (status === 'in-progress' || status === 'loading') eventType = 'processing'
+      else if (status === 'success' || status === 'completed') eventType = 'completed'
+      else if (status === 'error' || status === 'failed') eventType = 'error'
+
+      if (activity) {
+        events.push({
+          id: `${sessionId}-${agentKey}-${Date.now()}`,
+          timestamp: new Date(timestamp || new Date().toISOString()),
+          agentName: AGENT_DISPLAY_NAMES[agentKey] || agentKey,
+          eventType,
+          message: activity,
+          sessionId,
+          details: agentInfo,
+        })
+      }
+    })
+
+    return events[0] || null
   }
 
-  return {
-    id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    timestamp: new Date(),
-    agentName: agent?.agentName || 'System',
-    eventType,
-    message: messages[eventType][Math.floor(Math.random() * messages[eventType].length)],
-    sessionId: `sess-${Math.random().toString(36).substr(2, 8)}`,
+  // Handle other message types
+  if (type === 'EXCEPTION') {
+    return {
+      id: `${sessionId}-exception-${Date.now()}`,
+      timestamp: new Date(timestamp || new Date().toISOString()),
+      agentName: 'Exception Handler',
+      eventType: 'error',
+      message: (data as any).message || 'Exception occurred',
+      sessionId,
+      details: data,
+    }
   }
+
+  if (type === 'RESULT_AVAILABLE') {
+    return {
+      id: `${sessionId}-result-${Date.now()}`,
+      timestamp: new Date(timestamp || new Date().toISOString()),
+      agentName: 'System',
+      eventType: 'completed',
+      message: 'Trade matching result available',
+      sessionId,
+      details: data,
+    }
+  }
+
+  return null
 }
 
 export default function RealTimeMonitor() {
   const [isLive, setIsLive] = useState(true)
   const [events, setEvents] = useState<ActivityEvent[]>([])
+  const [, setSubscribedSessions] = useState<Set<string>>(new Set())
   const eventContainerRef = useRef<HTMLDivElement>(null)
 
   const { data: agents } = useQuery<AgentHealth[]>({
@@ -86,17 +117,94 @@ export default function RealTimeMonitor() {
     refetchInterval: isLive ? 5000 : false,
   })
 
-  // Generate mock events for demo
+  // Connect to WebSocket and subscribe to events
   useEffect(() => {
-    if (!isLive || !agents || agents.length === 0) return
+    if (!isLive) return
 
-    const interval = setInterval(() => {
-      const newEvent = generateMockEvent(agents)
-      setEvents(prev => [newEvent, ...prev].slice(0, 100)) // Keep last 100 events
-    }, 2000 + Math.random() * 3000) // Random interval 2-5 seconds
+    // Connect to WebSocket
+    wsService.connect()
 
-    return () => clearInterval(interval)
-  }, [isLive, agents])
+    // Subscribe to recent sessions - poll for active sessions and subscribe to them
+    const subscribeToActiveSessions = async () => {
+      try {
+        console.log('Fetching recent sessions...')
+        // Get recent processing sessions from the API using workflowService
+        const sessions = await workflowService.getRecentSessions(10)
+        console.log('Got recent sessions:', sessions)
+        
+        // Subscribe to each active session that we haven't already subscribed to
+        let subscribeCount = 0
+        setSubscribedSessions(prev => {
+          const newSet = new Set(prev)
+          sessions.forEach((session) => {
+            if (session.sessionId && session.status !== 'completed' && !newSet.has(session.sessionId)) {
+              console.log('Subscribing to session:', session.sessionId, 'status:', session.status)
+              wsService.send({
+                type: 'SUBSCRIBE',
+                sessionId: session.sessionId
+              })
+              // Add to subscribed sessions set
+              newSet.add(session.sessionId)
+              subscribeCount++
+            }
+          })
+          return newSet
+        })
+        console.log(`Subscribed to ${subscribeCount} active sessions`)
+      } catch (error) {
+        console.error('Failed to subscribe to active sessions:', error)
+      }
+    }
+
+    // Subscribe to active sessions on mount and periodically
+    subscribeToActiveSessions()
+    const intervalId = setInterval(subscribeToActiveSessions, 10000) // Every 10 seconds
+
+    // Subscribe to all relevant event types
+    const unsubscribers = [
+      wsService.subscribe('AGENT_STATUS_UPDATE', (message: WebSocketMessage) => {
+        console.log('Received AGENT_STATUS_UPDATE:', message)
+        const event = transformWebSocketMessage(message)
+        if (event) {
+          console.log('Transformed to event:', event)
+          setEvents(prev => [event, ...prev].slice(0, 100)) // Keep last 100 events
+        }
+      }),
+      wsService.subscribe('EXCEPTION', (message: WebSocketMessage) => {
+        const event = transformWebSocketMessage(message)
+        if (event) {
+          setEvents(prev => [event, ...prev].slice(0, 100))
+        }
+      }),
+      wsService.subscribe('RESULT_AVAILABLE', (message: WebSocketMessage) => {
+        const event = transformWebSocketMessage(message)
+        if (event) {
+          setEvents(prev => [event, ...prev].slice(0, 100))
+        }
+      }),
+      wsService.subscribe('HITL_REQUIRED', (message: WebSocketMessage) => {
+        const event: ActivityEvent = {
+          id: `${message.sessionId}-hitl-${Date.now()}`,
+          timestamp: new Date(message.timestamp || new Date().toISOString()),
+          agentName: 'HITL Review',
+          eventType: 'waiting',
+          message: 'Human review required for trade matching',
+          sessionId: message.sessionId,
+          details: message.data,
+        }
+        setEvents(prev => [event, ...prev].slice(0, 100))
+      }),
+    ]
+
+    // Cleanup subscriptions on unmount or when isLive changes
+    return () => {
+      clearInterval(intervalId)
+      unsubscribers.forEach(unsub => unsub())
+      if (!isLive) {
+        wsService.disconnect()
+      }
+    }
+  }, [isLive]) // Removed subscribedSessions from dependencies to prevent unnecessary re-renders
 
   // Auto-scroll to top when new events arrive
   useEffect(() => {
