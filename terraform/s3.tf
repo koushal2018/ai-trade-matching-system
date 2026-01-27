@@ -80,25 +80,26 @@ resource "aws_s3_bucket_lifecycle_configuration" "trade_documents" {
 }
 
 # S3 Event Notification Configuration
-resource "aws_s3_bucket_notification" "trade_documents" {
-  bucket = aws_s3_bucket.trade_documents.id
-
-  lambda_function {
-    lambda_function_arn = aws_lambda_function.s3_event_processor.arn
-    events              = ["s3:ObjectCreated:*"]
-    filter_prefix       = "BANK/"
-    filter_suffix       = ".pdf"
-  }
-
-  lambda_function {
-    lambda_function_arn = aws_lambda_function.s3_event_processor.arn
-    events              = ["s3:ObjectCreated:*"]
-    filter_prefix       = "COUNTERPARTY/"
-    filter_suffix       = ".pdf"
-  }
-
-  depends_on = [aws_lambda_permission.allow_s3]
-}
+# Commented out until Lambda function is created
+# resource "aws_s3_bucket_notification" "trade_documents" {
+#   bucket = aws_s3_bucket.trade_documents.id
+#
+#   lambda_function {
+#     lambda_function_arn = aws_lambda_function.s3_event_processor.arn
+#     events              = ["s3:ObjectCreated:*"]
+#     filter_prefix       = "BANK/"
+#     filter_suffix       = ".pdf"
+#   }
+#
+#   lambda_function {
+#     lambda_function_arn = aws_lambda_function.s3_event_processor.arn
+#     events              = ["s3:ObjectCreated:*"]
+#     filter_prefix       = "COUNTERPARTY/"
+#     filter_suffix       = ".pdf"
+#   }
+#
+#   depends_on = [aws_lambda_permission.allow_s3]
+# }
 
 # S3 Bucket CORS Configuration
 resource "aws_s3_bucket_cors_configuration" "trade_documents" {

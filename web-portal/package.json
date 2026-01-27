@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:prod": "tsc && vite build --mode production",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "test": "vitest --run"
+    "test": "vitest --run",
+    "deploy": "cd ../scripts && ./deploy-frontend.sh"
   },
   "dependencies": {
     "@aws-amplify/auth": "^6.17.1",

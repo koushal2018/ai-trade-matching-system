@@ -93,6 +93,13 @@ variable "ecr_repository_name" {
   default     = "trade-matching-system"
 }
 
+# CloudFront Configuration
+variable "cloudfront_price_class" {
+  description = "CloudFront price class (PriceClass_All, PriceClass_200, PriceClass_100)"
+  type        = string
+  default     = "PriceClass_100"
+}
+
 # Tags
 variable "tags" {
   description = "Additional tags for resources"
