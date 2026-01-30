@@ -170,6 +170,9 @@ export type WebSocketEventType =
   | 'ERROR'
   | 'AGENT_STATUS'
   | 'METRICS_UPDATE'
+  | 'LOG_EVENT'
+  | 'LOG_SUBSCRIBED'
+  | 'LOG_UNSUBSCRIBED'
 
 export interface WebSocketMessage {
   type: WebSocketMessageType

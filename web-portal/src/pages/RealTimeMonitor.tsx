@@ -7,17 +7,24 @@ import {
   LinearProgress,
   IconButton,
   Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
+  FormControlLabel,
+  Switch,
 } from '@mui/material'
 import {
   PlayArrow as PlayIcon,
   Pause as PauseIcon,
   Delete as ClearIcon,
   FiberManualRecord as DotIcon,
+  Terminal as TerminalIcon,
+  Timeline as TimelineIcon,
 } from '@mui/icons-material'
 import { useQuery } from '@tanstack/react-query'
 import { agentService } from '../services/agentService'
 import { workflowService } from '../services/workflowService'
 import { wsService } from '../services/websocket'
+import { logService, LogGroupInfo } from '../services/logService'
 import GlassCard from '../components/common/GlassCard'
 import StatusPulse from '../components/common/StatusPulse'
 import { fsiColors } from '../theme'
@@ -31,6 +38,15 @@ interface ActivityEvent {
   message: string
   sessionId?: string
   details?: any
+}
+
+interface LogEvent {
+  id: string
+  timestamp: Date
+  message: string
+  logGroup: string
+  logGroupName: string
+  level: 'INFO' | 'WARNING' | 'ERROR' | 'DEBUG'
 }
 
 // Agent name mapping
@@ -108,7 +124,11 @@ const transformWebSocketMessage = (wsMessage: WebSocketMessage): ActivityEvent |
 export default function RealTimeMonitor() {
   const [isLive, setIsLive] = useState(true)
   const [events, setEvents] = useState<ActivityEvent[]>([])
+  const [logEvents, setLogEvents] = useState<LogEvent[]>([])
   const [, setSubscribedSessions] = useState<Set<string>>(new Set())
+  const [viewMode, setViewMode] = useState<'activity' | 'logs'>('logs')
+  const [logGroups, setLogGroups] = useState<LogGroupInfo[]>([])
+  const [isLogStreaming, setIsLogStreaming] = useState(false)
   const eventContainerRef = useRef<HTMLDivElement>(null)
 
   const { data: agents } = useQuery<AgentHealth[]>({
@@ -116,6 +136,45 @@ export default function RealTimeMonitor() {
     queryFn: agentService.getAgentStatus,
     refetchInterval: isLive ? 5000 : false,
   })
+
+  // Fetch available log groups on mount
+  useEffect(() => {
+    logService.getAvailableLogGroups().then(setLogGroups).catch(console.error)
+  }, [])
+
+  // Handle log streaming subscription
+  useEffect(() => {
+    if (!isLive || viewMode !== 'logs' || !isLogStreaming) return
+
+    // Subscribe to CloudWatch logs via WebSocket
+    // Note: Use all log groups regardless of availability flag since it may have permission issues
+    const availableGroups = logGroups.map(g => g.logGroup)
+    if (availableGroups.length === 0) return
+
+    wsService.connect()
+    wsService.send({
+      type: 'LOG_SUBSCRIBE',
+      logGroups: availableGroups
+    })
+
+    // Listen for log events
+    const unsubscribe = wsService.subscribe('LOG_EVENT', (message: any) => {
+      const logEvent: LogEvent = {
+        id: `log-${Date.now()}-${Math.random()}`,
+        timestamp: new Date(message.timestamp),
+        message: message.message,
+        logGroup: message.logGroup,
+        logGroupName: message.logGroupName,
+        level: message.level || 'INFO'
+      }
+      setLogEvents(prev => [logEvent, ...prev].slice(0, 500)) // Keep last 500 logs
+    })
+
+    return () => {
+      unsubscribe()
+      wsService.send({ type: 'LOG_UNSUBSCRIBE' })
+    }
+  }, [isLive, viewMode, isLogStreaming, logGroups])
 
   // Connect to WebSocket and subscribe to events
   useEffect(() => {
@@ -214,7 +273,21 @@ export default function RealTimeMonitor() {
   }, [events, isLive])
 
   const handleClearEvents = () => {
-    setEvents([])
+    if (viewMode === 'logs') {
+      setLogEvents([])
+    } else {
+      setEvents([])
+    }
+  }
+
+  const getLogLevelColor = (level: LogEvent['level']) => {
+    switch (level) {
+      case 'ERROR': return '#f44336'
+      case 'WARNING': return '#ff9800'
+      case 'DEBUG': return '#9e9e9e'
+      case 'INFO':
+      default: return '#4caf50'
+    }
   }
 
   const getEventColor = (type: ActivityEvent['eventType']) => {
@@ -299,9 +372,58 @@ export default function RealTimeMonitor() {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={(_, value) => value && setViewMode(value)}
+            size="small"
+            sx={{
+              '& .MuiToggleButton-root': {
+                color: 'text.secondary',
+                borderColor: 'rgba(255,255,255,0.2)',
+                '&.Mui-selected': {
+                  bgcolor: 'rgba(255, 153, 0, 0.2)',
+                  color: '#FF9900',
+                  '&:hover': { bgcolor: 'rgba(255, 153, 0, 0.3)' },
+                },
+              },
+            }}
+          >
+            <ToggleButton value="logs">
+              <Tooltip title="CloudWatch Logs">
+                <TerminalIcon sx={{ mr: 0.5 }} />
+              </Tooltip>
+              Logs
+            </ToggleButton>
+            <ToggleButton value="activity">
+              <Tooltip title="Activity Stream">
+                <TimelineIcon sx={{ mr: 0.5 }} />
+              </Tooltip>
+              Activity
+            </ToggleButton>
+          </ToggleButtonGroup>
+          {viewMode === 'logs' && (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={isLogStreaming}
+                  onChange={(e) => setIsLogStreaming(e.target.checked)}
+                  sx={{
+                    '& .MuiSwitch-switchBase.Mui-checked': {
+                      color: '#FF9900',
+                    },
+                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                      backgroundColor: '#FF9900',
+                    },
+                  }}
+                />
+              }
+              label={<Typography variant="body2" color="text.secondary">Stream</Typography>}
+            />
+          )}
           <StatusPulse
-            status={isLive ? 'healthy' : 'offline'}
-            label={isLive ? 'Live' : 'Paused'}
+            status={isLive && (viewMode === 'activity' || isLogStreaming) ? 'healthy' : 'offline'}
+            label={isLive && (viewMode === 'activity' || isLogStreaming) ? 'Live' : 'Paused'}
           />
           <Tooltip title={isLive ? 'Pause stream' : 'Resume stream'}>
             <IconButton
@@ -357,10 +479,10 @@ export default function RealTimeMonitor() {
           </Box>
           <Box sx={{ textAlign: 'center' }}>
             <Typography variant="h4" fontWeight={700} color="warning.main">
-              {events.length}
+              {viewMode === 'logs' ? logEvents.length : events.length}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              Events Captured
+              {viewMode === 'logs' ? 'Log Events' : 'Events Captured'}
             </Typography>
           </Box>
         </Box>
@@ -368,14 +490,24 @@ export default function RealTimeMonitor() {
 
       {/* Main Content Grid */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, gap: 3 }}>
-        {/* Activity Stream */}
+        {/* Activity Stream / Log Stream */}
         <GlassCard variant="default" animateIn animationDelay={0.1} sx={{ p: 0 }}>
-          <Box sx={{ p: 2, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+          <Box sx={{ p: 2, borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" fontWeight={600}>
-              Activity Stream
+              {viewMode === 'logs' ? 'CloudWatch Logs' : 'Activity Stream'}
             </Typography>
+            {viewMode === 'logs' && (
+              <Chip
+                label={isLogStreaming ? 'Streaming' : 'Paused'}
+                size="small"
+                sx={{
+                  bgcolor: isLogStreaming ? 'rgba(76, 175, 80, 0.2)' : 'rgba(158, 158, 158, 0.2)',
+                  color: isLogStreaming ? '#4caf50' : '#9e9e9e',
+                }}
+              />
+            )}
           </Box>
-          {isLive && (
+          {isLive && (viewMode === 'activity' || isLogStreaming) && (
             <LinearProgress
               sx={{
                 height: 2,
@@ -391,6 +523,8 @@ export default function RealTimeMonitor() {
             sx={{
               height: 500,
               overflowY: 'auto',
+              bgcolor: viewMode === 'logs' ? 'rgba(0,0,0,0.3)' : 'transparent',
+              fontFamily: viewMode === 'logs' ? 'monospace' : 'inherit',
               '&::-webkit-scrollbar': { width: 8 },
               '&::-webkit-scrollbar-track': { bgcolor: 'rgba(255,255,255,0.05)' },
               '&::-webkit-scrollbar-thumb': {
@@ -399,65 +533,148 @@ export default function RealTimeMonitor() {
               },
             }}
           >
-            {events.length === 0 ? (
-              <Box sx={{ p: 4, textAlign: 'center' }}>
-                <Typography color="text.secondary">
-                  {isLive ? 'Waiting for events...' : 'Stream paused. Click play to resume.'}
-                </Typography>
-              </Box>
-            ) : (
-              events.map((event, index) => (
-                <Box
-                  key={event.id}
-                  sx={{
-                    p: 2,
-                    borderBottom: '1px solid rgba(255,255,255,0.05)',
-                    animation: index === 0 ? 'slideIn 0.3s ease-out' : undefined,
-                    '@keyframes slideIn': {
-                      '0%': { opacity: 0, transform: 'translateX(-20px)' },
-                      '100%': { opacity: 1, transform: 'translateX(0)' },
-                    },
-                    '&:hover': {
-                      bgcolor: 'rgba(255,255,255,0.03)',
-                    },
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
-                    <DotIcon sx={{ color: getEventColor(event.eventType), fontSize: 12, mt: 0.5 }} />
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                        <Typography variant="body2" fontWeight={600} color="text.primary">
-                          {event.agentName}
-                        </Typography>
-                        <Chip
-                          label={getEventLabel(event.eventType)}
-                          size="small"
-                          sx={{
-                            height: 20,
-                            fontSize: '0.7rem',
-                            bgcolor: `${getEventColor(event.eventType)}20`,
-                            color: getEventColor(event.eventType),
-                            border: `1px solid ${getEventColor(event.eventType)}40`,
-                          }}
-                        />
-                      </Box>
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                        {event.message}
+            {viewMode === 'logs' ? (
+              // CloudWatch Logs View
+              logEvents.length === 0 ? (
+                <Box sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography color="text.secondary">
+                    {isLogStreaming ? 'Waiting for log events...' : 'Enable streaming to see live logs.'}
+                  </Typography>
+                  <Typography variant="caption" color="text.disabled" sx={{ mt: 1, display: 'block' }}>
+                    Toggle the "Stream" switch to start receiving CloudWatch logs
+                  </Typography>
+                </Box>
+              ) : (
+                logEvents.map((log, index) => (
+                  <Box
+                    key={log.id}
+                    sx={{
+                      px: 2,
+                      py: 0.5,
+                      borderBottom: '1px solid rgba(255,255,255,0.03)',
+                      animation: index === 0 ? 'slideIn 0.3s ease-out' : undefined,
+                      '@keyframes slideIn': {
+                        '0%': { opacity: 0, transform: 'translateX(-20px)' },
+                        '100%': { opacity: 1, transform: 'translateX(0)' },
+                      },
+                      '&:hover': {
+                        bgcolor: 'rgba(255,255,255,0.05)',
+                      },
+                      fontSize: '0.75rem',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                      <Typography
+                        component="span"
+                        sx={{
+                          color: 'text.disabled',
+                          fontSize: '0.7rem',
+                          minWidth: 70,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {formatTime(log.timestamp)}
                       </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Typography variant="caption" color="text.disabled">
-                          {formatTime(event.timestamp)}
-                        </Typography>
-                        {event.sessionId && (
-                          <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace' }}>
-                            {event.sessionId}
+                      <Chip
+                        label={log.level}
+                        size="small"
+                        sx={{
+                          height: 16,
+                          fontSize: '0.6rem',
+                          bgcolor: `${getLogLevelColor(log.level)}20`,
+                          color: getLogLevelColor(log.level),
+                          minWidth: 50,
+                          '& .MuiChip-label': { px: 0.5 },
+                        }}
+                      />
+                      <Typography
+                        component="span"
+                        sx={{
+                          color: '#64b5f6',
+                          fontSize: '0.7rem',
+                          minWidth: 120,
+                          flexShrink: 0,
+                        }}
+                      >
+                        [{log.logGroupName}]
+                      </Typography>
+                      <Typography
+                        component="span"
+                        sx={{
+                          color: 'text.secondary',
+                          fontSize: '0.75rem',
+                          wordBreak: 'break-word',
+                          flex: 1,
+                        }}
+                      >
+                        {log.message}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))
+              )
+            ) : (
+              // Activity Stream View
+              events.length === 0 ? (
+                <Box sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography color="text.secondary">
+                    {isLive ? 'Waiting for events...' : 'Stream paused. Click play to resume.'}
+                  </Typography>
+                </Box>
+              ) : (
+                events.map((event, index) => (
+                  <Box
+                    key={event.id}
+                    sx={{
+                      p: 2,
+                      borderBottom: '1px solid rgba(255,255,255,0.05)',
+                      animation: index === 0 ? 'slideIn 0.3s ease-out' : undefined,
+                      '@keyframes slideIn': {
+                        '0%': { opacity: 0, transform: 'translateX(-20px)' },
+                        '100%': { opacity: 1, transform: 'translateX(0)' },
+                      },
+                      '&:hover': {
+                        bgcolor: 'rgba(255,255,255,0.03)',
+                      },
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                      <DotIcon sx={{ color: getEventColor(event.eventType), fontSize: 12, mt: 0.5 }} />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                          <Typography variant="body2" fontWeight={600} color="text.primary">
+                            {event.agentName}
                           </Typography>
-                        )}
+                          <Chip
+                            label={getEventLabel(event.eventType)}
+                            size="small"
+                            sx={{
+                              height: 20,
+                              fontSize: '0.7rem',
+                              bgcolor: `${getEventColor(event.eventType)}20`,
+                              color: getEventColor(event.eventType),
+                              border: `1px solid ${getEventColor(event.eventType)}40`,
+                            }}
+                          />
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+                          {event.message}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Typography variant="caption" color="text.disabled">
+                            {formatTime(event.timestamp)}
+                          </Typography>
+                          {event.sessionId && (
+                            <Typography variant="caption" color="text.disabled" sx={{ fontFamily: 'monospace' }}>
+                              {event.sessionId}
+                            </Typography>
+                          )}
+                        </Box>
                       </Box>
                     </Box>
                   </Box>
-                </Box>
-              ))
+                ))
+              )
             )}
           </Box>
         </GlassCard>
