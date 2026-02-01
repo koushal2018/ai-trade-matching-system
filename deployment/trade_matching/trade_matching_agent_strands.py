@@ -14,7 +14,7 @@ os.environ["BYPASS_TOOL_CONSENT"] = "true"
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, Optional, List
 import logging
 
@@ -118,9 +118,21 @@ if use_aws is None:
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from bedrock_agentcore.runtime.models import PingStatus
 
-# AgentCore Observability - Auto-instrumented via OTEL when strands-agents[otel] is installed
-# Manual span management removed - AgentCore Runtime handles this automatically
-# See: https://docs.aws.amazon.com/bedrock/latest/userguide/agentcore-observability.html
+# AgentCore Observability
+try:
+    from bedrock_agentcore.observability import Observability
+    OBSERVABILITY_AVAILABLE = True
+except ImportError:
+    OBSERVABILITY_AVAILABLE = False
+
+# AgentCore Memory
+try:
+    from bedrock_agentcore.memory.session import MemorySessionManager
+    from bedrock_agentcore.memory.constants import ConversationalMessage, MessageRole
+    MEMORY_AVAILABLE = True
+except ImportError:
+    MEMORY_AVAILABLE = False
+    logger.warning("AgentCore Memory not available - memory features disabled")
 
 # Set up logging
 logging.basicConfig(
@@ -128,16 +140,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# AgentCore Memory - Strands Integration (correct pattern per AWS docs)
-# See: https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/strands-sdk-memory.html
-try:
-    from bedrock_agentcore.memory.integrations.strands.config import AgentCoreMemoryConfig, RetrievalConfig
-    from bedrock_agentcore.memory.integrations.strands.session_manager import AgentCoreMemorySessionManager
-    MEMORY_AVAILABLE = True
-except ImportError:
-    MEMORY_AVAILABLE = False
-    logger.warning("AgentCore Memory Strands integration not available - memory features disabled")
 
 # Initialize BedrockAgentCoreApp
 app = BedrockAgentCoreApp()
@@ -156,16 +158,41 @@ OBSERVABILITY_STAGE = os.getenv("OBSERVABILITY_STAGE", "development")
 AGENT_NAME = "trade-matching-agent"
 
 # AgentCore Memory Configuration
-# Memory ID for the shared trade matching memory resource
-# This memory uses 3 built-in strategies: semantic, preferences, summaries
+# Semantic memory with LTM for continuous learning
 MEMORY_ID = os.getenv(
     "AGENTCORE_MEMORY_ID",
-    ""  # Set via environment variable - create memory resource with setup_memory.py
+    "trade_matching_decisions-Z3tG4b4Xsd"  # Semantic memory resource
 )
+MEMORY_STORE_DECISIONS = os.getenv("MEMORY_STORE_DECISIONS", "true").lower() == "true"
+MEMORY_RETRIEVE_CONTEXT = os.getenv("MEMORY_RETRIEVE_CONTEXT", "false").lower() == "true"
 
-# Observability Note: AgentCore Runtime auto-instruments via OTEL when strands-agents[otel] is installed
-# No manual Observability class needed - traces are automatically captured and sent to CloudWatch
-logger.info(f"[INIT] Agent initialized - service={AGENT_NAME}, stage={OBSERVABILITY_STAGE}")
+# Initialize Observability
+observability = None
+if OBSERVABILITY_AVAILABLE:
+    try:
+        observability = Observability(
+            service_name=AGENT_NAME,
+            stage=OBSERVABILITY_STAGE,
+            verbosity="high" if OBSERVABILITY_STAGE == "development" else "low"
+        )
+        logger.info(f"Observability initialized for {AGENT_NAME}")
+    except Exception as e:
+        logger.warning(f"Failed to initialize observability: {e}")
+
+# Initialize AgentCore Memory
+memory_session = None
+if MEMORY_AVAILABLE and MEMORY_ID:
+    try:
+        memory_session = MemorySessionManager(
+            memory_id=MEMORY_ID,
+            region_name=REGION
+        )
+        logger.info(f"AgentCore Memory initialized: {MEMORY_ID}")
+        logger.info(f"Memory features - Store: {MEMORY_STORE_DECISIONS}, Retrieve: {MEMORY_RETRIEVE_CONTEXT}")
+    except Exception as e:
+        logger.warning(f"Failed to initialize AgentCore Memory: {e}")
+        logger.warning("Verify IAM permissions: bedrock-agentcore:GetMemory, CreateMemorySession, AddMemoryTurns, SearchMemory")
+        memory_session = None
 
 # Lazy-initialized boto3 clients for efficiency
 _boto_clients: Dict[str, Any] = {}
@@ -180,132 +207,128 @@ def get_boto_client(service: str):
 
 
 # ============================================================================
-# Trade ID Normalization
+# AgentCore Memory Helper Functions
 # ============================================================================
 
-def normalize_trade_id(raw_id: str, source: Optional[str] = None) -> str:
+def store_matching_decision(
+    trade_id: str,
+    source_type: str,
+    classification: str,
+    confidence: float,
+    match_details: Dict[str, Any],
+    correlation_id: str
+) -> bool:
     """
-    Normalize trade ID to standard format for consistent matching.
+    Store matching decision in AgentCore Memory for future learning.
     
-    Handles various prefix formats (fab_, FAB_, cpty_, CPTY_, bank_, BANK_)
-    and extracts the numeric identifier. Optionally applies a standard prefix
-    based on the source type.
+    This enables the agent to:
+    - Learn from past matching decisions
+    - Retrieve similar cases for context
+    - Improve matching accuracy over time
+    - Support HITL feedback integration
     
     Args:
-        raw_id: Raw trade ID (e.g., "27254314", "fab_27254314", "FAB_27254314")
-        source: Optional source type (BANK, COUNTERPARTY)
-        
-    Returns:
-        Normalized trade ID with consistent format
-        
-    Requirements: 5.1, 5.2, 5.3, 5.4
-    """
-    if not raw_id:
-        return raw_id
-    
-    import re
-    
-    # Strip existing prefixes (case-insensitive)
-    prefixes = ["fab_", "FAB_", "cpty_", "CPTY_", "bank_", "BANK_"]
-    numeric_id = raw_id
-    for prefix in prefixes:
-        if numeric_id.startswith(prefix):
-            numeric_id = numeric_id[len(prefix):]
-            break
-    
-    # Extract numeric portion if mixed alphanumeric
-    match = re.search(r'(\d+)', numeric_id)
-    if match:
-        numeric_id = match.group(1)
-    
-    # Apply standard prefix based on source
-    if source:
-        source_lower = source.lower()
-        if source_lower == "bank":
-            return f"bank_{numeric_id}"
-        elif source_lower == "counterparty":
-            return f"cpty_{numeric_id}"
-    
-    # Return just the numeric ID if no source specified
-    return numeric_id
-
-
-# ============================================================================
-# AgentCore Memory Session Manager Factory
-# ============================================================================
-
-def create_memory_session_manager(
-    correlation_id: str,
-    trade_id: str = None
-) -> Optional[AgentCoreMemorySessionManager]:
-    """
-    Create AgentCore Memory session manager for Strands agent integration.
-    
-    This follows the correct pattern per AWS documentation:
-    https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/strands-sdk-memory.html
-    
-    The session manager is passed to the Agent() constructor for automatic
-    memory management - no manual add_turns() calls needed.
-    
-    Args:
+        trade_id: Trade identifier
+        source_type: BANK or COUNTERPARTY
+        classification: MATCHED, PROBABLE_MATCH, REVIEW_REQUIRED, or BREAK
+        confidence: Confidence score (0.0 to 1.0)
+        match_details: Detailed matching information
         correlation_id: Correlation ID for tracing
-        trade_id: Optional trade ID for session naming
         
     Returns:
-        Configured AgentCoreMemorySessionManager or None if memory unavailable
+        bool: True if stored successfully
     """
-    if not MEMORY_AVAILABLE or not MEMORY_ID:
-        logger.debug(f"[{correlation_id}] Memory not available - skipping session manager creation")
-        return None
+    if not memory_session or not MEMORY_STORE_DECISIONS:
+        logger.debug("Memory storage disabled - skipping decision storage")
+        return False
     
     try:
-        # Generate unique session ID for this invocation
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        session_id = f"match_{trade_id or 'unknown'}_{timestamp}_{correlation_id[:8]}"
-        
-        # Configure memory with retrieval settings for all namespace strategies
-        # These match the strategies defined in setup_memory.py
-        config = AgentCoreMemoryConfig(
-            memory_id=MEMORY_ID,
-            session_id=session_id,
+        # Create a memory session for this matching decision
+        session = memory_session.create_memory_session(
             actor_id=AGENT_NAME,
-            retrieval_config={
-                # Semantic memory: factual trade information and patterns
-                "/facts/{actorId}": RetrievalConfig(
-                    top_k=10,
-                    relevance_score=0.6
-                ),
-                # User preferences: learned processing preferences
-                "/preferences/{actorId}": RetrievalConfig(
-                    top_k=5,
-                    relevance_score=0.7
-                ),
-                # Session summaries: past matching session summaries
-                "/summaries/{actorId}/{sessionId}": RetrievalConfig(
-                    top_k=5,
-                    relevance_score=0.5
+            session_id=f"match_{trade_id}_{correlation_id}"
+        )
+        
+        # Store the matching decision as a conversational turn
+        decision_summary = f"""Matching Decision for Trade {trade_id}:
+- Classification: {classification}
+- Confidence: {confidence:.2%}
+- Source Type: {source_type}
+- Key Attributes: {json.dumps(match_details.get('key_attributes', {}), indent=2)}
+- Reasoning: {match_details.get('reasoning', 'N/A')}
+"""
+        
+        session.add_turns(
+            messages=[
+                ConversationalMessage(
+                    decision_summary,
+                    MessageRole.ASSISTANT
                 )
-            }
+            ]
         )
         
-        session_manager = AgentCoreMemorySessionManager(
-            agentcore_memory_config=config,
-            region_name=REGION
-        )
-        
-        logger.info(
-            f"[{correlation_id}] AgentCore Memory session created - "
-            f"memory_id={MEMORY_ID}, session_id={session_id}"
-        )
-        
-        return session_manager
+        logger.info(f"Stored matching decision for {trade_id} in AgentCore Memory")
+        return True
         
     except Exception as e:
-        logger.warning(
-            f"[{correlation_id}] Failed to create memory session manager: {e}. "
-            "Continuing without memory integration."
+        logger.error(f"Failed to store matching decision in memory: {e}")
+        return False
+
+
+def retrieve_similar_matches(
+    trade_attributes: Dict[str, Any],
+    top_k: int = 5
+) -> List[Dict[str, Any]]:
+    """
+    Query AgentCore Memory for similar past matching decisions.
+    
+    This helps the agent:
+    - Learn from historical patterns
+    - Apply consistent matching logic
+    - Identify edge cases based on past experience
+    - Leverage HITL feedback from similar trades
+    
+    Args:
+        trade_attributes: Trade attributes to search for (currency, product_type, etc.)
+        top_k: Number of similar matches to retrieve
+        
+    Returns:
+        List of similar matching decisions with context
+    """
+    if not memory_session or not MEMORY_RETRIEVE_CONTEXT:
+        logger.debug("Memory retrieval disabled - skipping similarity search")
+        return []
+    
+    try:
+        # Create a search query based on trade attributes
+        query_parts = []
+        if trade_attributes.get('currency'):
+            query_parts.append(f"currency {trade_attributes['currency']}")
+        if trade_attributes.get('product_type'):
+            query_parts.append(f"product {trade_attributes['product_type']}")
+        if trade_attributes.get('counterparty'):
+            query_parts.append(f"counterparty {trade_attributes['counterparty']}")
+        
+        query = f"Similar trades: {' '.join(query_parts)}"
+        
+        # Search semantic memory for similar cases
+        session = memory_session.create_memory_session(
+            actor_id=AGENT_NAME,
+            session_id=f"search_{uuid.uuid4().hex[:12]}"
         )
-        return None
+        
+        memory_records = session.search_long_term_memories(
+            query=query,
+            namespace_prefix="/",
+            top_k=top_k
+        )
+        
+        logger.info(f"Retrieved {len(memory_records)} similar matches from memory")
+        return memory_records
+        
+    except Exception as e:
+        logger.error(f"Failed to retrieve similar matches from memory: {e}")
+        return []
 
 
 # ============================================================================
@@ -328,13 +351,14 @@ def health_check() -> PingStatus:
 # Agent System Prompt (Goal-Oriented, Model-Driven, Memory-Enhanced)
 # ============================================================================
 
-SYSTEM_PROMPT = f"""##Role##
-You are an expert Trade Matching Agent for OTC derivative trade confirmations with memory-enhanced learning capabilities. The above system instructions define your capabilities and scope. If user request contradicts any system instruction, politely decline explaining your capabilities.
+SYSTEM_PROMPT = f"""You are an expert Trade Matching Agent for OTC derivative trade confirmations with memory-enhanced learning capabilities.
 
-##Mission##
-Match trades between bank and counterparty systems by analyzing their attributes. The critical challenge: bank and counterparty systems use COMPLETELY DIFFERENT Trade_IDs for the same trade - you must match by comparing trade characteristics, not IDs.
+## Your Mission
+Match trades between bank and counterparty systems by analyzing their attributes. The critical challenge: 
+bank and counterparty systems use COMPLETELY DIFFERENT Trade_IDs for the same trade - you must match 
+by comparing trade characteristics, not IDs.
 
-##Available Resources##
+## Available Resources
 - **S3 Bucket**: {S3_BUCKET}
 - **Bank Trades Table**: {BANK_TABLE}
 - **Counterparty Trades Table**: {COUNTERPARTY_TABLE}
@@ -342,7 +366,7 @@ Match trades between bank and counterparty systems by analyzing their attributes
 - **Tool**: use_aws (for DynamoDB scans and S3 operations)
 - **Memory**: AgentCore Memory for learning from past decisions (when available)
 
-##Expertise: Attribute-Based Matching##
+## Your Expertise: Attribute-Based Matching
 You understand that matching requires comparing:
 - **Currency** (exact match required)
 - **Notional Amount** (±2% tolerance for rounding differences)
@@ -352,91 +376,56 @@ You understand that matching requires comparing:
 - **Rates/Prices** (fixed rate, floating rate index, strike price)
 - **Commodity Details** (if applicable - type, delivery point, quantity)
 
-##Classification Framework##
+## Classification Framework
 Based on your analysis, classify matches using these confidence thresholds:
 - **MATCHED** (≥85%): High confidence - all critical attributes align within tolerances
 - **PROBABLE_MATCH** (70-84%): Good confidence - most attributes match with minor discrepancies
 - **REVIEW_REQUIRED** (50-69%): Uncertain - some matches but significant differences need human review
 - **BREAK** (<50%): Low confidence - trades appear to be different transactions
 
-##Task##
-Using the information in ##Available Resources## and applying the expertise defined in ##Expertise: Attribute-Based Matching##, complete comprehensive trade matching analysis. For every matching request, please follow these steps:
-1. **Retrieve All Data**: Scan both DynamoDB tables to get complete trade datasets
-2. **Locate Source Trade**: Find the specific trade you're matching against
-3. **Identify ALL Potential Matches**: Search the opposite table for ANY trades that could potentially match (don't stop at the first candidate)
-4. **Systematic Evaluation**: For each potential match candidate:
-   - Calculate detailed confidence score based on attribute alignment
-   - Document specific reasons for the score
-   - Note any discrepancies or concerns
-5. **Comprehensive Ranking**: Rank ALL candidates by confidence score from highest to lowest
-6. **Decision Analysis**: 
-   - Select the best match (if any meet thresholds)
-   - Explain why other candidates were rejected
-   - Document the decision-making process
-7. **Generate Complete Report**: Include analysis of all candidates, not just the final match
+## Your Approach (You Decide)
+Think through the problem and determine your strategy. Generally, you'll want to:
+1. Retrieve trades from both DynamoDB tables
+2. Locate the source trade you're matching
+3. Search for potential matches in the opposite table
+4. Analyze candidates and calculate confidence scores
+5. Generate a comprehensive matching report and save to S3
 
-##Critical Requirements##
-- **Never stop at the first good match** - always evaluate all potential candidates
-- **Always rank multiple candidates** - even if one seems obvious
-- **Document rejection reasons** - explain why each non-selected candidate was ruled out
-- **Show your thinking** - walk through the comparison process step-by-step
+But you have full autonomy to adapt based on the situation.
 
-##Memory-Enhanced Learning##
+## Memory-Enhanced Learning
 When AgentCore Memory is available, your decisions are stored for continuous improvement:
 - Past matching decisions inform future analysis
 - Similar trade patterns provide context
 - HITL feedback refines your matching logic
 - Edge cases build institutional knowledge
 
-##Performance Expectations##
+## Performance Expectations
 - **Target Processing Time**: Complete matching analysis within 20 seconds
 - **Token Efficiency**: Minimize token usage while maintaining accuracy
 - **Observability**: All operations are traced with correlation_id for debugging
 
-##Technical Context##
+## Technical Context
 - **DynamoDB Format**: Items use typed format like {{"S": "value"}}, {{"N": "123.45"}}
 - **Numeric Comparisons**: Parse "N" type values as numbers for tolerance calculations
 - **Name Variations**: Counterparty names often differ (abbreviations, legal entity variations)
 - **Rounding Differences**: Same trade may have slightly different values across systems
 - **Report Location**: Save markdown reports to s3://{S3_BUCKET}/reports/matching_report_<id>_<timestamp>.md
 
-##Output Schema##
-```
-{{
-  "type": "markdown_report",
-  "required_sections": [
-    "executive_summary",
-    "source_trade_details", 
-    "all_candidates_analysis",
-    "decision_rationale",
-    "risk_assessment"
-  ],
-  "format": "markdown"
-}}
-```
+## Success Criteria
+- Accurately identify matching trades despite different IDs
+- Calculate meaningful confidence scores with clear reasoning
+- Generate detailed reports that explain your matching decisions
+- Handle edge cases intelligently (missing fields, format differences, etc.)
 
-##Output Requirements##
-Your report MUST follow the structure defined in ##Output Schema## and include:
-- **Executive Summary**: Final matching decision and confidence level
-- **Source Trade Details**: Complete attributes of the trade being matched
-- **All Candidates Analysis**: 
-  - List every potential match found
-  - Confidence score and reasoning for each
-  - Specific attribute comparisons
-  - Why each was accepted/rejected
-- **Decision Rationale**: Detailed explanation of final choice
-- **Risk Assessment**: Any concerns or edge cases identified
-
-You MUST provide the report in markdown format only. DO NOT use any other format.
-
-##Error Handling##
+## Error Handling
 If you encounter issues:
 - **Missing Data**: Document which fields are missing and impact on confidence
 - **Format Issues**: Attempt to parse alternative formats before failing
-- **No Matches Found**: Clearly state this after evaluating ALL candidates
-- **Multiple High-Confidence Matches**: Flag as requiring human review with detailed comparison
+- **No Matches Found**: Clearly state this in your report with reasoning
+- **Multiple Candidates**: Rank by confidence and explain differences
 
-You are the expert - analyze ALL potential matches systematically and make informed decisions with complete transparency.
+You are the expert - analyze the trades and make informed matching decisions.
 """
 
 
@@ -444,20 +433,8 @@ You are the expert - analyze ALL potential matches systematically and make infor
 # Create Strands Agent
 # ============================================================================
 
-def create_matching_agent(
-    session_manager: Optional[AgentCoreMemorySessionManager] = None
-) -> Agent:
-    """
-    Create and configure the Strands matching agent with AWS tools and memory.
-    
-    Args:
-        session_manager: Optional AgentCore Memory session manager for automatic
-                        memory management. When provided, the agent automatically
-                        stores and retrieves conversation context.
-    
-    Returns:
-        Configured Strands Agent with tools and optional memory
-    """
+def create_matching_agent() -> Agent:
+    """Create and configure the Strands matching agent with AWS tools."""
     # Explicitly configure BedrockModel for consistent behavior
     bedrock_model = BedrockModel(
         model_id=BEDROCK_MODEL_ID,
@@ -466,24 +443,11 @@ def create_matching_agent(
         max_tokens=4096,
     )
     
-    # Create agent with optional memory integration
-    # When session_manager is provided, Strands automatically:
-    # - Stores conversation turns as short-term memory
-    # - Extracts long-term memories via configured strategies
-    # - Retrieves relevant context for each interaction
-    if session_manager:
-        return Agent(
-            model=bedrock_model,
-            system_prompt=SYSTEM_PROMPT,
-            tools=[use_aws],
-            session_manager=session_manager
-        )
-    else:
-        return Agent(
-            model=bedrock_model,
-            system_prompt=SYSTEM_PROMPT,
-            tools=[use_aws]
-        )
+    return Agent(
+        model=bedrock_model,
+        system_prompt=SYSTEM_PROMPT,
+        tools=[use_aws]
+    )
 
 
 # ============================================================================
@@ -491,30 +455,18 @@ def create_matching_agent(
 # ============================================================================
 
 def _extract_token_metrics(result) -> Dict[str, int]:
-    """
-    Extract token usage metrics from Strands agent result.
-    
-    The AgentResult.metrics is an EventLoopMetrics object.
-    Token usage is accessed via get_summary()["accumulated_usage"].
-    Per Strands SDK docs, keys are camelCase: inputTokens, outputTokens.
-    
-    Requirements: 10.1, 10.2, 10.4
-    """
+    """Extract token usage metrics from Strands agent result."""
     metrics = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
     try:
-        if hasattr(result, 'metrics') and result.metrics:
-            summary = result.metrics.get_summary()
-            usage = summary.get("accumulated_usage", {})
-            # Note: Strands uses camelCase (inputTokens, outputTokens)
-            metrics["input_tokens"] = usage.get("inputTokens", 0) or 0
-            metrics["output_tokens"] = usage.get("outputTokens", 0) or 0
-            metrics["total_tokens"] = usage.get("totalTokens", 0) or (metrics["input_tokens"] + metrics["output_tokens"])
-            
-            # Log warning if token counts are zero (potential instrumentation issue)
-            if metrics["total_tokens"] == 0:
-                logger.warning("Token counting returned zero - potential instrumentation issue")
-    except Exception as e:
-        logger.warning(f"Failed to extract token metrics: {e}")
+        if hasattr(result, 'metrics'):
+            metrics["input_tokens"] = getattr(result.metrics, 'input_tokens', 0) or 0
+            metrics["output_tokens"] = getattr(result.metrics, 'output_tokens', 0) or 0
+        elif hasattr(result, 'usage'):
+            metrics["input_tokens"] = getattr(result.usage, 'input_tokens', 0) or 0
+            metrics["output_tokens"] = getattr(result.usage, 'output_tokens', 0) or 0
+        metrics["total_tokens"] = metrics["input_tokens"] + metrics["output_tokens"]
+    except Exception:
+        pass
     return metrics
 
 
@@ -524,7 +476,6 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
     AgentCore Runtime entrypoint for Trade Matching Agent.
     
     Uses Strands SDK with use_aws tool for all AWS operations.
-    Observability is handled automatically via OTEL auto-instrumentation.
     
     Args:
         payload: Event payload containing:
@@ -536,55 +487,65 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
     Returns:
         dict: Matching result with classification and confidence score
     """
-    start_time = datetime.now(timezone.utc)
+    start_time = datetime.utcnow()
+    logger.info("Trade Matching Agent (Strands) invoked")
+    logger.info(f"Payload: {json.dumps(payload, default=str)}")
     
-    # Extract request parameters
     trade_id = payload.get("trade_id")
     source_type = payload.get("source_type", "").upper()
     correlation_id = payload.get("correlation_id", f"corr_{uuid.uuid4().hex[:12]}")
     
-    # Log invocation with structured context
-    logger.info(
-        f"[{correlation_id}] INVOKE_START - Trade Matching Agent invoked",
-        extra={
-            "correlation_id": correlation_id,
-            "trade_id": trade_id,
-            "source_type": source_type,
-            "payload_keys": list(payload.keys()),
-            "agent_name": AGENT_NAME,
-            "agent_version": AGENT_VERSION,
-        }
-    )
+    # Standard observability attributes
+    obs_attributes = {
+        "agent_name": AGENT_NAME,
+        "agent_version": AGENT_VERSION,
+        "agent_alias": AGENT_ALIAS,
+        "correlation_id": correlation_id,
+        "trade_id": trade_id or "unknown",
+        "source_type": source_type or "unknown",
+    }
     
     if not trade_id:
-        logger.error(f"[{correlation_id}] Missing required field: trade_id")
-        return {
+        error_response = {
             "success": False,
             "error": "Missing required field: trade_id",
             "agent_name": AGENT_NAME,
             "agent_version": AGENT_VERSION,
-            "correlation_id": correlation_id,
         }
+        if observability:
+            try:
+                with observability.start_span("trade_matching") as span:
+                    for k, v in obs_attributes.items():
+                        span.set_attribute(k, v)
+                    span.set_attribute("success", False)
+                    span.set_attribute("error_type", "validation_error")
+            except Exception as e:
+                logger.warning(f"Observability span error: {e}")
+        return error_response
     
     try:
-        # Create memory session manager for this invocation (if memory is enabled)
-        session_manager = None
-        if MEMORY_AVAILABLE and MEMORY_ID:
-            session_manager = create_memory_session_manager(
-                correlation_id=correlation_id,
-                trade_id=trade_id
-            )
+        # Start observability span for the main operation
+        span_context = None
+        if observability:
+            try:
+                span_context = observability.start_span("trade_matching")
+                span_context.__enter__()
+                for k, v in obs_attributes.items():
+                    span_context.set_attribute(k, v)
+            except Exception as e:
+                logger.warning(f"Failed to start observability span: {e}")
+                span_context = None
         
-        # Create the agent with optional memory integration
-        logger.info(f"[{correlation_id}] Creating matching agent with model: {BEDROCK_MODEL_ID}")
-        agent = create_matching_agent(session_manager=session_manager)
-        
-        if session_manager:
-            logger.info(f"[{correlation_id}] Agent created with AgentCore Memory integration")
+        # Create the agent (with sub-span for agent initialization)
+        if observability and span_context:
+            with observability.start_span("agent_initialization") as init_span:
+                init_span.set_attribute("model_id", BEDROCK_MODEL_ID)
+                init_span.set_attribute("temperature", 0.1)
+                agent = create_matching_agent()
         else:
-            logger.info(f"[{correlation_id}] Agent created without memory (memory disabled or unavailable)")
+            agent = create_matching_agent()
         
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         
         # Construct goal-oriented prompt for the agent
         prompt = f"""Match a trade that was just extracted and stored.
@@ -621,13 +582,25 @@ the same trade will have DIFFERENT IDs in bank vs counterparty systems - match b
 You decide the best strategy. Use the use_aws tool for DynamoDB scans and S3 operations.
 """
         
-        # Invoke the agent - OTEL auto-instrumentation captures spans automatically
-        logger.info(f"[{correlation_id}] Invoking Strands agent for matching analysis")
-        result = agent(prompt)
-        token_metrics = _extract_token_metrics(result)
+        # Invoke the agent with observability span
+        logger.info("Invoking Strands agent for matching analysis")
+        if observability and span_context:
+            with observability.start_span("agent_invocation") as invoke_span:
+                invoke_span.set_attribute("prompt_length", len(prompt))
+                invoke_span.set_attribute("model_id", BEDROCK_MODEL_ID)
+                result = agent(prompt)
+                
+                # Extract and record token metrics immediately
+                token_metrics = _extract_token_metrics(result)
+                invoke_span.set_attribute("input_tokens", token_metrics["input_tokens"])
+                invoke_span.set_attribute("output_tokens", token_metrics["output_tokens"])
+                invoke_span.set_attribute("total_tokens", token_metrics["total_tokens"])
+        else:
+            result = agent(prompt)
+            token_metrics = _extract_token_metrics(result)
         
-        processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
-        logger.info(f"[{correlation_id}] Token usage: {token_metrics['input_tokens']} in / {token_metrics['output_tokens']} out")
+        processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        logger.info(f"Token usage: {token_metrics['input_tokens']} in / {token_metrics['output_tokens']} out")
         
         # Extract the agent's response
         response_text = str(result.message) if hasattr(result, 'message') else str(result)
@@ -658,19 +631,74 @@ You decide the best strategy. Use the use_aws tool for DynamoDB scans and S3 ope
         except Exception:
             pass  # Keep defaults if parsing fails
         
+        # Record success metrics in observability span
+        if span_context:
+            try:
+                span_context.set_attribute("success", True)
+                span_context.set_attribute("processing_time_ms", processing_time_ms)
+                span_context.set_attribute("input_tokens", token_metrics["input_tokens"])
+                span_context.set_attribute("output_tokens", token_metrics["output_tokens"])
+                span_context.set_attribute("total_tokens", token_metrics["total_tokens"])
+                span_context.set_attribute("match_classification", classification)
+                span_context.set_attribute("confidence_score", confidence_score)
+                span_context.set_attribute("response_length", len(response_text))
+            except Exception as e:
+                logger.warning(f"Failed to set span attributes: {e}")
+        
         # Log performance summary
-        # Note: Memory storage is now handled automatically by AgentCoreMemorySessionManager
-        # The session_manager stores conversation turns and extracts long-term memories
-        # via the configured strategies (facts, preferences, summaries)
         logger.info(
-            f"[{correlation_id}] Trade matching completed - "
+            f"Trade matching completed - "
             f"trade_id={trade_id}, "
             f"classification={classification}, "
             f"confidence={confidence_score:.1f}%, "
             f"time={processing_time_ms:.0f}ms, "
-            f"tokens={token_metrics['total_tokens']}, "
-            f"memory_enabled={session_manager is not None}"
+            f"tokens={token_metrics['total_tokens']}"
         )
+        
+        # Store matching decision in AgentCore Memory for continuous learning
+        if memory_session and MEMORY_STORE_DECISIONS and classification != "UNKNOWN":
+            try:
+                if observability and span_context:
+                    with observability.start_span("memory_storage") as mem_span:
+                        mem_span.set_attribute("classification", classification)
+                        mem_span.set_attribute("confidence", confidence_score)
+                        
+                        success = store_matching_decision(
+                            trade_id=trade_id,
+                            source_type=source_type,
+                            classification=classification,
+                            confidence=confidence_score / 100.0,  # Convert to 0-1
+                            match_details={
+                                "key_attributes": {
+                                    "trade_id": trade_id,
+                                    "source_type": source_type,
+                                },
+                                "reasoning": response_text[:500],  # First 500 chars
+                                "processing_time_ms": processing_time_ms,
+                                "token_usage": token_metrics
+                            },
+                            correlation_id=correlation_id
+                        )
+                        mem_span.set_attribute("memory_stored", success)
+                else:
+                    store_matching_decision(
+                        trade_id=trade_id,
+                        source_type=source_type,
+                        classification=classification,
+                        confidence=confidence_score / 100.0,
+                        match_details={
+                            "key_attributes": {
+                                "trade_id": trade_id,
+                                "source_type": source_type,
+                            },
+                            "reasoning": response_text[:500],
+                            "processing_time_ms": processing_time_ms,
+                            "token_usage": token_metrics
+                        },
+                        correlation_id=correlation_id
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to store matching decision in memory: {e}")
         
         return {
             "success": True,
@@ -688,19 +716,35 @@ You decide the best strategy. Use the use_aws tool for DynamoDB scans and S3 ope
         }
         
     except Exception as e:
-        logger.error(f"[{correlation_id}] Error in matching agent: {e}", exc_info=True)
-        processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        logger.error(f"Error in matching agent: {e}", exc_info=True)
+        processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        
+        # Record error in observability span
+        if span_context:
+            try:
+                span_context.set_attribute("success", False)
+                span_context.set_attribute("error_type", type(e).__name__)
+                span_context.set_attribute("error_message", str(e))
+                span_context.set_attribute("processing_time_ms", processing_time_ms)
+            except Exception:
+                pass
         
         return {
             "success": False,
             "error": str(e),
             "error_type": type(e).__name__,
             "trade_id": trade_id,
-            "correlation_id": correlation_id,
             "agent_name": AGENT_NAME,
             "agent_version": AGENT_VERSION,
             "processing_time_ms": processing_time_ms,
         }
+    finally:
+        # Close observability span
+        if span_context:
+            try:
+                span_context.__exit__(None, None, None)
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

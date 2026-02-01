@@ -58,9 +58,10 @@ docs/
 # Project specific
 tests/
 
-# Bedrock AgentCore specific - keep config
+# Bedrock AgentCore specific - keep config but exclude runtime files
 .bedrock_agentcore.yaml
-# Note: Do NOT exclude .bedrock_agentcore/ - it contains the build files!
+.dockerignore
+.bedrock_agentcore/
 
 # Keep wheelhouse for offline installations
 # wheelhouse/

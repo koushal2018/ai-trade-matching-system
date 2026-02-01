@@ -34,4 +34,4 @@ COPY . .
 
 # Use the full module path
 
-CMD ["opentelemetry-instrument", "python", "pdf_adapter_agent_strands.py"]
+CMD ["opentelemetry-instrument", "python", "-m", "pdf_adapter_agent"]

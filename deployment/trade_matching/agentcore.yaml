@@ -7,7 +7,7 @@ agent:
   
 runtime:
   type: PYTHON_3_11
-  entry_point: trade_matching_agent_strands.py
+  entry_point: trade_matching_agent.py
   handler: invoke
   timeout: 900  # 15 minutes for matching analysis
   memory_mb: 4096
@@ -18,9 +18,6 @@ environment:
   DYNAMODB_BANK_TABLE: BankTradeData
   DYNAMODB_COUNTERPARTY_TABLE: CounterpartyTradeData
   LOG_LEVEL: INFO
-  # OTLP configuration to prevent log export size issues
-  OTEL_EXPORTER_OTLP_LOGS_MAX_EXPORT_BATCH_SIZE: "100"
-  OTEL_EXPORTER_OTLP_COMPRESSION: gzip
   
 memory:
   enabled: true

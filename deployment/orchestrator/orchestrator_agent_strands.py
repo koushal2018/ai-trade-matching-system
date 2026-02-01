@@ -8,7 +8,7 @@ The LLM decides the best approach to achieve orchestration goals.
 import os
 import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 import logging
 
@@ -139,7 +139,7 @@ def investigate_trade_system(
             "trade_id": trade_id,
             "agent_name": agent_name,
             "time_window": time_window,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.utcnow().isoformat(),
             
             # Give AI all the context it needs
             "available_resources": {
@@ -197,7 +197,7 @@ def debug_specific_trade(trade_id: str) -> str:
         
         results = {
             "trade_id_searched": trade_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.utcnow().isoformat(),
             "search_results": {}
         }
         
@@ -291,7 +291,7 @@ def debug_agent_health() -> str:
             if last_heartbeat_str:
                 try:
                     last_heartbeat = datetime.fromisoformat(last_heartbeat_str)
-                    time_since = datetime.now(timezone.utc) - last_heartbeat
+                    time_since = datetime.utcnow() - last_heartbeat
                     
                     if time_since > timedelta(minutes=5):
                         status = "UNHEALTHY"
@@ -309,7 +309,7 @@ def debug_agent_health() -> str:
             })
         
         return json.dumps({
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.utcnow().isoformat(),
             "total_agents": len(agents),
             "agents": agents,
             "healthy_count": len([a for a in agents if a["status"] == "ACTIVE"])
@@ -342,7 +342,7 @@ def record_decision(
         s3_client = get_boto_client('s3')
         
         decision_id = f"dec_{uuid.uuid4().hex[:12]}"
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.utcnow().isoformat()
         
         decision_record = {
             "decision_id": decision_id,
@@ -354,7 +354,7 @@ def record_decision(
         }
         
         # Save to S3 for audit
-        key = f"orchestration/decisions/{datetime.now(timezone.utc).strftime('%Y/%m/%d')}/{decision_id}.json"
+        key = f"orchestration/decisions/{datetime.utcnow().strftime('%Y/%m/%d')}/{decision_id}.json"
         s3_client.put_object(
             Bucket=S3_BUCKET,
             Key=key,
@@ -476,30 +476,18 @@ def create_orchestrator_agent() -> Agent:
 # ============================================================================
 
 def _extract_token_metrics(result) -> Dict[str, int]:
-    """
-    Extract token usage metrics from Strands agent result.
-    
-    The AgentResult.metrics is an EventLoopMetrics object.
-    Token usage is accessed via get_summary()["accumulated_usage"].
-    Per Strands SDK docs, keys are camelCase: inputTokens, outputTokens.
-    
-    Requirements: 10.1, 10.2, 10.4
-    """
+    """Extract token usage metrics from Strands agent result."""
     metrics = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
     try:
-        if hasattr(result, 'metrics') and result.metrics:
-            summary = result.metrics.get_summary()
-            usage = summary.get("accumulated_usage", {})
-            # Note: Strands uses camelCase (inputTokens, outputTokens)
-            metrics["input_tokens"] = usage.get("inputTokens", 0) or 0
-            metrics["output_tokens"] = usage.get("outputTokens", 0) or 0
-            metrics["total_tokens"] = usage.get("totalTokens", 0) or (metrics["input_tokens"] + metrics["output_tokens"])
-            
-            # Log warning if token counts are zero (potential instrumentation issue)
-            if metrics["total_tokens"] == 0:
-                logger.warning("Token counting returned zero - potential instrumentation issue")
-    except Exception as e:
-        logger.warning(f"Failed to extract token metrics: {e}")
+        if hasattr(result, 'metrics'):
+            metrics["input_tokens"] = getattr(result.metrics, 'input_tokens', 0) or 0
+            metrics["output_tokens"] = getattr(result.metrics, 'output_tokens', 0) or 0
+        elif hasattr(result, 'usage'):
+            metrics["input_tokens"] = getattr(result.usage, 'input_tokens', 0) or 0
+            metrics["output_tokens"] = getattr(result.usage, 'output_tokens', 0) or 0
+        metrics["total_tokens"] = metrics["input_tokens"] + metrics["output_tokens"]
+    except Exception:
+        pass
     return metrics
 
 
@@ -510,7 +498,7 @@ def invoke(payload: Dict[str, Any], context: Any = None) -> Dict[str, Any]:
     
     The AI decides how to approach each orchestration goal using its intelligence.
     """
-    start_time = datetime.now(timezone.utc)
+    start_time = datetime.utcnow()
     logger.info("Goal-Based Orchestrator Agent (Strands) invoked")
     logger.info(f"Payload: {json.dumps(payload, default=str)}")
     
@@ -573,7 +561,7 @@ You have full flexibility in how you approach this. Use the tools available to e
         logger.info("Invoking intelligent Strands orchestrator")
         result = agent(prompt)
         
-        processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
         
         # Extract token metrics
         token_metrics = _extract_token_metrics(result)
@@ -618,7 +606,7 @@ You have full flexibility in how you approach this. Use the tools available to e
         
     except Exception as e:
         logger.error(f"Error in orchestrator agent: {e}", exc_info=True)
-        processing_time_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
         
         # Record error
         if span_context:

@@ -12,7 +12,7 @@ echo "========================================="
 AGENT_NAME="pdf_adapter_agent"
 REGION="${AWS_REGION:-us-east-1}"
 S3_BUCKET="${S3_BUCKET_NAME:-trade-matching-system-agentcore-production}"
-ENTRYPOINT="pdf_adapter_agent_strands.py"
+ENTRYPOINT="pdf_adapter_agent.py"
 RUNTIME="PYTHON_3_11"
 
 # Check prerequisites

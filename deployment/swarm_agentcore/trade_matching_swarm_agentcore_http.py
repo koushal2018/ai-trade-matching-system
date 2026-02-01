@@ -41,9 +41,20 @@ DEPLOYMENT_STAGE = os.getenv("DEPLOYMENT_STAGE", "development")
 AGENT_VERSION = os.getenv("AGENT_VERSION", "1.0.0")
 REGION = os.getenv("AWS_REGION", "us-east-1")
 
-# AgentCore Observability - Auto-instrumented via OTEL when strands-agents[otel] is installed
-# Manual span management removed - AgentCore Runtime handles this automatically
-# See: https://docs.aws.amazon.com/bedrock/latest/userguide/agentcore-observability.html
+# AgentCore Observability Integration
+try:
+    from bedrock_agentcore.observability import Observability
+    observability = Observability(
+        service_name="trade_matching_http_orchestrator",
+        stage=DEPLOYMENT_STAGE,
+        verbosity="high" if DEPLOYMENT_STAGE == "development" else "medium"
+    )
+    OBSERVABILITY_AVAILABLE = True
+    logger.info("✅ AgentCore Observability initialized")
+except ImportError:
+    observability = None
+    OBSERVABILITY_AVAILABLE = False
+    logger.warning("⚠️ AgentCore Observability not available")
 
 # Import HTTP orchestrator
 from http_agent_orchestrator import TradeMatchingHTTPOrchestrator
@@ -58,7 +69,7 @@ def invoke(payload: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Each agent runs in its own AgentCore Runtime instance.
     
     AgentCore Best Practices:
-    - Observability: Auto-instrumented via OTEL (strands-agents[otel])
+    - Observability: Comprehensive span tracking with custom attributes
     - Error Handling: Categorized errors with retry recommendations
     - Security: IAM-based authentication for agent invocations
     - Performance: Async execution with timeout management
@@ -77,6 +88,7 @@ def invoke(payload: Dict[str, Any], context: Any) -> Dict[str, Any]:
         Orchestration result with status and details from all agents
     """
     start_time = datetime.utcnow()
+    span_context = None
     
     try:
         # Extract parameters from payload
@@ -93,15 +105,36 @@ def invoke(payload: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if source_type not in ["BANK", "COUNTERPARTY"]:
             raise ValueError(f"source_type must be BANK or COUNTERPARTY, got: {source_type}")
         
-        logger.info(
-            f"[{correlation_id}] Processing trade confirmation - "
-            f"document_id={document_id}, source_type={source_type}, "
-            f"mode=HTTP_Orchestrator, stage={DEPLOYMENT_STAGE}"
-        )
-        logger.info(f"[{correlation_id}] Document path: {document_path}")
+        logger.info(f"Processing trade confirmation: {document_id}")
+        logger.info("Execution mode: HTTP Orchestrator (deployed agents)")
+        logger.info(f"Document Path: {document_path}")
+        logger.info(f"Source Type: {source_type}")
+        
+        # Start observability span
+        if observability:
+            try:
+                span_context = observability.start_span(f"http_orchestration.{source_type.lower()}")
+                span_context.__enter__()
+                
+                # Set standard AgentCore attributes
+                span_context.set_attribute("orchestrator_type", "http")
+                span_context.set_attribute("agent_version", AGENT_VERSION)
+                span_context.set_attribute("correlation_id", correlation_id)
+                span_context.set_attribute("document_id", document_id)
+                span_context.set_attribute("source_type", source_type)
+                span_context.set_attribute("deployment_stage", DEPLOYMENT_STAGE)
+                span_context.set_attribute("orchestration_stage", "initialization")
+                
+            except Exception as e:
+                logger.warning(f"Failed to start observability span: {e}")
+                span_context = None
         
         # Create HTTP orchestrator
         orchestrator = TradeMatchingHTTPOrchestrator()
+        
+        # Update orchestration stage
+        if span_context:
+            span_context.set_attribute("orchestration_stage", "processing")
         
         # Process trade confirmation using HTTP orchestration
         # Run async function in sync context
@@ -119,32 +152,47 @@ def invoke(payload: Dict[str, Any], context: Any) -> Dict[str, Any]:
         result["agent_version"] = AGENT_VERSION
         result["deployment_stage"] = DEPLOYMENT_STAGE
         
-        # Log completion with performance tier
-        if processing_time_ms < 30000:
-            performance_tier = "fast"
-        elif processing_time_ms < 60000:
-            performance_tier = "normal"
-        else:
-            performance_tier = "slow"
+        # Record success metrics in observability span
+        if span_context:
+            try:
+                span_context.set_attribute("success", True)
+                span_context.set_attribute("orchestration_stage", "completed")
+                span_context.set_attribute("processing_time_ms", processing_time_ms)
+                
+                # Track agent execution counts
+                workflow_steps = result.get("workflow_steps", {})
+                span_context.set_attribute("agents_invoked", len(workflow_steps))
+                span_context.set_attribute("agent_names", ",".join(workflow_steps.keys()))
+                
+                # Performance classification
+                if processing_time_ms < 30000:  # < 30 seconds
+                    span_context.set_attribute("performance_tier", "fast")
+                elif processing_time_ms < 60000:  # < 60 seconds
+                    span_context.set_attribute("performance_tier", "normal")
+                else:
+                    span_context.set_attribute("performance_tier", "slow")
+                    
+            except Exception as e:
+                logger.warning(f"Failed to set span attributes: {e}")
         
-        workflow_steps = result.get("workflow_steps", {})
-        logger.info(
-            f"[{correlation_id}] HTTP orchestration completed - "
-            f"document_id={document_id}, time={processing_time_ms:.0f}ms, "
-            f"performance={performance_tier}, agents_invoked={len(workflow_steps)}"
-        )
+        logger.info(f"HTTP orchestration completed in {processing_time_ms:.2f}ms")
         
         return result
         
     except ValueError as e:
         # Validation errors
+        logger.error(f"Validation error: {e}")
         processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
-        correlation_id = payload.get("correlation_id", "unknown")
         
-        logger.error(
-            f"[{correlation_id}] Validation error - "
-            f"error={str(e)}, time={processing_time_ms:.0f}ms"
-        )
+        if span_context:
+            try:
+                span_context.set_attribute("success", False)
+                span_context.set_attribute("error_category", "validation")
+                span_context.set_attribute("error_type", "ValueError")
+                span_context.set_attribute("error_message", str(e)[:500])
+                span_context.set_attribute("processing_time_ms", processing_time_ms)
+            except Exception:
+                pass
         
         return {
             "success": False,
@@ -152,7 +200,7 @@ def invoke(payload: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "error_type": "ValidationError",
             "error_category": "validation",
             "document_id": payload.get("document_id", "unknown"),
-            "correlation_id": correlation_id,
+            "correlation_id": payload.get("correlation_id", "unknown"),
             "processing_time_ms": processing_time_ms,
             "execution_mode": "HTTP Orchestrator",
             "retry_recommended": False
@@ -160,13 +208,18 @@ def invoke(payload: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
     except asyncio.TimeoutError as e:
         # Timeout errors
+        logger.error(f"Orchestration timeout: {e}")
         processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
-        correlation_id = payload.get("correlation_id", "unknown")
         
-        logger.error(
-            f"[{correlation_id}] Orchestration timeout - "
-            f"error={str(e)}, time={processing_time_ms:.0f}ms"
-        )
+        if span_context:
+            try:
+                span_context.set_attribute("success", False)
+                span_context.set_attribute("error_category", "performance")
+                span_context.set_attribute("error_type", "TimeoutError")
+                span_context.set_attribute("error_message", str(e)[:500])
+                span_context.set_attribute("processing_time_ms", processing_time_ms)
+            except Exception:
+                pass
         
         return {
             "success": False,
@@ -174,7 +227,7 @@ def invoke(payload: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "error_type": "TimeoutError",
             "error_category": "performance",
             "document_id": payload.get("document_id", "unknown"),
-            "correlation_id": correlation_id,
+            "correlation_id": payload.get("correlation_id", "unknown"),
             "processing_time_ms": processing_time_ms,
             "execution_mode": "HTTP Orchestrator",
             "retry_recommended": True
@@ -182,8 +235,8 @@ def invoke(payload: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
     except Exception as e:
         # General errors
+        logger.error(f"HTTP orchestration failed: {e}", exc_info=True)
         processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
-        correlation_id = payload.get("correlation_id", "unknown")
         
         # Enhanced error categorization
         error_str = str(e).lower()
@@ -200,12 +253,15 @@ def invoke(payload: Dict[str, Any], context: Any) -> Dict[str, Any]:
             error_category = "unknown"
             retry_recommended = True
         
-        logger.error(
-            f"[{correlation_id}] HTTP orchestration failed - "
-            f"error_type={type(e).__name__}, error_category={error_category}, "
-            f"error={str(e)[:200]}, time={processing_time_ms:.0f}ms",
-            exc_info=True
-        )
+        if span_context:
+            try:
+                span_context.set_attribute("success", False)
+                span_context.set_attribute("error_category", error_category)
+                span_context.set_attribute("error_type", type(e).__name__)
+                span_context.set_attribute("error_message", str(e)[:500])
+                span_context.set_attribute("processing_time_ms", processing_time_ms)
+            except Exception:
+                pass
         
         return {
             "success": False,
@@ -213,11 +269,19 @@ def invoke(payload: Dict[str, Any], context: Any) -> Dict[str, Any]:
             "error_type": type(e).__name__,
             "error_category": error_category,
             "document_id": payload.get("document_id", "unknown"),
-            "correlation_id": correlation_id,
+            "correlation_id": payload.get("correlation_id", "unknown"),
             "processing_time_ms": processing_time_ms,
             "execution_mode": "HTTP Orchestrator",
             "retry_recommended": retry_recommended
         }
+    
+    finally:
+        # Close observability span
+        if span_context:
+            try:
+                span_context.__exit__(None, None, None)
+            except Exception:
+                pass
 
 
 @app.ping

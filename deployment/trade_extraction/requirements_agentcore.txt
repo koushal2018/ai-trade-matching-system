@@ -1,0 +1,64 @@
+# AgentCore Production Requirements for Trade Extraction Agent
+# These dependencies are optimized for AgentCore Runtime deployment
+
+# Core AgentCore SDK
+bedrock-agentcore>=1.0.0
+
+# Strands SDK for multi-agent capabilities
+strands>=0.1.0
+strands-agents>=0.1.0
+strands-agents-tools>=0.1.0
+
+# AWS SDK and services
+boto3>=1.34.0
+botocore>=1.34.0
+
+# Data validation and modeling
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# JSON handling and utilities
+orjson>=3.9.0  # Faster JSON processing
+python-dateutil>=2.8.0
+
+# Logging and monitoring
+structlog>=23.0.0  # Structured logging
+python-json-logger>=2.0.0
+
+# Security and authentication
+cryptography>=41.0.0
+pyjwt>=2.8.0
+
+# HTTP client for API calls
+httpx>=0.25.0
+aiohttp>=3.9.0
+
+# Environment and configuration
+python-dotenv>=1.0.0
+
+# Testing dependencies (for validation)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+hypothesis>=6.88.0  # Property-based testing
+
+# Performance and optimization
+uvloop>=0.19.0  # Faster event loop (Linux/macOS)
+cachetools>=5.3.0  # Caching utilities
+
+# Development and debugging (optional)
+rich>=13.0.0  # Better console output
+typer>=0.9.0  # CLI framework
+
+# Specific versions for stability
+requests>=2.31.0,<3.0.0
+urllib3>=1.26.0,<2.0.0
+certifi>=2023.7.22
+
+# Memory and performance optimization
+psutil>=5.9.0  # System monitoring
+memory-profiler>=0.61.0  # Memory profiling (dev only)
+
+# AgentCore-specific integrations
+# Note: These may be included in bedrock-agentcore
+# aws-lambda-powertools>=2.25.0  # For Lambda integration
+# aws-xray-sdk>=2.12.0  # For distributed tracing
