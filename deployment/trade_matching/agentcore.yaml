@@ -7,17 +7,26 @@ agent:
   
 runtime:
   type: PYTHON_3_11
-  entry_point: trade_matching_agent.py
+  entry_point: trade_matching_agent_strands.py
   handler: invoke
   timeout: 900  # 15 minutes for matching analysis
   memory_mb: 4096
   
 environment:
   AWS_REGION: us-east-1
-  S3_BUCKET_NAME: trade-matching-bucket
+  S3_BUCKET_NAME: trade-matching-system-agentcore-production
   DYNAMODB_BANK_TABLE: BankTradeData
   DYNAMODB_COUNTERPARTY_TABLE: CounterpartyTradeData
   LOG_LEVEL: INFO
+  # OTLP configuration to prevent log export size issues
+  OTEL_EXPORTER_OTLP_LOGS_MAX_EXPORT_BATCH_SIZE: "100"
+  OTEL_EXPORTER_OTLP_COMPRESSION: gzip
+  # MCP Gateway configuration
+  GATEWAY_MCP_URL: https://serviceregistrygateway-i2acduv0dc.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp
+  GATEWAY_CLIENT_ID: ${GATEWAY_CLIENT_ID}
+  GATEWAY_CLIENT_SECRET: ${GATEWAY_CLIENT_SECRET}
+  GATEWAY_TOKEN_ENDPOINT: https://agentcore-c2bbb085.auth.us-east-1.amazoncognito.com/oauth2/token
+  GATEWAY_SCOPE: ${GATEWAY_SCOPE}
   
 memory:
   enabled: true

@@ -28,8 +28,8 @@ agents:
         idle_runtime_session_timeout: null
         max_lifetime: null
     bedrock_agentcore:
-      agent_id: trade_extraction_agent-Zlj7Ml7u1O
-      agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/trade_extraction_agent-Zlj7Ml7u1O
+      agent_id: agent_matching_ai-KrY5QeCyXe
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/agent_matching_ai-KrY5QeCyXe
       agent_session_id: null
     codebuild:
       project_name: bedrock-agentcore-trade_extraction_agent-builder
