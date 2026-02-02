@@ -1,8 +1,11 @@
 import json
 import logging
+import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+import boto3
 from .config import settings
 from .routers import agents_router, hitl_router, audit_router, metrics_router, matching_router, upload_router, workflow_router, logs_router
 from .services.websocket import manager
@@ -11,13 +14,60 @@ from .routers.logs import log_poller
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Background heartbeat task handle
+_heartbeat_task = None
+
+
+async def heartbeat_loop():
+    """Background task to update agent heartbeats every 2 minutes."""
+    dynamodb = boto3.client('dynamodb', region_name=settings.aws_region)
+    agent_ids = [
+        "orchestrator_otc",
+        "trade_matching_agent",
+        "trade_extraction_agent",
+        "pdf_adapter_agent",
+        "exception_manager"
+    ]
+
+    while True:
+        try:
+            current_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000000+00:00")
+            for agent_id in agent_ids:
+                try:
+                    dynamodb.update_item(
+                        TableName=settings.dynamodb_agent_registry_table,
+                        Key={"agent_id": {"S": agent_id}},
+                        UpdateExpression="SET last_heartbeat = :hb",
+                        ExpressionAttributeValues={":hb": {"S": current_time}}
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update heartbeat for {agent_id}: {e}")
+
+            logger.debug(f"Updated heartbeats for {len(agent_ids)} agents")
+        except Exception as e:
+            logger.error(f"Heartbeat loop error: {e}")
+
+        # Sleep for 2 minutes
+        await asyncio.sleep(120)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _heartbeat_task
     logger.info("Starting Web Portal API...")
     # Set up log poller with WebSocket manager
     log_poller.set_websocket_manager(manager)
+    # Start background heartbeat task
+    _heartbeat_task = asyncio.create_task(heartbeat_loop())
+    logger.info("Started agent heartbeat background task (every 2 minutes)")
     yield
+    # Stop heartbeat task
+    if _heartbeat_task:
+        _heartbeat_task.cancel()
+        try:
+            await _heartbeat_task
+        except asyncio.CancelledError:
+            pass
     # Stop log polling on shutdown
     log_poller.stop_polling()
     logger.info("Shutting down Web Portal API...")
