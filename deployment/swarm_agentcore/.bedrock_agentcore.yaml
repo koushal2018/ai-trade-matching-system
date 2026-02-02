@@ -1,4 +1,4 @@
-default_agent: trade_matching_swarm_agentcore_http
+default_agent: http_agent_orchestrator
 agents:
   trade_matching_swarm_agentcore_http:
     name: trade_matching_swarm_agentcore_http
@@ -46,12 +46,58 @@ agents:
     identity:
       credential_providers: []
       workload: null
-    aws_jwt:
-      enabled: false
-      audiences: []
-      signing_algorithm: ES384
-      issuer_url: null
-      duration_seconds: 300
+    authorizer_configuration: null
+    request_header_configuration: null
+    oauth_configuration: null
+    api_key_env_var_name: null
+    api_key_credential_provider_name: null
+    is_generated_by_agentcore_create: false
+  http_agent_orchestrator:
+    name: http_agent_orchestrator
+    entrypoint: /Users/koushald/ai-trade-matching-system/deployment/swarm_agentcore/http_agent_orchestrator.py
+    deployment_type: container
+    runtime_type: null
+    platform: linux/arm64
+    container_runtime: none
+    source_path: /Users/koushald/ai-trade-matching-system/deployment/swarm_agentcore
+    aws:
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-0f9cb91bfb
+      execution_role_auto_create: false
+      account: '401552979575'
+      region: us-east-1
+      ecr_repository: 401552979575.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-http_agent_orchestrator
+      ecr_auto_create: false
+      s3_path: null
+      s3_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+        network_mode_config: null
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+      lifecycle_configuration:
+        idle_runtime_session_timeout: null
+        max_lifetime: null
+    bedrock_agentcore:
+      agent_id: http_agent_orchestrator-axTt2u8hAp
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/http_agent_orchestrator-axTt2u8hAp
+      agent_session_id: 015bc376-ef76-45f6-b92d-5ba22ffbe518
+    codebuild:
+      project_name: bedrock-agentcore-http_agent_orchestrator-builder
+      execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-0f9cb91bfb
+      source_bucket: bedrock-agentcore-codebuild-sources-401552979575-us-east-1
+    memory:
+      mode: STM_ONLY
+      memory_id: http_agent_orchestrator_mem-i00DkV8yP9
+      memory_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:memory/http_agent_orchestrator_mem-i00DkV8yP9
+      memory_name: http_agent_orchestrator_mem
+      event_expiry_days: 30
+      first_invoke_memory_check_done: true
+      was_created_by_toolkit: true
+    identity:
+      credential_providers: []
+      workload: null
     authorizer_configuration: null
     request_header_configuration: null
     oauth_configuration: null

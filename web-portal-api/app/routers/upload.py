@@ -308,7 +308,7 @@ async def confirm_upload_and_invoke_agent(
 
         # Create or update processing status record
         processing_status_table = dynamodb.Table(settings.dynamodb_processing_status_table)
-        now = datetime.now(timezone.utc).isoformat() + "Z"
+        now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + "Z"
 
         processing_status_table.put_item(Item={
             "processing_id": session_id,

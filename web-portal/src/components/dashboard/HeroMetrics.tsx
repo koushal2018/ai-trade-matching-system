@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { Box, Grid, Typography, Avatar, Chip } from '@mui/material'
+import { Box, Grid, Typography, Avatar, Chip, Tooltip } from '@mui/material'
 import {
   TrendingUp as TrendingUpIcon,
   Speed as SpeedIcon,
@@ -10,6 +10,7 @@ import {
   Close as CloseIcon,
   HourglassEmpty as PendingIcon,
   Error as ErrorIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material'
 import GlassCard from '../common/GlassCard'
 import { glowColors } from '../../theme'
@@ -23,10 +24,14 @@ interface HeroMetric {
   color: string
   bgColor: string
   trend?: number
+  subtitle?: string
+  tooltip?: string
 }
 
 interface HeroMetricsProps {
   totalTrades: number
+  bankTradeCount: number
+  counterpartyTradeCount: number
   matchRate: number
   avgLatency: number
   activeAgents: number
@@ -74,7 +79,7 @@ function useAnimatedCounter(end: number, duration: number = 2000) {
   return { count, showSparkle }
 }
 
-export default function HeroMetrics({ totalTrades, matchRate, avgLatency, activeAgents, workload, matchingStatus }: HeroMetricsProps) {
+export default function HeroMetrics({ totalTrades, bankTradeCount, counterpartyTradeCount, matchRate, avgLatency, activeAgents, workload, matchingStatus }: HeroMetricsProps) {
   const trades = useAnimatedCounter(totalTrades, 2000)
   const rate = useAnimatedCounter(matchRate * 100, 2500)
   const latency = useAnimatedCounter(avgLatency, 1800)
@@ -93,12 +98,13 @@ export default function HeroMetrics({ totalTrades, matchRate, avgLatency, active
 
   const metrics: HeroMetric[] = [
     {
-      label: 'Workload',
+      label: 'Agent Load',
       value: typeof workload === 'string' ? 0 : workloadCounter.count,
       suffix: typeof workload === 'string' ? '' : '%',
       icon: <SpeedIcon />,
       color: glowColors.warning,
       bgColor: 'rgba(255, 152, 0, 0.1)',
+      tooltip: 'Percentage of agent task capacity currently in use',
     },
     {
       label: 'Matched',
@@ -134,6 +140,7 @@ export default function HeroMetrics({ totalTrades, matchRate, avgLatency, active
       icon: <TrendingUpIcon />,
       color: glowColors.primary,
       bgColor: 'rgba(255, 153, 0, 0.1)',
+      subtitle: `Bank: ${bankTradeCount} | CP: ${counterpartyTradeCount}`,
       trend: 12.5
     },
     {
@@ -248,22 +255,39 @@ export default function HeroMetrics({ totalTrades, matchRate, avgLatency, active
                     transition: 'all 0.15s ease-out',
                   }}
                 >
-                  {metric.label === 'Workload' && typeof workload === 'string'
+                  {metric.label === 'Agent Load' && typeof workload === 'string'
                     ? workload
                     : metric.label === 'Match Rate'
                     ? (metric.value * 100).toFixed(1)
                     : metric.value.toLocaleString()
-                  }{metric.label === 'Workload' && typeof workload === 'string' ? '' : metric.suffix}
+                  }{metric.label === 'Agent Load' && typeof workload === 'string' ? '' : metric.suffix}
                 </Typography>
 
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  fontWeight={500}
-                  sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
-                >
-                  {metric.label}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    fontWeight={500}
+                    sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
+                  >
+                    {metric.label}
+                  </Typography>
+                  {metric.tooltip && (
+                    <Tooltip title={metric.tooltip} arrow placement="top">
+                      <InfoIcon sx={{ fontSize: 14, color: 'text.secondary', cursor: 'help' }} />
+                    </Tooltip>
+                  )}
+                </Box>
+
+                {/* Subtitle for showing breakdown */}
+                {metric.subtitle && (
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'text.secondary', mt: 0.5, display: 'block' }}
+                  >
+                    {metric.subtitle}
+                  </Typography>
+                )}
 
                 {/* Progress indicator */}
                 <Box
@@ -280,12 +304,12 @@ export default function HeroMetrics({ totalTrades, matchRate, avgLatency, active
                       height: '100%',
                       background: `linear-gradient(90deg, ${metric.color} 0%, ${metric.color}80 100%)`,
                       borderRadius: 1.5,
-                      width: metric.label === 'Workload' && typeof workload === 'string' ? '0%' :
-                             metric.label === 'Workload' ? `${metric.value}%` :
+                      width: metric.label === 'Agent Load' && typeof workload === 'string' ? '0%' :
+                             metric.label === 'Agent Load' ? `${metric.value}%` :
                              metric.label === 'Match Rate' ? `${metric.value * 100}%` :
                              metric.label === 'Active Agents' ? `${(metric.value / 5) * 100}%` :
-                             metric.label === 'Matched' || metric.label === 'Unmatched' || 
-                             metric.label === 'Pending' || metric.label === 'Exceptions' ? 
+                             metric.label === 'Matched' || metric.label === 'Unmatched' ||
+                             metric.label === 'Pending' || metric.label === 'Exceptions' ?
                              `${Math.min(100, (metric.value / Math.max(1, totalTrades)) * 100)}%` :
                              '85%',
                       animation: 'progressFill 2s ease-out',

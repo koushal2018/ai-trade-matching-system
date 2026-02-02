@@ -46,12 +46,6 @@ agents:
     identity:
       credential_providers: []
       workload: null
-    aws_jwt:
-      enabled: false
-      audiences: []
-      signing_algorithm: ES384
-      issuer_url: null
-      duration_seconds: 300
     authorizer_configuration: null
     request_header_configuration: null
     oauth_configuration: null

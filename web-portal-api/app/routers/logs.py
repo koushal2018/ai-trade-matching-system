@@ -29,7 +29,7 @@ _log_polling_tasks: Dict[str, asyncio.Task] = {}
 # Allowed log groups (security: only allow specific log groups)
 # Updated 2026-02-01 to match current deployed agents
 ALLOWED_LOG_GROUPS = [
-    "/aws/bedrock-agentcore/runtimes/http_agent_orchestrator-lKzrI47Hgd-DEFAULT",
+    "/aws/bedrock-agentcore/runtimes/http_agent_orchestrator-axTt2u8hAp-DEFAULT",
     "/aws/bedrock-agentcore/runtimes/pdf_adapter_agent-Az72YP53FJ-DEFAULT",
     "/aws/bedrock-agentcore/runtimes/agent_matching_ai-KrY5QeCyXe-DEFAULT",
     "/aws/bedrock-agentcore/runtimes/trade_matching_ai-r8eaGb4u7B-DEFAULT",
@@ -39,7 +39,7 @@ ALLOWED_LOG_GROUPS = [
 
 # Log group display names
 LOG_GROUP_NAMES = {
-    "/aws/bedrock-agentcore/runtimes/http_agent_orchestrator-lKzrI47Hgd-DEFAULT": "Orchestrator Agent",
+    "/aws/bedrock-agentcore/runtimes/http_agent_orchestrator-axTt2u8hAp-DEFAULT": "Orchestrator Agent",
     "/aws/bedrock-agentcore/runtimes/pdf_adapter_agent-Az72YP53FJ-DEFAULT": "PDF Adapter Agent",
     "/aws/bedrock-agentcore/runtimes/agent_matching_ai-KrY5QeCyXe-DEFAULT": "Trade Extraction Agent",
     "/aws/bedrock-agentcore/runtimes/trade_matching_ai-r8eaGb4u7B-DEFAULT": "Trade Matching Agent",

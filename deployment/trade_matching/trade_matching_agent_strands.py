@@ -845,23 +845,19 @@ def _gateway_configured() -> bool:
 def create_nova_model() -> BedrockModel:
     """
     Create a Nova Pro optimized BedrockModel instance.
-    
+
     Key optimizations for Nova Pro tool use:
     - temperature=0 (greedy decoding - CRITICAL for reliable tool use)
-    - topK=1 (most deterministic selection)
     - max_tokens=8192 (sufficient for complex responses)
     - stop_sequences to prevent runaway generation
+
+    Note: topK removed as it conflicts with Strands SDK inferenceConfig handling
     """
     return BedrockModel(
         model_id=BEDROCK_MODEL_ID,
         region_name=REGION,
         temperature=0.0,  # CRITICAL: Nova requires temperature=0 for reliable tool use
         max_tokens=8192,
-        additional_request_fields={
-            "inferenceConfig": {
-                "topK": 1  # Greedy decoding for Nova
-            }
-        },
         stop_sequences=["</tool>", "```\n\n"]  # Prevent runaway generation
     )
 

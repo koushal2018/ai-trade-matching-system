@@ -30,7 +30,7 @@ agents:
     bedrock_agentcore:
       agent_id: pdf_adapter_agent-Az72YP53FJ
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:401552979575:runtime/pdf_adapter_agent-Az72YP53FJ
-      agent_session_id: cab26dfc-9407-4968-9661-4a971d206502
+      agent_session_id: 14619446-b40e-400f-8ffc-334c6c70702f
     codebuild:
       project_name: bedrock-agentcore-pdf_adapter_agent-builder
       execution_role: arn:aws:iam::401552979575:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-18b6840951
@@ -46,12 +46,6 @@ agents:
     identity:
       credential_providers: []
       workload: null
-    aws_jwt:
-      enabled: false
-      audiences: []
-      signing_algorithm: ES384
-      issuer_url: null
-      duration_seconds: 300
     authorizer_configuration: null
     request_header_configuration: null
     oauth_configuration: null

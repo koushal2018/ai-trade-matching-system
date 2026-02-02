@@ -534,18 +534,22 @@ Correlation ID: {correlation_id}
 
 Use internal_reference = "{document_id}" as the sort key.
 
-Follow the workflow:
-1. Get the CDM schema
-2. Retrieve the document from S3
-3. Extract all CDM-aligned fields
-4. Validate the extraction
-5. Store in DynamoDB
+IMPORTANT: You MUST complete ALL steps including storing the data in DynamoDB.
+
+Follow the workflow EXACTLY:
+1. Get the CDM schema using get_cdm_extraction_schema()
+2. Retrieve the document from S3 using get_s3_document()
+3. Extract all CDM-aligned fields from the document
+4. Validate the extraction using validate_cdm_extraction()
+5. CRITICAL: Call store_trade_data() to persist the data to DynamoDB - DO NOT SKIP THIS STEP
 
 Focus on extracting ALL matching-critical fields:
 - Currency, Notional, Dates (effective, termination, trade)
 - Product type, Fixed rate, Floating index
 - Day count fraction, Payment frequency
 - Counterparty name and LEI
+
+The extraction is NOT complete until you have called store_trade_data() and received a success confirmation.
 """
         
         # Invoke agent

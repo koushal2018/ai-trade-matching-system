@@ -31,17 +31,17 @@ export function useAgentStatus(sessionId: string | null) {
       return await workflowService.getWorkflowStatus(sessionId)
     },
     enabled: !!sessionId, // Only run query if sessionId exists
-    staleTime: 10000, // Consider data stale after 10 seconds
+    staleTime: 3000, // Consider data stale after 3 seconds
     refetchInterval: (query) => {
-      // Poll every 30 seconds if processing is active
+      // Poll every 5 seconds if processing is active
       const data = query.state.data as WorkflowStatusResponse | undefined
-      
+
       if (!data) {
-        return false // Don't poll if no data yet
+        return 5000 // Poll every 5 seconds while waiting for initial data
       }
-      
+
       // Check if any agent is actively processing
-      const isProcessing = 
+      const isProcessing =
         data.overallStatus === 'processing' ||
         data.overallStatus === 'initializing' ||
         data.agents.pdfAdapter.status === 'in-progress' ||
@@ -52,8 +52,15 @@ export function useAgentStatus(sessionId: string | null) {
         data.agents.tradeMatching.status === 'loading' ||
         data.agents.exceptionManagement.status === 'in-progress' ||
         data.agents.exceptionManagement.status === 'loading'
-      
-      return isProcessing ? 30000 : false // 30 seconds if processing, otherwise stop polling
+
+      // Check if completed
+      const isCompleted = data.overallStatus === 'completed'
+
+      if (isCompleted) {
+        return false // Stop polling when complete
+      }
+
+      return isProcessing ? 5000 : 10000 // 5 seconds if processing, 10 seconds otherwise
     },
     retry: 3, // Retry failed requests up to 3 times
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff

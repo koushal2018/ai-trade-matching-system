@@ -233,8 +233,8 @@ async def get_workflow_status(
         # Transform DynamoDB item to frontend API format
         item = response["Item"]
 
-        # Auto-progress status based on elapsed time since invocation
-        item = _auto_progress_status(item)
+        # Note: Auto-progress simulation removed - using real status from orchestrator
+        # item = _auto_progress_status(item)
 
         # Helper function to transform agent status object
         def transform_agent_status(agent_data: Dict[str, Any]) -> AgentStepStatus:

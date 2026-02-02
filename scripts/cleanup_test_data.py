@@ -28,8 +28,7 @@ DYNAMODB_TABLES = {
     'ExceptionsTable': 'exceptions',
     'HITLReviews': 'HITL reviews',
     'AuditTrail': 'audit records',
-    'trade-matching-system-processing-status': 'processing status',
-    'trade-matching-system-agent-registry-production': 'agent registry'
+    'trade-matching-system-processing-status': 'processing status'
 }
 
 # Initialize AWS clients
@@ -198,7 +197,7 @@ def cleanup_dynamodb_table(table_name: str, description: str, auto_yes: bool = F
         print(f"  ✗ Unexpected error cleaning {table_name}: {e}")
 
 
-def cleanup_dynamodb_tables(skip_dynamodb: bool = False, keep_agents: bool = False, auto_yes: bool = False):
+def cleanup_dynamodb_tables(skip_dynamodb: bool = False, auto_yes: bool = False):
     """Delete all items from DynamoDB tables."""
     if skip_dynamodb:
         print("\n📊 DynamoDB Cleanup: SKIPPED (--skip-dynamodb flag)")
@@ -207,22 +206,16 @@ def cleanup_dynamodb_tables(skip_dynamodb: bool = False, keep_agents: bool = Fal
     print(f"\n📊 DYNAMODB CLEANUP")
     print("=" * 60)
 
-    tables_to_clean = dict(DYNAMODB_TABLES)
-
-    if keep_agents:
-        print("ℹ️  Keeping agent registry data (--keep-agents flag)")
-        tables_to_clean.pop('trade-matching-system-agent-registry-production', None)
-
     if not auto_yes:
-        print(f"\nWill clean {len(tables_to_clean)} tables:")
-        for table_name, desc in tables_to_clean.items():
+        print(f"\nWill clean {len(DYNAMODB_TABLES)} tables:")
+        for table_name, desc in DYNAMODB_TABLES.items():
             print(f"  - {table_name} ({desc})")
 
         if not confirm_action("\n⚠️  Proceed with cleanup?", auto_yes):
             print("Cancelled.")
             return
 
-    for table_name, description in tables_to_clean.items():
+    for table_name, description in DYNAMODB_TABLES.items():
         cleanup_dynamodb_table(table_name, description, auto_yes=auto_yes)
 
 
@@ -342,7 +335,6 @@ def main():
     )
     parser.add_argument('--skip-s3', action='store_true', help='Skip S3 cleanup')
     parser.add_argument('--skip-dynamodb', action='store_true', help='Skip DynamoDB cleanup')
-    parser.add_argument('--keep-agents', action='store_true', help='Keep agent registry data')
     parser.add_argument('--yes', '-y', action='store_true', help='Auto-confirm all prompts')
     parser.add_argument('--reseed-agents', action='store_true', help='Reseed agent registry after cleanup')
 
@@ -355,8 +347,7 @@ def main():
     print("This script will:")
     print("  ✓ Delete all objects from S3 bucket (but keep bucket)")
     print("  ✓ Delete all items from DynamoDB tables (but keep tables)")
-    if args.keep_agents:
-        print("  ℹ️  Keep agent registry data")
+    print("  ℹ️  Agent registry table will NOT be cleaned")
     print()
     print(f"S3 Bucket: {S3_BUCKET}")
     print(f"DynamoDB Tables: {len(DYNAMODB_TABLES)}")
@@ -371,14 +362,10 @@ def main():
     cleanup_s3_bucket(skip_s3=args.skip_s3, auto_yes=args.yes)
 
     # Cleanup DynamoDB
-    cleanup_dynamodb_tables(
-        skip_dynamodb=args.skip_dynamodb,
-        keep_agents=args.keep_agents,
-        auto_yes=args.yes
-    )
+    cleanup_dynamodb_tables(skip_dynamodb=args.skip_dynamodb, auto_yes=args.yes)
 
     # Optionally reseed agents
-    if args.reseed_agents or (not args.skip_dynamodb and not args.keep_agents):
+    if args.reseed_agents:
         reseed_agents(auto_yes=args.yes)
 
     print("\n" + "=" * 60)

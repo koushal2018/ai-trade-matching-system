@@ -14,7 +14,7 @@ __pycache__*
 
 # Virtual environments
 .venv/
-.env
+# .env - REMOVED: Need .env for agent runtime ARNs
 venv/
 env/
 ENV/

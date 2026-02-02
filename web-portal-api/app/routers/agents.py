@@ -30,13 +30,14 @@ AGENT_ID_TO_NAME = {
     "http_agent_orchestrator": "HTTP Orchestrator",
 }
 
-# Agent-specific health thresholds for trade processing
+# Agent-specific health thresholds based on real CloudWatch metrics
+# These thresholds are set ~50% above observed averages
 AGENT_HEALTH_THRESHOLDS = {
-    "PDF_ADAPTER": {"max_latency": 20000, "max_error_rate": 0.02},  # PDF processing can be slow
-    "TRADE_EXTRACTOR": {"max_latency": 15000, "max_error_rate": 0.015},  # Critical for data accuracy
-    "TRADE_MATCHER": {"max_latency": 20000, "max_error_rate": 0.01},  # Complex matching logic
-    "EXCEPTION_HANDLER": {"max_latency": 5000, "max_error_rate": 0.05},  # Fast triage needed
-    "ORCHESTRATOR": {"max_latency": 3000, "max_error_rate": 0.01},  # SLA monitoring
+    "PDF_ADAPTER": {"max_latency": 120000, "max_error_rate": 0.05},  # PDF extraction (~78s avg)
+    "TRADE_EXTRACTOR": {"max_latency": 90000, "max_error_rate": 0.05},  # LLM extraction (~45s avg)
+    "TRADE_MATCHER": {"max_latency": 40000, "max_error_rate": 0.02},  # Fuzzy matching (~17s avg)
+    "EXCEPTION_HANDLER": {"max_latency": 60000, "max_error_rate": 0.05},  # Exception triage (~32s avg)
+    "ORCHESTRATOR": {"max_latency": 180000, "max_error_rate": 0.20},  # End-to-end orchestration (~105s avg)
 }
 
 

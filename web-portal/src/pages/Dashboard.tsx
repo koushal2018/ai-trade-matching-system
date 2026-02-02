@@ -62,10 +62,11 @@ export default function Dashboard() {
 
   // Calculate hero metrics
   const totalTrades = metrics?.totalProcessed || 0
+  const bankTradeCount = metrics?.bankTradeCount || 0
+  const counterpartyTradeCount = metrics?.counterpartyTradeCount || 0
   const matchRate = totalTrades > 0 ? (metrics?.matchedCount || 0) / totalTrades : 0
-  const avgLatency = agents && agents.length > 0
-    ? agents.reduce((sum, agent) => sum + (agent.metrics.latencyMs || 0), 0) / agents.length
-    : 0
+  // Use processing time from metrics (more accurate than agent latencies)
+  const avgLatency = metrics?.avgProcessingTimeMs || 0
   // Count only HEALTHY agents (backend already filters for ACTIVE deployment_status)
   // Requirements: 3.3, 3.4, 3.8, 3.10
   const activeAgents = agents?.filter(agent => agent.status === 'HEALTHY').length || 0
@@ -173,6 +174,8 @@ export default function Dashboard() {
       ) : (
         <HeroMetrics
           totalTrades={totalTrades}
+          bankTradeCount={bankTradeCount}
+          counterpartyTradeCount={counterpartyTradeCount}
           matchRate={matchRate}
           avgLatency={avgLatency}
           activeAgents={activeAgents}

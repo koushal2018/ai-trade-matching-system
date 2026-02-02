@@ -41,6 +41,8 @@ export interface ProcessingMetrics {
   pendingReview: number
   throughputPerHour: number
   avgProcessingTimeMs: number
+  bankTradeCount: number
+  counterpartyTradeCount: number
 }
 
 // HITL Review types

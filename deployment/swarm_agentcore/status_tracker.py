@@ -47,14 +47,28 @@ class StatusTracker:
     ) -> bool:
         """
         Initialize workflow status with all agents set to pending.
-        
+        Only initializes if the session doesn't exist or is in a re-processable state.
+
         Returns:
             True if successful, False otherwise (non-blocking)
         """
         try:
+            # Check if session already exists
+            existing = self.dynamodb.get_item(
+                TableName=self.table_name,
+                Key={"processing_id": {"S": session_id}}
+            )
+
+            if "Item" in existing:
+                current_status = existing["Item"].get("overallStatus", {}).get("S", "")
+                # Don't re-initialize completed or in-progress workflows
+                if current_status in ["completed", "failed", "processing"]:
+                    logger.info(f"[{correlation_id}] Session {session_id} already exists with status '{current_status}' - skipping initialization")
+                    return True
+
             now = datetime.now(timezone.utc)
             expires_at = int((now + timedelta(days=90)).timestamp())
-            
+
             item = {
                 "processing_id": {"S": session_id},  # Partition key (actual table schema)
                 "correlationId": {"S": correlation_id},
@@ -74,15 +88,15 @@ class StatusTracker:
                 "lastUpdated": {"S": now.isoformat() + "Z"},
                 "expiresAt": {"N": str(expires_at)}
             }
-            
+
             self.dynamodb.put_item(
                 TableName=self.table_name,
                 Item=item
             )
-            
+
             logger.info(f"[{correlation_id}] Status initialized for session: {session_id}")
             return True
-            
+
         except Exception as e:
             logger.warning(f"[{correlation_id}] Failed to initialize status: {e}")
             return False

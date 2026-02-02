@@ -61,7 +61,7 @@ app = BedrockAgentCoreApp()
 # Configuration
 REGION = os.getenv("AWS_REGION", "us-east-1")
 S3_BUCKET = os.getenv("S3_BUCKET_NAME", "trade-matching-system-agentcore-production")
-BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "amazon.nova-2-pro-preview-20251202-v1:0")
+BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "us.amazon.nova-pro-v1:0")
 AGENT_VERSION = os.getenv("AGENT_VERSION", "1.0.0")
 AGENT_ALIAS = os.getenv("AGENT_ALIAS", "default")
 OBSERVABILITY_STAGE = os.getenv("OBSERVABILITY_STAGE", "development")
@@ -675,11 +675,16 @@ You decide which tools to use and in what order. Be thorough and handle any issu
             f"memory_enabled={session_manager is not None}"
         )
         
+        # Build the canonical output location using the known S3 pattern
+        # This matches what save_canonical_output_to_s3 tool creates
+        canonical_output_location = f"s3://{S3_BUCKET}/extracted/{source_type}/{document_id}.json"
+
         return {
             "success": True,
             "document_id": document_id,
             "source_type": source_type,
             "correlation_id": correlation_id,
+            "canonical_output_location": canonical_output_location,  # Critical for Trade Extraction
             "agent_response": response_text,
             "processing_time_ms": processing_time_ms,
             "agent_name": AGENT_NAME,

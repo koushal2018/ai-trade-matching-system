@@ -1,8 +1,8 @@
-default_agent: trade_matching_swarm_agentcore_http
+default_agent: http_agent_orchestrator
 agents:
-  trade_matching_swarm_agentcore_http:
-    name: trade_matching_swarm_agentcore_http
-    entrypoint: trade_matching_swarm_agentcore_http.py
+  http_agent_orchestrator:
+    name: http_agent_orchestrator
+    entrypoint: http_agent_orchestrator.py
     deployment_type: container
     runtime_type: null
     platform: linux/arm64

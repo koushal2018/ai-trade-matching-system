@@ -98,6 +98,8 @@ describe('Dashboard - Active Agent Count', () => {
       pendingReview: 0,
       throughputPerHour: 50,
       avgProcessingTimeMs: 2000,
+      bankTradeCount: 50,
+      counterpartyTradeCount: 50,
     })
     
     vi.mocked(workflowService.getRecentSessions).mockResolvedValue([])
@@ -416,6 +418,8 @@ describe('Dashboard - Workload Calculation', () => {
       pendingReview: 0,
       throughputPerHour: 50,
       avgProcessingTimeMs: 2000,
+      bankTradeCount: 50,
+      counterpartyTradeCount: 50,
     })
     
     vi.mocked(workflowService.getRecentSessions).mockResolvedValue([])
@@ -755,6 +759,8 @@ describe('Dashboard - Matching Status Display', () => {
       pendingReview: 0,
       throughputPerHour: 50,
       avgProcessingTimeMs: 2000,
+      bankTradeCount: 50,
+      counterpartyTradeCount: 50,
     })
     
     vi.mocked(workflowService.getRecentSessions).mockResolvedValue([])

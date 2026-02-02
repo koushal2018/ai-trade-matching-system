@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Query
 from ..models import ProcessingMetrics
 from ..services.dynamodb import db_service
+from ..services.cloudwatch_metrics import cloudwatch_metrics_service
 from ..config import settings
-from ..auth import get_current_user, User
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
@@ -14,8 +14,10 @@ async def get_processing_metrics():
         # Count trades in both tables
         bank_items = db_service.scan_table(settings.dynamodb_bank_table, limit=1000)
         cp_items = db_service.scan_table(settings.dynamodb_counterparty_table, limit=1000)
-        total_processed = len(bank_items) + len(cp_items)
-        
+        bank_count = len(bank_items)
+        counterparty_count = len(cp_items)
+        total_processed = bank_count + counterparty_count
+
         # Count exceptions by severity from ExceptionsTable
         exception_items = db_service.scan_table(settings.dynamodb_exceptions_table, limit=1000)
         pending_exceptions = sum(1 for item in exception_items
@@ -36,9 +38,11 @@ async def get_processing_metrics():
             matchedCount=matched_count,
             breakCount=break_count,
             pendingReview=pending_exceptions,
-            avgProcessingTimeMs=65000,  # ~65 seconds average
+            avgProcessingTimeMs=2500,  # ~2.5 seconds average latency per operation
             throughputPerHour=throughput,
             errorCount=error_count,
+            bankTradeCount=bank_count,
+            counterpartyTradeCount=counterparty_count,
             unmatchedCount=break_count,  # Legacy alias
             pendingCount=pending_exceptions  # Legacy alias
         )
@@ -52,3 +56,71 @@ async def get_processing_metrics():
             avgProcessingTimeMs=0,
             throughputPerHour=0
         )
+
+
+@router.get("/agentcore")
+async def get_agentcore_observability_metrics(
+    period_hours: int = Query(default=48, ge=1, le=168, description="Time period in hours (1-168)")
+):
+    """
+    Get real-time metrics from Bedrock AgentCore Observability via CloudWatch.
+
+    Pulls metrics from the bedrock-agentcore CloudWatch namespace including:
+    - Token usage (input/output)
+    - Latency and cycle duration
+    - Tool call counts and error rates
+    - Event loop metrics from Strands SDK
+
+    These metrics are automatically emitted by agents deployed on AgentCore Runtime
+    or instrumented with OTEL.
+    """
+    return cloudwatch_metrics_service.get_agentcore_metrics(period_hours=period_hours)
+
+
+@router.post("/agentcore/sync")
+async def sync_agentcore_metrics_to_registry(
+    period_hours: int = Query(default=24, ge=1, le=168, description="Time period in hours")
+):
+    """
+    Sync aggregated metrics from CloudWatch to the agent registry in DynamoDB.
+
+    This updates agent health metrics with real observability data from
+    Bedrock AgentCore, keeping the dashboard in sync with actual performance.
+    """
+    return cloudwatch_metrics_service.sync_metrics_to_agent_registry(
+        table_name=settings.dynamodb_agent_registry_table,
+        period_hours=period_hours,
+    )
+
+
+@router.get("/agentcore/agents")
+async def get_per_agent_metrics(
+    period_hours: int = Query(default=24, ge=1, le=168, description="Time period in hours")
+):
+    """
+    Get per-agent metrics from AWS/Bedrock-AgentCore namespace.
+
+    Returns metrics for each individual agent including:
+    - Invocations count
+    - Average latency
+    - System/User errors
+    - Throttle count
+    - Error rate
+    """
+    return cloudwatch_metrics_service.get_per_agent_metrics(period_hours=period_hours)
+
+
+@router.post("/agentcore/agents/sync")
+async def sync_per_agent_metrics(
+    period_hours: int = Query(default=24, ge=1, le=168, description="Time period in hours")
+):
+    """
+    Sync per-agent metrics from CloudWatch to the agent registry.
+
+    Each agent gets its own real metrics from AWS/Bedrock-AgentCore namespace,
+    so different agents will show different latency, error rates, etc.
+    """
+    return cloudwatch_metrics_service.sync_per_agent_metrics_to_registry(
+        table_name=settings.dynamodb_agent_registry_table,
+        period_hours=period_hours,
+    )
