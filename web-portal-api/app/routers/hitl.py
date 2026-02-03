@@ -1,5 +1,6 @@
 import json
 import hashlib
+import logging
 from datetime import datetime
 from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,7 +12,19 @@ from ..services.websocket import manager
 from ..config import settings
 from ..auth import require_auth, get_current_user_or_dev, User
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/hitl", tags=["hitl"])
+
+
+def parse_json_field(value):
+    """Parse a field that may be a JSON string or already a dict."""
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+    return value if value else {}
 
 
 @router.get("/pending", response_model=list[HITLReview])
@@ -19,24 +32,30 @@ async def get_pending_reviews(user: User = Depends(get_current_user_or_dev)):
     """Get all pending HITL reviews."""
     try:
         items = db_service.scan_table(settings.dynamodb_hitl_table)
-        reviews = [
-            HITLReview(
-                reviewId=item.get("review_id", ""),
-                tradeId=item.get("trade_id", ""),
-                matchScore=float(item.get("match_score", 0)),
-                reasonCodes=item.get("reason_codes", []),
-                bankTrade=item.get("bank_trade", {}),
-                counterpartyTrade=item.get("counterparty_trade", {}),
-                differences=item.get("differences", {}),
-                status=HITLStatus(item.get("status", "PENDING")),
-                createdAt=item.get("created_at", ""),
-                assignedTo=item.get("assigned_to")
-            )
-            for item in items
-            if item.get("status") == "PENDING"
-        ]
+        logger.info(f"Found {len(items)} HITL items in table")
+        reviews = []
+        for item in items:
+            if item.get("status") == "PENDING":
+                try:
+                    review = HITLReview(
+                        reviewId=item.get("review_id", ""),
+                        tradeId=item.get("trade_id", ""),
+                        matchScore=float(item.get("match_score", 0)),
+                        reasonCodes=item.get("reason_codes", []),
+                        bankTrade=parse_json_field(item.get("bank_trade")),
+                        counterpartyTrade=parse_json_field(item.get("counterparty_trade")),
+                        differences=parse_json_field(item.get("differences")),
+                        status=HITLStatus(item.get("status", "PENDING")),
+                        createdAt=item.get("created_at", ""),
+                        assignedTo=item.get("assigned_to")
+                    )
+                    reviews.append(review)
+                except Exception as e:
+                    logger.error(f"Error parsing HITL item {item.get('review_id')}: {e}")
+        logger.info(f"Returning {len(reviews)} pending HITL reviews")
         return reviews
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error fetching HITL reviews: {e}")
         return []
 
 
@@ -51,9 +70,9 @@ async def get_review(review_id: str, user: User = Depends(get_current_user_or_de
         tradeId=item.get("trade_id", ""),
         matchScore=float(item.get("match_score", 0)),
         reasonCodes=item.get("reason_codes", []),
-        bankTrade=item.get("bank_trade", {}),
-        counterpartyTrade=item.get("counterparty_trade", {}),
-        differences=item.get("differences", {}),
+        bankTrade=parse_json_field(item.get("bank_trade")),
+        counterpartyTrade=parse_json_field(item.get("counterparty_trade")),
+        differences=parse_json_field(item.get("differences")),
         status=HITLStatus(item.get("status", "PENDING")),
         createdAt=item.get("created_at", ""),
         assignedTo=item.get("assigned_to")

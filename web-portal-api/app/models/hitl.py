@@ -1,7 +1,6 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, Any, Dict
 from pydantic import BaseModel
-from .trade import Trade
 
 
 class HITLStatus(str, Enum):
@@ -15,12 +14,13 @@ class HITLReview(BaseModel):
     tradeId: str
     matchScore: float
     reasonCodes: list[str]
-    bankTrade: Trade
-    counterpartyTrade: Trade
-    differences: dict[str, dict[str, str]]
+    bankTrade: Dict[str, Any]  # Flexible trade data structure
+    counterpartyTrade: Dict[str, Any]  # Flexible trade data structure
+    differences: Dict[str, Any]
     status: HITLStatus
     createdAt: str
     assignedTo: Optional[str] = None
+    sessionId: Optional[str] = None  # Optional session reference
 
 
 class HITLDecision(BaseModel):
