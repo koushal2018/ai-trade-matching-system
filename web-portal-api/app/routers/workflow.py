@@ -80,14 +80,27 @@ class MatchResultResponse(BaseModel):
     metadata: Dict[str, Any]
 
 
+class ExceptionDetails(BaseModel):
+    """Exception details for field mismatches."""
+    field: Optional[str] = None
+    bankValue: Optional[str] = None
+    counterpartyValue: Optional[str] = None
+    confidence: Optional[float] = None
+
+
 class ExceptionItem(BaseModel):
-    """Exception item."""
+    """Exception item matching frontend interface."""
     id: str
+    sessionId: Optional[str] = None
+    tradeId: Optional[str] = None
     agentName: str
-    severity: str  # error, warning, info
+    severity: str  # HIGH, MEDIUM, LOW, warning
+    type: str  # Exception classification/type
     message: str
     timestamp: str
     recoverable: bool
+    status: str  # OPEN, RESOLVED, ESCALATED
+    details: Optional[ExceptionDetails] = None
 
 
 class ExceptionsResponse(BaseModel):
@@ -400,13 +413,34 @@ async def get_all_exceptions(
 
         exceptions = []
         for item in response.get('Items', []):
+            # Map reason_codes to a message if no explicit message
+            reason_codes = item.get('reason_codes', [])
+            if isinstance(reason_codes, set):
+                reason_codes = list(reason_codes)
+            message = item.get('message', item.get('error_message', ''))
+            if not message and reason_codes:
+                message = f"Exception with reason codes: {', '.join(reason_codes)}"
+
+            # Map resolution_status to frontend status format
+            resolution_status = item.get('resolution_status', 'PENDING')
+            status_map = {'PENDING': 'OPEN', 'RESOLVED': 'RESOLVED', 'ESCALATED': 'ESCALATED'}
+            status = status_map.get(resolution_status, 'OPEN')
+
             exceptions.append(ExceptionItem(
                 id=item.get('exception_id', ''),
-                agentName=item.get('agent_name', item.get('agent_id', 'Unknown')),
-                severity=item.get('severity', 'error'),
-                message=item.get('message', item.get('error_message', '')),
+                sessionId=item.get('session_id', item.get('tracking_id', '')),
+                tradeId=item.get('trade_id', ''),
+                agentName=item.get('agent_name', item.get('routing', 'Exception Management')),
+                severity=item.get('severity', 'MEDIUM').upper(),
+                type=item.get('classification', item.get('event_type', 'UNKNOWN')),
+                message=message if message else f"Trade exception: {item.get('trade_id', 'unknown')}",
                 timestamp=item.get('timestamp', item.get('created_at', '')),
-                recoverable=item.get('recoverable', False)
+                recoverable=item.get('recoverable', True),
+                status=status,
+                details=ExceptionDetails(
+                    field=item.get('field_mismatch'),
+                    confidence=float(item.get('severity_score', 0)) if item.get('severity_score') else None
+                )
             ))
 
         logger.info(f"Found {len(exceptions)} total exceptions (severity filter: {severity})")
@@ -456,13 +490,34 @@ async def get_exceptions(
 
         exceptions = []
         for item in response.get('Items', []):
+            # Map reason_codes to a message if no explicit message
+            reason_codes = item.get('reason_codes', [])
+            if isinstance(reason_codes, set):
+                reason_codes = list(reason_codes)
+            message = item.get('message', item.get('error_message', ''))
+            if not message and reason_codes:
+                message = f"Exception with reason codes: {', '.join(reason_codes)}"
+
+            # Map resolution_status to frontend status format
+            resolution_status = item.get('resolution_status', 'PENDING')
+            status_map = {'PENDING': 'OPEN', 'RESOLVED': 'RESOLVED', 'ESCALATED': 'ESCALATED'}
+            status = status_map.get(resolution_status, 'OPEN')
+
             exceptions.append(ExceptionItem(
                 id=item.get('exception_id', ''),
-                agentName=item.get('agent_name', item.get('agent_id', 'Unknown')),
-                severity=item.get('severity', 'error'),
-                message=item.get('message', item.get('error_message', '')),
+                sessionId=item.get('session_id', item.get('tracking_id', '')),
+                tradeId=item.get('trade_id', ''),
+                agentName=item.get('agent_name', item.get('routing', 'Exception Management')),
+                severity=item.get('severity', 'MEDIUM').upper(),
+                type=item.get('classification', item.get('event_type', 'UNKNOWN')),
+                message=message if message else f"Trade exception: {item.get('trade_id', 'unknown')}",
                 timestamp=item.get('timestamp', item.get('created_at', '')),
-                recoverable=item.get('recoverable', False)
+                recoverable=item.get('recoverable', True),
+                status=status,
+                details=ExceptionDetails(
+                    field=item.get('field_mismatch'),
+                    confidence=float(item.get('severity_score', 0)) if item.get('severity_score') else None
+                )
             ))
 
         logger.info(f"Found {len(exceptions)} exceptions for session {session_id}")

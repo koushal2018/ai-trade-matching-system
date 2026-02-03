@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     dynamodb_bank_table: str = "BankTradeData"
     dynamodb_counterparty_table: str = "CounterpartyTradeData"
     dynamodb_matched_table: str = "TradeMatches"
-    dynamodb_exceptions_table: str = "ExceptionsTable"
+    dynamodb_exceptions_table: str = "trade-matching-system-exceptions-production"
     dynamodb_audit_table: str = "AuditTrail"
     dynamodb_agent_registry_table: str = "trade-matching-system-agent-registry-production"
     dynamodb_hitl_table: str = "HITLReviews"
